@@ -2,13 +2,16 @@
 /**
  * TS Flow 运行时
  *
- * 作为 OneBot v11 WebSocket 客户端连接 onebot-translator（官方 QQ 网关桥接），
- * 接收事件并驱动 FlowInterpreter 执行，动作通过 WebSocket 回传。
+ * 作为 OneBot v11 WebSocket 客户端连接翻译器（官方 QQ 网关桥接；路径见
+ * shared/protocol/bus.ts 的 BUS_WS_PATH —— 服务端与客户端必须一致，写错就是
+ * 握手 400 "运行时永远连不上"），接收事件并驱动 FlowInterpreter 执行，
+ * 动作通过 WebSocket 回传。
  *
  * 历史：取代迁移前的 Python/NoneBot 机器人进程（bot.py），现状以本文件为准。
  */
 
 import WebSocket from 'ws';
+import { BUS_WS_PATH } from '../../shared/protocol/bus';
 import { logger } from '../services/logger';
 import { FlowInterpreter } from './FlowInterpreter';
 import { dueTriggers, selectDueLifecycle } from './scheduler';
@@ -95,13 +98,20 @@ export class FlowRuntime {
       this.pending.delete(echo);
     }
     if (this.ws) {
+      const ws = this.ws;
+      this.ws = null;
+      ws.removeAllListeners();
+      // ⚠️ 关闭"还在握手"的连接时，ws 会走 abortHandshake：它在
+      // process.nextTick 里补发一个 'error'（"WebSocket was closed before the
+      // connection was established"）。上面刚把监听器全摘了，这个 error 就没人接，
+      // EventEmitter 直接升级成 uncaughtException → 崩溃收集器收到后退出进程
+      // （用户视角：点了"停止"，窗口直接消失）。留一个空错误监听把它吃掉。
+      ws.on('error', () => {});
       try {
-        this.ws.removeAllListeners();
-        this.ws.close();
+        ws.close();
       } catch {
         // ignore
       }
-      this.ws = null;
     }
     this.setStatus('stopped');
   }
@@ -263,7 +273,7 @@ export class FlowRuntime {
   // ============================================================
 
   private connect(): void {
-    const url = `ws://${this.host}:${this.translatorPort}/onebot/v11/ws`;
+    const url = `ws://${this.host}:${this.translatorPort}${BUS_WS_PATH}`;
     logger.info(`[ts-runtime] 连接翻译器: ${url}`);
 
     try {
