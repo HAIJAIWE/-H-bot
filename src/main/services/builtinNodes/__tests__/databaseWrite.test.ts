@@ -3,11 +3,21 @@
 // 已修复 better-sqlite3 版本 mismatch 问题（npm rebuild 后已解决）
 // 所有测试覆盖安全校验逻辑（SQL 执行前完成）
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { databaseWrite } from '../databaseWrite';
 import type { DBOptions } from '../databaseWrite';
 
+// 临时项目根：db_path 是相对路径（相对 project_root 解析），db 文件落在系统临时目录，
+// 不会像早前的 'test_data.db' 那样在仓库根留垃圾（还被误提交过）。
+const TMP_ROOT = mkdtempSync(join(tmpdir(), 'qqbat-dbwrite-'));
 const TEST_DB_PATH = 'test_data.db';
+
+afterAll(() => {
+  rmSync(TMP_ROOT, { recursive: true, force: true });
+});
 
 describe('databaseWrite - insert 模式', () => {
   it('应接受合法的 insert 参数（表名、列名合法）', async () => {
@@ -15,7 +25,7 @@ describe('databaseWrite - insert 模式', () => {
       mode: 'insert',
       table: 'users',
       data: { name: '张三', level: 1 },
-      db_path: TEST_DB_PATH,
+      db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).not.toContain('非法表名');
@@ -25,7 +35,7 @@ describe('databaseWrite - insert 模式', () => {
 
   it('应拒绝空表名', async () => {
     const result = await databaseWrite({
-      mode: 'insert', table: '', data: { name: '张三' }, db_path: TEST_DB_PATH,
+      mode: 'insert', table: '', data: { name: '张三' }, db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('table 不能为空');
@@ -33,7 +43,7 @@ describe('databaseWrite - insert 模式', () => {
 
   it('应拒绝非法表名（含空格）', async () => {
     const result = await databaseWrite({
-      mode: 'insert', table: 'users table', data: { name: '张三' }, db_path: TEST_DB_PATH,
+      mode: 'insert', table: 'users table', data: { name: '张三' }, db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('非法表名');
@@ -41,7 +51,7 @@ describe('databaseWrite - insert 模式', () => {
 
   it('应拒绝非法列名', async () => {
     const result = await databaseWrite({
-      mode: 'insert', table: 'users', data: { 'invalid col': '值' }, db_path: TEST_DB_PATH,
+      mode: 'insert', table: 'users', data: { 'invalid col': '值' }, db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('非法列名');
@@ -49,7 +59,7 @@ describe('databaseWrite - insert 模式', () => {
 
   it('应拒绝空数据', async () => {
     const result = await databaseWrite({
-      mode: 'insert', table: 'users', data: null, db_path: TEST_DB_PATH,
+      mode: 'insert', table: 'users', data: null, db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('data 不能为空');
@@ -59,7 +69,7 @@ describe('databaseWrite - insert 模式', () => {
 describe('databaseWrite - update 模式', () => {
   it('应拒绝空 condition（禁止全表更新）', async () => {
     const result = await databaseWrite({
-      mode: 'update', table: 'users', data: { name: '张三' }, condition: '', db_path: TEST_DB_PATH,
+      mode: 'update', table: 'users', data: { name: '张三' }, condition: '', db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('condition 不能为空，禁止全表更新');
@@ -67,7 +77,7 @@ describe('databaseWrite - update 模式', () => {
 
   it('应拒绝 condition 中的引号（SQL 注入防护）', async () => {
     const result = await databaseWrite({
-      mode: 'update', table: 'users', data: { name: '张三' }, condition: "name = 'admin'", where_params: ['admin'], db_path: TEST_DB_PATH,
+      mode: 'update', table: 'users', data: { name: '张三' }, condition: "name = 'admin'", where_params: ['admin'], db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('condition 包含引号');
@@ -75,14 +85,14 @@ describe('databaseWrite - update 模式', () => {
 
   it('应拒绝 condition 中的 UNION 关键字', async () => {
     const result = await databaseWrite({
-      mode: 'update', table: 'users', data: { name: '张三' }, condition: "name UNION SELECT", where_params: [], db_path: TEST_DB_PATH,
+      mode: 'update', table: 'users', data: { name: '张三' }, condition: "name UNION SELECT", where_params: [], db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(!result.success || result.error?.includes('UNION')).toBe(true);
   });
 
   it('应拒绝 condition 中的分号', async () => {
     const result = await databaseWrite({
-      mode: 'update', table: 'users', data: { name: '张三' }, condition: "name = ; DROP TABLE", where_params: [], db_path: TEST_DB_PATH,
+      mode: 'update', table: 'users', data: { name: '张三' }, condition: "name = ; DROP TABLE", where_params: [], db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('condition 包含非法字符');
@@ -90,7 +100,7 @@ describe('databaseWrite - update 模式', () => {
 
   it('应接受合法的有参数 condition', async () => {
     const result = await databaseWrite({
-      mode: 'update', table: 'users', data: { name: '张三' }, condition: 'id = ?', where_params: [123], db_path: TEST_DB_PATH,
+      mode: 'update', table: 'users', data: { name: '张三' }, condition: 'id = ?', where_params: [123], db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     // 断言"安全校验放行"：不能出现占位符数量/非法字符类错误。
     // 注意不能用"SQL 错误"反推 —— 那条断言在旧的 `/\\?/g` 正则下是**假通过**
@@ -103,7 +113,7 @@ describe('databaseWrite - update 模式', () => {
 
   it('占位符与 where_params 数量不匹配时应拒绝', async () => {
     const result = await databaseWrite({
-      mode: 'update', table: 'users', data: { name: '张三' }, condition: 'id = ? AND name = ?', where_params: [1], db_path: TEST_DB_PATH,
+      mode: 'update', table: 'users', data: { name: '张三' }, condition: 'id = ? AND name = ?', where_params: [1], db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('占位符');
@@ -118,7 +128,7 @@ describe('databaseWrite - update 模式', () => {
       data: { name: '张三', level: 2 },
       condition: 'id = ?',
       where_params: [1],
-      db_path: TEST_DB_PATH,
+      db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.error ?? '').not.toContain('占位符');
   });
@@ -127,7 +137,7 @@ describe('databaseWrite - update 模式', () => {
 describe('databaseWrite - delete 模式', () => {
   it('应拒绝空 condition（禁止全表删除）', async () => {
     const result = await databaseWrite({
-      mode: 'delete', table: 'users', condition: '', db_path: TEST_DB_PATH,
+      mode: 'delete', table: 'users', condition: '', db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('condition 不能为空，禁止全表删除');
@@ -135,7 +145,7 @@ describe('databaseWrite - delete 模式', () => {
 
   it('应拒绝 condition 中的引号', async () => {
     const result = await databaseWrite({
-      mode: 'delete', table: 'users', condition: "id = '1'", where_params: [], db_path: TEST_DB_PATH,
+      mode: 'delete', table: 'users', condition: "id = '1'", where_params: [], db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('condition 包含引号');
@@ -143,7 +153,7 @@ describe('databaseWrite - delete 模式', () => {
 
   it('应拒绝 condition 中的 UNION', async () => {
     const result = await databaseWrite({
-      mode: 'delete', table: 'users', condition: 'id = ? UNION ALL', where_params: [1], db_path: TEST_DB_PATH,
+      mode: 'delete', table: 'users', condition: 'id = ? UNION ALL', where_params: [1], db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(!result.success || result.error?.includes('UNION')).toBe(true);
   });
@@ -152,7 +162,7 @@ describe('databaseWrite - delete 模式', () => {
 describe('databaseWrite - select 模式', () => {
   it('应拒绝非法 result_field', async () => {
     const result = await databaseWrite({
-      mode: 'select', table: 'users', condition: '', result_field: 'invalid-field', db_path: TEST_DB_PATH,
+      mode: 'select', table: 'users', condition: '', result_field: 'invalid-field', db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('非法 result_field');
@@ -160,14 +170,14 @@ describe('databaseWrite - select 模式', () => {
 
   it('应接受合法的 result_field', async () => {
     const result = await databaseWrite({
-      mode: 'select', table: 'users', condition: '', result_field: 'name', db_path: TEST_DB_PATH,
+      mode: 'select', table: 'users', condition: '', result_field: 'name', db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(typeof result.success).toBe('boolean');
   });
 
   it('应拒绝无效的 mode', async () => {
     const result = await databaseWrite({
-      mode: 'invalid_mode' as unknown as DBOptions['mode'], table: 'users', db_path: TEST_DB_PATH,
+      mode: 'invalid_mode' as unknown as DBOptions['mode'], table: 'users', db_path: TEST_DB_PATH, project_root: TMP_ROOT,
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('未知模式');

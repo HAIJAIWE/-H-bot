@@ -29,3 +29,9 @@ crash-reports/
 *.log
 .DS_Store
 Thumbs.db
+
+# 测试/本地运行留在仓库根的一次性数据库
+test_data.db
+*.db-journal
+*.db-wal
+*.db-shm
