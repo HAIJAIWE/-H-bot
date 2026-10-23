@@ -1,7 +1,7 @@
 {
   "name": "qqbat",
   "version": "0.1.0",
-  "description": "AI 驱动的可视化 QQ 机器人开发框架",
+  "description": "AI 驱动的可视化机器人开发框架（多平台适配）",
   "main": "./out/main/index.js",
   "author": "H Bot 制造",
   "license": "AGPL-3.0-or-later",
