@@ -1,6 +1,7 @@
 // src/main/window.ts
 import { BrowserWindow, shell, dialog, session, app } from 'electron'
 import { join } from 'path'
+import { fileURLToPath } from 'node:url'
 import { logger } from './services/logger'
 
 /**
@@ -52,6 +53,63 @@ export function buildCsp(isDev: boolean): string {
   ].join('; ')
 }
 
+/** 归一化文件系统路径，用于「是否位于某目录内」的判断（Windows 大小写不敏感） */
+export function normalizeFsPath(p: string): string {
+  const unified = p.replace(/\\/g, '/').replace(/\/+$/, '')
+  return process.platform === 'win32' ? unified.toLowerCase() : unified
+}
+
+/**
+ * 主框架（main frame）是否允许导航到这个 URL。
+ *
+ * ## 为什么必须拦
+ *
+ * `setWindowOpenHandler` 只管 `window.open` / `target=_blank`，**管不住主框架自身导航**。
+ * 渲染层里一个普通的 `<a href="https://evil">` 被点击，窗口就会换成远端页面；
+ * 而 preload 脚本对**每个新文档**都会执行 ⇒ 远端页面直接拿到整份 `window.qqbat`
+ * （含 `terminal.*` 这类等于任意命令执行的能力）。所以这是安全边界，不是体验优化。
+ *
+ * ## 放行规则（默认拒绝）
+ *
+ * - 开发模式：Vite dev server 的**同源**页面（HMR 会整页刷新）；
+ * - 生产模式：**应用自带的 renderer 目录内**的 file:// 页面。
+ *
+ * 其余一律拒绝 —— 包括 `javascript:` / `data:` / `about:blank` / 外部 http(s) / 任意
+ * 本地文件（后者同样危险：一个本地 HTML 一样能拿到桥）。外链请走「用系统浏览器打开」。
+ *
+ * @param url 目标 URL
+ * @param opts.devServerUrl Vite dev server 地址（开发模式）
+ * @param opts.rendererDir 应用自带 renderer 产物目录（生产模式）
+ */
+export function isAllowedNavigationUrl(
+  url: string,
+  opts: { devServerUrl?: string; rendererDir?: string } = {}
+): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (opts.devServerUrl) {
+    try {
+      if (parsed.origin === new URL(opts.devServerUrl).origin) return true
+    } catch {
+      /* devServerUrl 非法时按未配置处理 */
+    }
+  }
+  if (parsed.protocol === 'file:' && opts.rendererDir) {
+    try {
+      const target = normalizeFsPath(fileURLToPath(parsed))
+      const root = normalizeFsPath(opts.rendererDir)
+      return target === root || target.startsWith(`${root}/`)
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
 export function createMainWindow(): BrowserWindow {
   // 设置 CSP：限制资源加载来源，防止 XSS 注入（详见 buildCsp JSDoc）
   const isDev = !app.isPackaged
@@ -71,7 +129,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
-    title: 'QQ bat',
+    title: 'H Bot 制造',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       // P0 安全：硬化配置
@@ -84,6 +142,20 @@ export function createMainWindow(): BrowserWindow {
   })
 
   win.on('ready-to-show', () => win.show())
+
+  // 主框架导航拦截（默认拒绝）：外链必须走系统浏览器，见 isAllowedNavigationUrl 的 JSDoc
+  win.webContents.on('will-navigate', (event, url) => {
+    const allowed = isAllowedNavigationUrl(url, {
+      ...(process.env['ELECTRON_RENDERER_URL']
+        ? { devServerUrl: process.env['ELECTRON_RENDERER_URL'] }
+        : {}),
+      rendererDir: join(__dirname, '../renderer')
+    })
+    if (!allowed) {
+      event.preventDefault()
+      logger.warn('[window] 拒绝主框架导航:', url)
+    }
+  })
 
   // 外链用系统浏览器打开 — 仅放行 http/https，防止 file:// 等协议触发本地文件执行
   win.webContents.setWindowOpenHandler(({ url }) => {
