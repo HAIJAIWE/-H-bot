@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-23T21:10:06.941Z",
+  "generatedAt": "2026-10-23T23:05:27.614Z",
   "baseline": {
     "kind": "packaged-client",
-    "bundle": "E:\\qqbat-restored\\_baseline\\out-bundle",
+    "bundle": "_baseline/out-bundle",
     "jsFiles": 25,
     "bytes": 5833371,
     "regions": 594

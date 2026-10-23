@@ -8,7 +8,7 @@
 ## 方法
 
 1. 从 `_baseline/out-bundle/**/*.js` 抽 `//#region src/...` 段落，得到 **594 个客户端源模块**（含 region 原文）。
-2. 对每个模块路径，在 `E:/qqbat-restored` 找同名源文件（`.tsx` / `.ts` 互试）。
+2. 对每个模块路径，在仓库根找同名源文件（`.tsx` / `.ts` 互试）。
 3. 用 TypeScript `transpileModule` 把源码转成 JS（去类型、保留注释），剥掉 import/export 包装。
 4. 计算**客户端侧召回率**：
    - `idRecall` = 客户端 region 里出现过的标识符（长度 ≥3），在源码里也出现的比例；

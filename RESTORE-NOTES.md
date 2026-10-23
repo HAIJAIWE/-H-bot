@@ -1,6 +1,6 @@
 # QQ bat 源码恢复说明（RESTORE-NOTES）
 
-本目录 `E:\qqbat-restored` 是从 2026-10-18 打包产物 + 本机 Vite 开发缓存 + DSH 会话磁带里**重建出来的可构建源码树**。原工程 `D:\QQ bot` 已丢失（空目录、无 .git）。
+本仓库是从 2026-10-18 打包产物 + 本机 Vite 开发缓存 + DSH 会话磁带里**重建出来的可构建源码树**。原工程 `D:\QQ bot` 已丢失（空目录、无 .git）。
 
 目标只有一个：先恢复成能编译、能启动、能建项目、能编辑流程的工程，再谈补功能。
 
@@ -32,7 +32,7 @@
 ## 构建 / 运行 / 验证
 
 ```powershell
-cd E:/qqbat-restored
+cd <仓库根目录>
 node node_modules/electron-vite/bin/electron-vite.js build *> _recovery/build-full.txt   # 看 EXIT 与 error during / PARSE_ERROR / UNRESOLVED_IMPORT / MISSING_EXPORT
 ```
 
@@ -41,12 +41,12 @@ node node_modules/electron-vite/bin/electron-vite.js build *> _recovery/build-fu
 启动有三个必踩的坑：
 
 1. **必须 `Remove-Item Env:ELECTRON_RUN_AS_NODE`** —— 这个环境变量常驻，否则 electron 以 Node 身份跑，`@sentry/electron` 报 `Cannot read properties of undefined (reading 'getAppPath')`。
-2. **单实例锁** —— 先杀 `Get-Process electron | Where-Object { $_.Path -like 'E:\qqbat-restored\*' }`，否则新进程直接「已有实例在运行」退出。
+2. **单实例锁** —— 先杀 `Get-Process electron | Where-Object { $_.Path -like "$PWD\*" }`，否则新进程直接「已有实例在运行」退出。
 3. **要拿 stderr 就别用后台作业前台跑** —— 后台跑只会拿到 exit 0。用 `Start-Process ... -RedirectStandardOutput _recovery/run-out.txt -RedirectStandardError _recovery/run-err.txt` 分离启动，再 sleep 13 秒探活。
 
 ```powershell
 Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
-Start-Process .\node_modules\electron\dist\electron.exe -ArgumentList @('.','--remote-debugging-port=9223','--user-data-dir=E:\qqbat-restored\_recovery\userdata') -RedirectStandardOutput _recovery\run-out.txt -RedirectStandardError _recovery\run-err.txt
+Start-Process .\node_modules\electron\dist\electron.exe -ArgumentList @('.','--remote-debugging-port=9223','--user-data-dir=_recovery\userdata') -RedirectStandardOutput _recovery\run-out.txt -RedirectStandardError _recovery\run-err.txt
 ```
 
 CDP 探针（都放在 `_recovery/`，可直接复用）：`cdp-probe.mjs`（URL/title/#root/截图/console 错误）、`cdp-state.mjs`（botManager.list / listRecent）、`cdp-ui.mjs`（点页签）、`cdp-newcmd.mjs` + `cdp-fillcmd2.mjs`（走新建指令向导）、`cdp-layout.mjs`（点「布局」并量节点几何）。

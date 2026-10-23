@@ -159,11 +159,17 @@ for (const [f, region] of regionChars) {
 }
 sizeOutliers.sort((a, b) => a.ratio - b.ratio);
 const unregistered = missing.filter((m) => !m.resolution);
+// 清单要能随仓库搬家：仓库内的基准包写相对路径，仓库外才写绝对路径
+const bundleRel = path.relative(ROOT, BUNDLE);
+const bundleForJson =
+  bundleRel && !bundleRel.startsWith("..") && !path.isAbsolute(bundleRel)
+    ? bundleRel.split(path.sep).join("/")
+    : BUNDLE;
 const payload = {
   generatedAt: new Date().toISOString(),
   baseline: {
     kind: "packaged-client",
-    bundle: BUNDLE,
+    bundle: bundleForJson,
     jsFiles: jsFiles.length,
     bytes: bundleBytes,
     regions: regions.size,

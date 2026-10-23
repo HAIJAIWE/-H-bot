@@ -1,6 +1,6 @@
 # 恢复基准核对：以打包客户端为准（2026-10-24）
 
-对象：`D:\H Bot 制造`（2026-10-18 04:50 打的 Windows 客户端）。它的 `resources/app.asar` 是 `E:\qqbat-restored` 这棵恢复树的**主要来源**，也是本轮确认的**恢复基准**：
+对象：`D:\H Bot 制造`（2026-10-18 04:50 打的 Windows 客户端）。它的 `resources/app.asar` 是 本仓库（恢复树）的**主要来源**，也是本轮确认的**恢复基准**：
 
 > 源码行为以打包客户端为准；磁带（DSH 会话）里更晚 revision 的测试只作参考，不反过来驱动恢复。
 
@@ -11,7 +11,7 @@
 工具：`scripts/audit-baseline.mjs`（新增）。打包产物里每个参与构建的模块都带一条 `//#region src/...` 注释，因此 region 集合 = 那次构建真正装进去的模块清单。
 
 ```powershell
-cd E:/qqbat-restored
+cd <仓库根目录>
 node scripts/audit-baseline.mjs           # 摘要 + 写 docs/restore/baseline-inventory.json
 node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit 1（可挂 CI）
 ```
@@ -149,9 +149,9 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 ## 八、怎么复核这份文档
 
 ```powershell
-cd E:/qqbat-restored
+cd <仓库根目录>
 node scripts/audit-baseline.mjs --check        # 覆盖率与缺失登记
-node node_modules/vitest/vitest.mjs run --root E:/qqbat-restored --maxWorkers=2 tests/guards
+node node_modules/vitest/vitest.mjs run --root . --maxWorkers=2 tests/guards
 node node_modules/electron-vite/bin/electron-vite.js build
 ```
 
