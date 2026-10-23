@@ -3,7 +3,7 @@
  * 
  * 历史：由已移除的 qqbat_nodes/builtin/persistent_store.py 移植而来，现状以本文件为准
  * - SQLite + better-sqlite3 (同步，Electron 主进程可用)
- * - WAL 模式 + 连接池 + 写锁
+ * - 每项目一条连接（WAL）+ 写锁；库在 {项目}/data/players/persistent.db
  * - 作用域隔离：user/group/global
  * - TTL 过期自动清理
  * - 原子操作：increment / list_append / batch_save
@@ -12,6 +12,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { buildKey, columnsForKey } from '../../../shared/persist/persistentKey';
+import { isEnvelope } from '../../../shared/persist/value';
+import { userDataRoot } from '../infra/paths';
+import { currentProjectRoot } from './storeContext';
 
 // CommonJS 环境下 __dirname 可直接使用
 
@@ -125,20 +129,30 @@ export interface SqliteDatabase {
   pragma(source: string): unknown;
   transaction<T extends (...args: never[]) => unknown>(fn: T): T;
   close(): void;
+  /** better-sqlite3 会把它更新为 false；注入的测试后端可能没有这个字段 */
+  open?: boolean;
+  /** SQLite backup API（迁移旧库用）；注入的后端没有它时退化为整文件复制 */
+  backup?(destination: string): Promise<unknown> | unknown;
 }
 
 // ============================================================
-// 数据库连接管理（单例，WAL 模式，连接复用）
+// 数据库连接管理（每个项目一条连接，WAL 模式，LRU 复用）
 // ============================================================
+//
+// 语义对齐 10/18 客户端（_recovery/client-src/persistentStore.client.js）：
+// 存档库不再是「全机器一份 %APPDATA%/qqbot/...」，而是「每个项目一份
+// {项目}/data/players/persistent.db」；老库在首次用老项目时做一次性迁移（只复制、不删旧库）。
 
-let db: SqliteDatabase | null = null;
+/** 按库文件路径缓存连接：同时跑两个 bot 时各用各的，不会互相关连接 */
+const dbPool = new Map<string, SqliteDatabase>();
+/** 连接池上限（桌面版同时跑几个 bot 足够，又不会无限增长） */
+const DB_POOL_MAX = 8;
 
 /**
  * 预览用的数据目录覆盖。
  *
- * 本模块是**进程级单例**（库路径为 `%APPDATA%/qqbot/data/players/persistent.db`，
- * 不区分项目）。流程预览需要在"真实数据的副本"上运行且不能写回真库，因此允许
- * 临时把数据目录切到克隆目录 —— 传 `null` 恢复。
+ * 库路径随**项目**变化（见 {@link getDbPath}），流程预览还要在「真实数据的副本」上
+ * 运行且不能写回真库，因此允许临时把数据目录切到克隆目录 —— 传 `null` 恢复。
  *
  * 只有 `previewRunner` 会调用它（预览是串行的，且必定在 finally 中恢复）。
  */
@@ -151,21 +165,27 @@ export function setPreviewDataDirOverride(dir: string | null): void {
   previewDataDirOverride = dir;
 }
 
-/** 关闭当前连接（切换库路径 / 测试清理用） */
+/** 关闭**全部**连接（切换库路径 / 测试清理用） */
 export function closeDb(): void {
-  if (db) {
+  for (const conn of dbPool.values()) {
     try {
-      db.close();
+      conn.close();
     } catch {
       /* 忽略关闭错误 */
     }
-    db = null;
   }
-  // ⚠️ 这里必须把 `dbInstance` 也清掉：`getDbSync()` 走的是那个缓存，
-  // 只清 `db` 会让它继续返回**已关闭的旧连接** —— 现象就是预览里
-  // `[persistentStore] loadValue 失败: TypeError: The database connection is not open`，
-  // 于是「本地测试」里所有持久化读写都静默失败（返回 null → 回退默认值）。
+  dbPool.clear();
+  // ⚠️ 必须把 `dbInstance` 缓存一起清掉：`getDbSync()` 走的是它，
+  // 只清连接池会让它继续返回**已关闭的旧连接** —— 现象是预览里所有持久化读写静默失败
+  // （返回 null → 回退默认值），而界面看起来一切正常。
   dbInstance = null;
+  dbInstanceKey = null;
+}
+
+/** 路径归一化：Windows 盘符/目录名大小写不敏感，比较归属时统一小写 */
+function normPath(p: string): string {
+  const abs = path.resolve(p);
+  return process.platform === 'win32' ? abs.toLowerCase() : abs;
 }
 
 /**
@@ -173,57 +193,166 @@ export function closeDb(): void {
  *
  * ## 为什么需要它（2026-09-26 实测出来的真缺陷）
  *
- * 项目只要跑过一次流程，`{项目}/data/players/persistent.db` 就被本模块缓存着。
- * Windows 上带着打开的句柄删目录会抛 `EBUSY: resource busy or locked` ——
- * 用户视角是「点了删除项目，目录还在」，报错还与被删的东西无关。
+ * 项目只要跑过一次流程，`{项目}/data/players/persistent.db` 就被本模块按路径缓存着。
+ * Windows 上带着打开的句柄删目录会抛 `EBUSY: resource busy or locked` —— 用户视角是
+ * 「点了删除项目，目录还在」，报错还与被删的东西无关。
  *
- * ⚠️ 10/18 产物里这里是「每项目一条连接」的 `dbPool`（Map<库路径, 连接>）；
- * 本文件恢复的是更早的单连接版本，所以按"当前唯一连接是否落在该目录下"判断。
- * 恢复连接池那天，这里要改成遍历池（判据不变：按库文件路径归属）。
+ * 按**库文件路径**判断归属，所以同时跑多个 bot 时只影响被删的那个项目。
  *
  * @returns 实际关闭的连接数（测试与日志用；0 是正常情况）
  */
 export function closeDbUnder(projectDir: string): number {
-  const norm = (p: string): string => {
-    const abs = path.resolve(p);
-    return process.platform === 'win32' ? abs.toLowerCase() : abs;
-  };
-  const prefix = norm(projectDir) + path.sep;
+  const prefix = normPath(projectDir) + path.sep;
   let closed = 0;
-  try {
-    const current = db;
-    if (current && norm(getDbPath()).startsWith(prefix)) {
-      closeDb();
-      closed++;
+  for (const key of [...dbPool.keys()]) {
+    if (!normPath(key).startsWith(prefix)) continue;
+    const conn = dbPool.get(key);
+    try {
+      conn?.close();
+    } catch {
+      /* 忽略关闭错误 */
     }
-  } catch {
-    /* 取路径失败（未初始化 / userData 不可用）→ 没有可关的连接 */
+    dbPool.delete(key);
+    closed++;
+  }
+  if (dbInstanceKey && normPath(dbInstanceKey).startsWith(prefix)) {
+    dbInstance = null;
+    dbInstanceKey = null;
   }
   return closed;
 }
 
-function getDbPath(): string {
+/**
+ * 旧版全局库的**历史位置**（全部探测：命中哪个迁哪个）。
+ *
+ * 2026-10-18 修正：这里此前只读 `%APPDATA%\qqbot\...`，而文档写的是
+ * `%APPDATA%\qqbat\qqbot\...` —— 代码与文档指向两个不同的目录，一类老用户的数据
+ * 会被静默漏迁（读不到旧库就建空库，用户看到「等级没了」）。现在两个位置都探。
+ */
+export function legacyGlobalDbPaths(): string[] {
+  const appData =
+    process.env.APPDATA ||
+    (process.platform === 'darwin'
+      ? path.join(process.env.HOME || '', 'Library', 'Application Support')
+      : path.join(process.env.HOME || '', '.config'));
+  const candidates = [path.join(appData, 'qqbot', 'data', 'players', 'persistent.db')];
+  try {
+    const userData = userDataRoot();
+    if (userData) candidates.push(path.join(userData, 'qqbot', 'data', 'players', 'persistent.db'));
+  } catch {
+    /* 非 Electron / userData 不可用 → 只有 APPDATA 一个候选 */
+  }
+  return [...new Set(candidates)];
+}
+
+/** 打开一条到指定库文件的连接（内部用，不做缓存） */
+function openRawDb(dbPath: string, options: { fileMustExist?: boolean }): SqliteDatabase {
+  const dir = path.dirname(dbPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const conn: SqliteDatabase = dbOpenerOverride
+    ? dbOpenerOverride(dbPath, { fileMustExist: options.fileMustExist ?? false })
+    : new (require('better-sqlite3'))(dbPath, {
+        fileMustExist: options.fileMustExist ?? false,
+        timeout: 5000,
+      });
+
+  // 启用 WAL 模式 + 并发优化
+  conn.pragma('journal_mode = WAL');
+  conn.pragma('synchronous = NORMAL');
+  conn.pragma('busy_timeout = 5000');
+  conn.pragma('temp_store = MEMORY');
+
+  conn.exec(`
+      CREATE TABLE IF NOT EXISTS _persistent (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT 'user',
+        qq TEXT,
+        updated_at TEXT DEFAULT (datetime('now', '+8 hours'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_persistent_scope ON _persistent(scope);
+      CREATE INDEX IF NOT EXISTS idx_persistent_qq ON _persistent(qq);
+    `);
+  return conn;
+}
+
+/**
+ * 把旧版**全局库**里的数据一次性搬到项目库里。
+ *
+ * ## 为什么要有这个
+ *
+ * 玩家存档原来放在 `%APPDATA%\qqbat\qqbot\data\players\persistent.db`，**不区分项目**：
+ * 项目搬走时进度留在旧机器；同一个 QQ 号在不同机器人里还会互相覆盖。
+ * 改成「每个项目一个库」之后，首次打开老项目必须把既有进度带过来，否则用户会看到「等级没了」。
+ *
+ * ## 安全约定
+ *
+ * - 只在**项目库还不存在**时复制（幂等；项目库一旦建立就永不覆盖它）；
+ * - 用 SQLite 的 **backup API** 复制（会把 WAL 里的内容一起落进去），不是简单拷文件；
+ * - **不删除旧库** —— 万一迁移出问题，数据仍在原地可回退。
+ */
+export function migrateLegacyGlobalDb(targetPath: string): void {
+  try {
+    if (fs.existsSync(targetPath)) return;
+    const legacy = legacyGlobalDbPaths().find((p) => fs.existsSync(p));
+    if (!legacy) return;
+    if (path.resolve(legacy) === path.resolve(targetPath)) return;
+    const dir = path.dirname(targetPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const src = openRawDb(legacy, { fileMustExist: true });
+    try {
+      src.prepare('SELECT 1').get();
+      if (typeof src.backup === 'function') {
+        // better-sqlite3 的 backup 返回 Promise；迁移是尽力而为，不等它也不会丢数据
+        void src.backup(targetPath);
+      } else {
+        // 注入的测试后端没有 backup() → 退化为整文件复制（不带 WAL，但数据在）
+        fs.copyFileSync(legacy, targetPath);
+      }
+      console.warn(
+        `[persistentStore] 已把玩家存档迁移到项目内：${targetPath}（旧库仍在 ${legacy}，未删除）`,
+      );
+    } finally {
+      src.close();
+    }
+  } catch (e) {
+    console.warn(`[persistentStore] 迁移旧版全局存档失败（将使用空的项目库）: ${e}`);
+  }
+}
+
+/**
+ * 玩家存档路径 —— **项目内**（`{项目}/data/players/persistent.db`）。
+ *
+ * ## 为什么改到项目里（用户明确要求）
+ *
+ * 机器人项目的数据就属于那个项目：项目拷贝/搬机器时进度一起走；
+ * 两个项目之间也不会再共用同一份玩家数据。
+ *
+ * ## 路径优先级
+ *
+ * 1. 预览覆盖目录（`previewDataDirOverride`，隔离用）；
+ * 2. 当前异步链所属项目根（`storeContext.currentProjectRoot()`：运行时按消息注入，
+ *    没有上下文时回退 `projectPath.getProjectRoot()` 的 env / app 路径 / cwd）。
+ *
+ * ⚠️ 旧版全局库不再被读取，但**首次**会做一次性迁移（见 migrateLegacyGlobalDb）。
+ */
+export function getDbPath(): string {
   if (previewDataDirOverride) {
     if (!fs.existsSync(previewDataDirOverride)) {
       fs.mkdirSync(previewDataDirOverride, { recursive: true });
     }
     return path.join(previewDataDirOverride, 'persistent.db');
   }
-  const userData = process.env.APPDATA || (process.platform === 'darwin' 
-    ? path.join(process.env.HOME || '', 'Library', 'Application Support')
-    : path.join(process.env.HOME || '', '.config'));
-  const baseDir = path.join(userData, 'qqbot', 'data', 'players');
-  if (!fs.existsSync(baseDir)) {
-    fs.mkdirSync(baseDir, { recursive: true });
-  }
-  return path.join(baseDir, 'persistent.db');
+  const projectLocal = path.join(currentProjectRoot(), 'data', 'players', 'persistent.db');
+  migrateLegacyGlobalDb(projectLocal);
+  return projectLocal;
 }
 
 /**
  * 仅供测试：替换底层 SQLite 打开方式（传 null 恢复真实实现）。
  *
  * 本机 better-sqlite3 只有 electron ABI 的二进制，Node 下跑测试用不了，
- * 所以 `incrValue` 这类**必须验证存储行为**的逻辑靠注入内存后端来测
+ * 所以这类**必须验证存储行为**的逻辑靠注入内存后端来测
  * （与 `databaseWrite.setDbOpenerForTesting` 同一套做法）。
  */
 type SqliteOpener = (filePath: string, options?: { fileMustExist?: boolean }) => SqliteDatabase;
@@ -235,43 +364,44 @@ export function setDbOpenerForTesting(opener: SqliteOpener | null): void {
   dbOpenerOverride = opener;
 }
 
+/**
+ * 打开（或复用）**该项目**的连接。
+ *
+ * ## 为什么从「单连接」改成「每项目一条」
+ *
+ * 原来是 `let db` 一个连接、路径变了就关掉重开。单项目时没问题，但**同时跑两个项目**时：
+ * 两条消息链会不停地把同一个连接关掉重开，既慢又危险（一个项目正在写、另一个项目把连接关了）。
+ * 现在按**库文件路径**缓存：每个项目各自的连接，互不干扰；用 LRU 限制条数。
+ */
 function getDb(): SqliteDatabase {
-  if (!db) {
-    const dbPath = getDbPath();
-    const dir = path.dirname(dbPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-    }
-
-    const dbInstance = dbOpenerOverride
-      ? dbOpenerOverride(getDbPath(), { fileMustExist: false })
-      : new (require('better-sqlite3'))(getDbPath(), {
-          fileMustExist: false,
-          timeout: 5000,
-        });
-    
-    // 启用 WAL 模式 + 并发优化
-    dbInstance.pragma('journal_mode = WAL');
-    dbInstance.pragma('synchronous = NORMAL');
-    dbInstance.pragma('busy_timeout = 5000');
-    dbInstance.pragma('temp_store = MEMORY');
-    
-    // 创建表
-    dbInstance.exec(`
-      CREATE TABLE IF NOT EXISTS _persistent (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        scope TEXT NOT NULL DEFAULT 'user',
-        qq TEXT,
-        updated_at TEXT DEFAULT (datetime('now', '+8 hours'))
-      );
-      CREATE INDEX IF NOT EXISTS idx_persistent_scope ON _persistent(scope);
-      CREATE INDEX IF NOT EXISTS idx_persistent_qq ON _persistent(qq);
-    `);
-    
-    db = dbInstance;
+  const dbPath = getDbPath();
+  const cached = dbPool.get(dbPath);
+  if (cached) {
+    // LRU：命中的挪到队尾
+    dbPool.delete(dbPath);
+    dbPool.set(dbPath, cached);
+    return cached;
   }
-  return db!;
+  const conn = openRawDb(dbPath, { fileMustExist: false });
+  dbPool.set(dbPath, conn);
+  if (dbPool.size > DB_POOL_MAX) {
+    const oldest = dbPool.keys().next().value;
+    if (oldest !== undefined) {
+      const evicted = dbPool.get(oldest);
+      dbPool.delete(oldest);
+      try {
+        evicted?.close();
+      } catch {
+        /* 忽略关闭错误 */
+      }
+      // 与 closeDb 里同一个坑：只清连接池会让 getDbSync() 继续返回已关闭的旧连接
+      if (dbInstanceKey === oldest) {
+        dbInstance = null;
+        dbInstanceKey = null;
+      }
+    }
+  }
+  return conn;
 }
 
 // 写锁管理：所有「读-改-写」型存储操作必须**串行**执行。
@@ -295,31 +425,27 @@ export function withStoreLock<T>(fn: () => Promise<T> | T): Promise<T> {
 // 核心工具函数
 // ============================================================
 
+/**
+ * 拼出存储用的完整 key（`user_<uid>:<key>` / `group_<gid>:<key>` / global 原样）。
+ *
+ * ⚠️ **前缀格式的唯一真相在 `shared/persist/persistentKey.ts`** —— 因为 `query` 节点
+ * 也按前缀筛，两处定义一旦分歧就「静默查空」。这里保留同名导出，实现委托给唯一入口。
+ */
 export function makeKey(key: string, scope: string, event: StoreEvent): string {
-  if (!['user', 'group', 'global'].includes(scope)) {
-    throw new Error(`非法 scope: ${scope}`);
-  }
-  
-  if (scope === 'user') {
-    const uid = event?.user_id;
-    if (!uid) throw new Error('user scope 需要 event.user_id');
-    return `user_${uid}:${key}`;
-  } else if (scope === 'group') {
-    const gid = event?.group_id;
-    if (!gid) throw new Error('group scope 需要 event.group_id');
-    return `group_${gid}:${key}`;
-  }
-  return key; // global
+  return buildKey(key, scope, { user_id: event?.user_id, group_id: event?.group_id });
 }
 
+/**
+ * 解包 `_persistent.value` 的原始文本。
+ *
+ * ⚠️ **判据与渲染层共用 `isEnvelope`**（2026-10-15 修）：以前这里自己判
+ * 「有 expire_at 就当信封」，与 `shared/persist/value.ts` 的三条判据不一致 →
+ * 同一行两侧读值不同，`{"expire_at":null}` 这种用户对象会被静默读成 `undefined`。
+ */
 export function extractStoredValue(valueStr: string): { value: unknown; expired: boolean } {
   try {
     const data = JSON.parse(valueStr);
-    if (typeof data !== 'object' || data === null || !('expire_at' in data)) {
-      // 旧格式，直接返回
-      return { value: data, expired: false };
-    }
-    
+    if (!isEnvelope(data)) return { value: data, expired: false };
     const expireAt = data.expire_at;
     if (expireAt !== null && Date.now() / 1000 > expireAt) {
       return { value: null, expired: true };
@@ -334,11 +460,25 @@ export function extractStoredValue(valueStr: string): { value: unknown; expired:
 // 核心 CRUD 操作（load / save / delete 等）
 // ============================================================
 
+/**
+ * 最近一次取到的连接与它对应的库路径。
+ *
+ * 这层「记住最后一条」是为了避免每次都查 `getDbPath()`（要拼路径 + 查文件是否存在）。
+ * **必须按路径失效** —— 否则切项目后仍把上一个项目的连接交出去（数据串项目），
+ * 而且连接被 closeDb/淘汰关掉后必须重新打开（`open === false` 判据）。
+ */
 let dbInstance: SqliteDatabase | null = null;
+let dbInstanceKey: string | null = null;
 
 function getDbInstance(): SqliteDatabase {
-  if (!dbInstance) {
+  const key = getDbPath();
+  if (dbInstance && dbInstance.open === false) {
+    dbInstance = null;
+    dbInstanceKey = null;
+  }
+  if (!dbInstance || dbInstanceKey !== key) {
     dbInstance = getDb();
+    dbInstanceKey = key;
   }
   return dbInstance;
 }
@@ -371,6 +511,37 @@ export function loadValue(key: string, scope: 'user' | 'group' | 'global', event
     return null;
   }
 }
+/**
+ * 读取持久化值 —— **能区分「读失败」与「键不存在」**。
+ *
+ * 为什么需要它：`loadValue` 把**数据库不可用**和**没有这条**都返回 `null`，
+ * 节点侧只能报 `success:true`（用户看到「金币 0 / 没数据」，而不是错误）。
+ * `variable_persist` 的 load / exists / load_or_default / batch_load 四个模式
+ * 都要求能区分，否则写入失败是**静默**的。
+ *
+ * @returns `failed=true` 表示**读取本身失败**（此时 `value` 无意义，调用方必须报错）
+ */
+export function loadValueSafe(
+  key: string,
+  scope: 'user' | 'group' | 'global',
+  event: StoreEvent,
+): { value: unknown; failed: boolean } {
+  try {
+    const fullKey = makeKey(key, scope, { user_id: event?.user_id, group_id: event?.group_id });
+    const db = getDbSync();
+    const row = db.prepare('SELECT value FROM _persistent WHERE key = ?').get(fullKey);
+    if (!row) return { value: null, failed: false };
+    const { value, expired } = extractStoredValue(row.value);
+    if (expired) {
+      db.prepare('DELETE FROM _persistent WHERE key = ?').run(fullKey);
+      return { value: null, failed: false };
+    }
+    return { value, failed: false };
+  } catch (e) {
+    console.warn(`[persistentStore] loadValue 失败: ${e}`);
+    return { value: null, failed: true };
+  }
+}
 
 /** 保存持久化值 */
 export function saveValue(key: string, value: unknown, scope: 'user' | 'group' | 'global', event: StoreEvent, ttl: number = 0): boolean {
@@ -386,7 +557,9 @@ export function saveValue(key: string, value: unknown, scope: 'user' | 'group' |
       valueStr = JSON.stringify({ value: String(value), expire_at: ttl > 0 ? Date.now() / 1000 + ttl : null });
     }
     
-    const qq = scope === 'user' ? (event?.user_id ? String(event.user_id) : null) : null;
+    // 两列由完整 key 派生（唯一定义在 shared/persist/persistentKey.ts 的 columnsForKey）——
+    // 不能在这里独立算第二次：两处算法一分歧，query 节点按列筛就会静默查空。
+    const { scope: colScope, qq } = columnsForKey(fullKey);
     const db = getDbSync();
     
     const stmt = db.prepare(`
@@ -400,7 +573,7 @@ export function saveValue(key: string, value: unknown, scope: 'user' | 'group' |
     `);
     
     db.transaction(() => {
-      stmt.run(fullKey, valueStr, scope, qq);
+      stmt.run(fullKey, valueStr, colScope, qq);
     })();
     
     return true;
@@ -422,6 +595,23 @@ export function deleteValue(key: string, scope: 'user' | 'group' | 'global', eve
     return false;
   }
 }
+/**
+ * 删除持久化值 —— **能区分「删失败」与「本来就没有」**（与 {@link loadValueSafe} 同一动机）。
+ */
+export function deleteValueSafe(
+  key: string,
+  scope: 'user' | 'group' | 'global',
+  event: StoreEvent,
+): { deleted: boolean; failed: boolean } {
+  try {
+    const fullKey = makeKey(key, scope, { user_id: event?.user_id, group_id: event?.group_id });
+    const r = getDbSync().prepare('DELETE FROM _persistent WHERE key = ?').run(fullKey);
+    return { deleted: r.changes > 0, failed: false };
+  } catch (e) {
+    console.warn(`[persistentStore] deleteValue 失败: ${e}`);
+    return { deleted: false, failed: true };
+  }
+}
 
 // 批量保存（事务）
 export function batchSaveValues(
@@ -431,13 +621,12 @@ export function batchSaveValues(
   ttl: number = 0
 ): { saved: number; keysList: string[]; errors: string[] } {
   const db = getDbSync();
-  
+
   let saved = 0;
   const keysList: string[] = [];
   const errors: string[] = [];
-  
-  const dbInstance = getDbSync();
-    const tx = dbInstance.transaction((dict: Record<string, unknown>) => {
+
+  const tx = db.transaction((dict: Record<string, unknown>) => {
       const stmt = db.prepare(`
       INSERT INTO _persistent (key, value, scope, qq, updated_at)
       VALUES (?, ?, ?, ?, datetime('now', '+8 hours'))
@@ -458,8 +647,8 @@ export function batchSaveValues(
           valueStr = JSON.stringify({ value: String(v), expire_at: ttl > 0 ? Date.now() / 1000 + ttl : null });
         }
         
-        const qq = scope === 'user' ? (event?.user_id ? String(event.user_id) : null) : null;
-        stmt.run(fullKey, valueStr, scope, qq);
+        const { scope: colScope, qq } = columnsForKey(fullKey);
+        stmt.run(fullKey, valueStr, colScope, qq);
         saved++;
         keysList.push(k);
       } catch (e) {
@@ -855,8 +1044,10 @@ export function listAppendValue(
 
 export const persistentStore = {
   loadValue,
+  loadValueSafe,
   saveValue,
   deleteValue,
+  deleteValueSafe,
   batchSaveValues,
   batchUpdateValues,
   incrValue,

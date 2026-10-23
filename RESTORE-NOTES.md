@@ -10,7 +10,7 @@
 - 启动：Electron 能起窗口，主进程无未捕获异常（只有 [errorMonitoring] 未配 SENTRY_DSN 的提示）。
 - 业务：左上项目下拉能选中项目；Bot 管理列出项目；「低代码」页能走「新建指令」向导 → 生成 2 节点 1 连线并落盘 `.qqbat/flow.json`；「布局」后节点不叠压；git 自动初始化并出现 `master (1 提交)`。
 - 规模：src 下 **830 个 .ts/.tsx / 179,279 行**（2026-10-24 清理死代码后）；`[[MISSING` 标记 0 处；**217 个文件带 `// @ts-nocheck`**（见「已知债」）。
-- 测试：**全绿**（2026-10-24 03:15 复跑）。`vitest run --maxWorkers=2` → **226 文件 / 2958 例通过**，5 文件 / 58 例 skip（0 failed，3016 例）；guards 12 文件 / 88 通过 + 2 skip。
+- 测试：**全绿**（2026-10-24 05:14 复跑）。`vitest run --maxWorkers=2` → **231 文件 / 3020 例通过**，5 文件 / 58 例 skip（0 failed，3078 例）；guards 12 文件 / 88 通过 + 2 skip。
 - 类型检查（2026-10-24 **已清零**）：`node scripts/typecheck.mjs` → node **0 错**（原 161，全在 `tests/`）、web **0 错**（原 286）；`src/main` / `src/renderer` 均干净。注意树里仍有 223 个 `// @ts-nocheck` 文件（见「已知债 1」），闸门覆盖的是其余文件；`electron-vite build` 走 rolldown 不做类型检查，所以以该脚本为准。明细与修法见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 
 ## 恢复基准（2026-10-24 定）
@@ -142,6 +142,6 @@ CodeEditor/Terminal/elk/editor.worker/i18n/index.html）齐平；main 少 16 个
 ## 下一步
 
 1. 清 @ts-nocheck（按 TS2304 → TS2339 顺序），把 `tsconfig.recover.json` 变成真闸门。
-2. ~~决策 tests：按新 API 修 or 重写~~ —— **已修完**：`node scripts/typecheck.mjs` node/web 双 0 错，全量 vitest 226 文件 / 2958 例通过；做法是「生产签名按真实契约放宽 + 测试补注解/元组 mock + 重建缺失共享类型」，明细见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
+2. ~~决策 tests：按新 API 修 or 重写~~ —— **已修完**：`node scripts/typecheck.mjs` node/web 双 0 错，全量 vitest 231 文件 / 3020 例通过；做法是「生产签名按真实契约放宽 + 测试补注解/元组 mock + 重建缺失共享类型」，明细见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 3. 收敛两套 codegen 栈。
 4. 之后才是功能。**注意：这棵树里已经带着 10/18 之前的 DSH 对齐成果**——`agent-core/scheduler.ts`（独占/并行工具组）、`plugins/kernel.ts`（Cordis-lite 内核）、`plugins/market.ts`（插件市场）、`ai/contextDigest.ts` + `ai/summaryLlm.ts`（模型摘要）都在；盘点基线读 `docs/ai/dsh-parity-2026-10-18.md`（14 层对照表）与 `docs/ai/agent-framework-porting.md`，别按旧记忆列待办。

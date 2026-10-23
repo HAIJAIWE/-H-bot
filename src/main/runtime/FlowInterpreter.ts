@@ -35,6 +35,7 @@ import { getHandler } from './handlerRegistry';
 import type { HandlerBot, HandlerContext } from './handlerRegistry';
 import { safeEvalDetailed, safeEvalExpression } from './safeEval';
 import { matchTrigger } from './triggerMatcher';
+import { runWithProjectRoot } from '../services/builtinNodes/storeContext';
 import type { TriggerEvent, TriggerNode } from './triggerMatcher';
 import {
   fingerprintFromEvent,
@@ -269,7 +270,28 @@ export class FlowInterpreter {
     return this.dispatchEvent(bot, event, label, false);
   }
 
+  /**
+   * 事件分发**唯一入口**：把整条链路包在项目根上下文里。
+   *
+   * 为什么要包：玩家存档/变量库是「每项目一个库」（`{项目}/data/players/persistent.db`），
+   * 路径来自 `storeContext.currentProjectRoot()`。不注入上下文时它会回退到
+   * `app.getAppPath()` / 进程 cwd —— 库就落到安装目录里，切项目后读的仍是同一份数据。
+   *
+   * 为什么包在**这一层**：等待链恢复（`settleWaitsAndResume`）也在这里发生，
+   * 那条链上 await 之后的代码仍属于同一个上下文（AsyncLocalStorage 会跟着走）。
+   */
   private async dispatchEvent(
+    bot: HandlerBot,
+    event: TriggerEvent | null,
+    kind: string,
+    _checkWaitInput: boolean,
+  ): Promise<boolean> {
+    return runWithProjectRoot(this.projectPath, () =>
+      this.dispatchEventInner(bot, event, kind, _checkWaitInput),
+    );
+  }
+
+  private async dispatchEventInner(
     bot: HandlerBot,
     event: TriggerEvent | null,
     kind: string,

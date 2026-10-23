@@ -659,6 +659,11 @@ const ALLOWED: Record<string, Allowed> = {
       '【应用自有数据】工具结果溢出落盘：写 <项目>/.qqbat/ai-spill/<时间戳>.txt（未带项目时退到系统临时目录）',
     counts: { writeFileSync: 1 },
   },
+  'src/main/services/builtinNodes/persistentStore.ts': {
+    why:
+      '【应用自有数据】玩家存档 <项目>/data/players/persistent.db：copyFileSync 只出现在旧版全局库一次性迁移的**降级分支**（注入的测试后端没有 SQLite backup()），且仅在项目库不存在时复制、绝不覆盖、也绝不删除旧库；真实后端用 backup() 把 WAL 一起落盘',
+    counts: { copyFileSync: 1 },
+  },
   'src/main/services/project/configService.ts': {
     why:
       '【应用自有数据】配置表/表结构持久化：写 <项目>/data/config/** 的 JSON 与 schema，unlink 用于删表；与扁平 configService.ts 是同一职责的两份实现，去重前先按现状登记',

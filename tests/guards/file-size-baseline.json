@@ -23,17 +23,17 @@
   "src/renderer/src/components/launch/DataBrowserPanel.tsx": {
     "lines": 1762
   },
-  "src/main/services/onebot-translator.ts": {
+  "src/main/runtime/FlowInterpreter.ts": {
     "lines": 1609
   },
-  "src/main/runtime/FlowInterpreter.ts": {
-    "lines": 1587
+  "src/main/services/onebot-translator.ts": {
+    "lines": 1609
   },
   "src/renderer/src/components/ai/ChatPanel.tsx": {
     "lines": 1587
   },
   "src/renderer/src/types/ipc.ts": {
-    "lines": 1572
+    "lines": 1561
   },
   "src/renderer/src/lib/mockRunner.ts": {
     "lines": 1405
@@ -52,6 +52,9 @@
   },
   "src/renderer/src/components/blocks/BlockEditor.tsx": {
     "lines": 1112
+  },
+  "src/main/services/builtinNodes/persistentStore.ts": {
+    "lines": 1075
   },
   "src/renderer/src/components/launch/TableEditorPopup.tsx": {
     "lines": 1074
@@ -80,14 +83,11 @@
   "src/shared/nodes/groups/storagePlayer.ts": {
     "lines": 965
   },
-  "src/main/services/builtinNodes/persistentStore.ts": {
-    "lines": 884
+  "src/shared/types/ai-provider.ts": {
+    "lines": 892
   },
   "src/renderer/src/components/launch/TableDesignModal.tsx": {
     "lines": 878
-  },
-  "src/shared/types/ai-provider.ts": {
-    "lines": 877
   },
   "src/shared/nodes/groups/calc.ts": {
     "lines": 857

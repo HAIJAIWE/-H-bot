@@ -97,17 +97,18 @@ describe('file_operate：写文件再读回来', () => {
 })
 
 describe('group_op：群操作会调用适配器', () => {
-  it('全员禁言发出了一次群管理调用', async () => {
+  it('禁言发出了一次群管理调用', async () => {
+    // 用 ban：全员禁言（mute_all）是官方没有的遗留模式，现在会被明确拒绝，
+    // 见 tests/main/services/groupOpBatch.test.ts 的遗留模式用例。
     const graph = {
       nodes: [
         node('t', 'message_received', TRIG),
-        node('g', 'group_op', { mode: 'mute_all', group_id: '67890', enable: true }),
+        node('g', 'group_op', { mode: 'ban', group_id: '67890', user_id: '12345', duration: 600 }),
       ],
       edges: [edge('e1', 't', 'next', 'g', 'in')],
     }
     const r = await runFlowGraph(graph)
-    expect(r.actions.length).toBeGreaterThan(0)
-    expect(r.actions.some((a) => a.api.includes('group') || a.api.includes('mute'))).toBe(true)
+    expect(r.actions.some((a) => a.api === 'set_group_ban')).toBe(true)
   })
 })
 

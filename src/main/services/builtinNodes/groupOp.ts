@@ -3,6 +3,7 @@
  * 历史：由已移除的 qqbat_nodes/builtin/group_op.py 移植而来，现状以本文件为准
  */
 
+import { GROUP_OP_LEGACY_REASONS } from '../../../shared/nodes/fieldOptions';
 import { BotInterface, OneBotEvent } from './builtinNodes';
 
 interface ExtendedOneBotEvent extends OneBotEvent {
@@ -28,11 +29,34 @@ const ADAPTER_FEATURE: Record<string, string> = {
   upload_file: 'upload_group_file',
 };
 
+/**
+ * 「加入黑名单」用多长的禁言近似。
+ *
+ * 官方**没有真正的黑名单接口**，最接近的是长期禁言，而禁言上限就是 30 天。
+ * 所以这里取 30 天，并在返回信息里**说清它会自动到期** ——
+ * 让用户以为"永久"是最危险的那种沉默差异。
+ */
+const BLACKLIST_DURATION_SEC = 30 * 24 * 3600;
+
+/**
+ * 解析批量模式的目标 QQ 号。
+ *
+ * 接受数组或"逗号/空格/换行分隔的字符串"（画布里用户常直接黏一行进来）。
+ * 只保留纯数字，其余丢弃 —— 调用方按返回长度就能知道"有几个没被处理"。
+ */
+export function parseUserIds(raw: string | Array<string | number> | null | undefined): string[] {
+  if (raw === null || raw === undefined || raw === '') return [];
+  const list = Array.isArray(raw) ? raw.map((x) => String(x)) : String(raw).split(/[\s,，、]+/);
+  return [...new Set(list.map((s) => s.trim()).filter((s) => /^\d+$/.test(s)))];
+}
+
 interface GroupOpOptions {
-  mode: 'ban' | 'kick' | 'mute_all' | 'set_card' | 'set_title' | 'leave' | 
-        'approve_friend' | 'approve_group' | 'notice' | 'upload_file' | 'essence';
+  mode: 'ban' | 'kick' | 'kick_batch' | 'blacklist_add' | 'blacklist_del' | 'mute_all' | 'set_card' |
+        'set_title' | 'leave' | 'approve_friend' | 'approve_group' | 'notice' | 'upload_file' | 'essence';
   group_id?: string;
   user_id?: string;
+  /** 批量模式（批量踢出 / 加入黑名单 / 移出黑名单）的目标 QQ 号，数组或逗号/空格分隔的字符串 */
+  user_ids?: string | string[];
   duration?: number;
   enable?: boolean;
   card?: string;
@@ -55,6 +79,8 @@ interface GroupOpOptions {
 interface GroupOpResult {
   success: boolean;
   error: string;
+  /** 批量模式的回执（已处理几个、黑名单多久到期）；失败时不给 */
+  message?: string;
 }
 
 // ============================================================
@@ -65,11 +91,12 @@ export async function groupOp(
   bot: BotInterface | null = null,
   event: ExtendedOneBotEvent | null = null,
   options: GroupOpOptions
-): Promise<{ success: boolean; error: string }> {
+): Promise<GroupOpResult> {
   const {
     mode = 'ban',
     group_id = '',
     user_id = '',
+    user_ids = '',
     duration = 600,
     enable = true,
     card = '',
@@ -92,6 +119,14 @@ export async function groupOp(
     // if (unsupported) return unsupported;
   }
 
+  // 遗留模式（官方根本没有对应能力）：明确拒绝并说清原因。
+  // 以前它们会走各自的分支去调用一个必失败的接口，用户只看到一句笼统的报错；
+  // 现在统一返回「模式不可用 + 原因」，原因表在 shared/nodes/fieldOptions.ts（单一真相）。
+  const legacyReason = GROUP_OP_LEGACY_REASONS[mode];
+  if (legacyReason) {
+    return { success: false, error: `「${mode}」不可用：${legacyReason}` };
+  }
+
   try {
     // ==== ban 模式（禁言成员）====
     if (mode === 'ban') {
@@ -106,7 +141,7 @@ export async function groupOp(
         return { success: false, error: `duration 不是有效数字: ${duration}` };
       }
       if (durationInt < 0) durationInt = 0;
-      if (durationInt > 30 * 24 * 3600) durationInt = 30 * 24 * 3600;
+      if (durationInt > BLACKLIST_DURATION_SEC) durationInt = BLACKLIST_DURATION_SEC;
 
       if (!bot) return { success: false, error: 'bot 不可用' };
       if (!bot) return { success: false, error: 'bot 不可用' };
@@ -132,6 +167,56 @@ export async function groupOp(
         reject_add_request: false,
       });
       return { success: true, error: '' };
+    }
+
+    // ==== kick_batch / blacklist_add / blacklist_del（按 QQ 号列表批量操作）====
+    if (mode === 'kick_batch' || mode === 'blacklist_add' || mode === 'blacklist_del') {
+      const gid = String(group_id || event?.group_id || '');
+      if (!gid) return { success: false, error: 'group_id 不能为空（当前非群聊场景）' };
+
+      const targets = parseUserIds(user_ids);
+      if (!targets.length) {
+        return { success: false, error: 'user_ids 不能为空（多个 QQ 号用逗号或空格分隔）' };
+      }
+
+      if (!bot) return { success: false, error: 'bot 不可用' };
+
+      // 逐个下发：一个号码失败（不在群里 / 权限不够）不该让整批停住 ——
+      // 记下失败的，全部跑完后一次说清"几个成功、几个失败、失败的是谁"。
+      const failed: string[] = [];
+      for (const uid of targets) {
+        try {
+          if (mode === 'kick_batch') {
+            await bot.callApi('set_group_kick', {
+              group_id: parseInt(gid),
+              user_id: parseInt(uid),
+              reject_add_request: false,
+            });
+          } else {
+            await bot.callApi('set_group_ban', {
+              group_id: parseInt(gid),
+              user_id: parseInt(uid),
+              // 加入黑名单 = 30 天禁言（官方上限）；移出黑名单 = 解除禁言（duration 0）
+              duration: mode === 'blacklist_add' ? BLACKLIST_DURATION_SEC : 0,
+            });
+          }
+        } catch (e) {
+          failed.push(uid);
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[group_op] ${mode} 处理 ${uid} 失败: ${msg}`);
+        }
+      }
+      if (failed.length) {
+        return {
+          success: false,
+          error: `${targets.length} 个目标里有 ${failed.length} 个失败: ${failed.join(', ')}`,
+        };
+      }
+      const note =
+        mode === 'blacklist_add'
+          ? `（官方禁言上限 ${BLACKLIST_DURATION_SEC / 86400} 天，到期会自动解除）`
+          : '';
+      return { success: true, error: '', message: `已处理 ${targets.length} 个目标${note}` };
     }
 
     // ==== mute_all 模式（全员禁言/解除）====

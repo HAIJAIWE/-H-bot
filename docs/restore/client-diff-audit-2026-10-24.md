@@ -172,8 +172,9 @@ web 286 错；本轮已全部修到 **0 错**，`node scripts/typecheck.mjs` 两
 | --- | --- |
 | `electron-vite build` | EXIT 0（含 §五 i18n 改动） |
 | `tests/guards` | 12 文件 / 88 passed + 2 skipped |
-| 全量 vitest（2026-10-24 03:15 复跑） | 226 文件 / 2958 passed + 58 skipped（3016 例）/ 0 failed |
+| 全量 vitest（2026-10-24 05:14 复跑） | 231 文件 / 3020 passed + 58 skipped（3078 例）/ 0 failed（含 §十二 三处补齐的 3 个新测试文件 / 47 例） |
 | `tsc`（`node scripts/typecheck.mjs`） | node **0 错** / web **0 错**（§八） |
+| 仓库自查脚本（2026-10-24 05:12） | check:catalog / identity / duplication / userdata / i18n×2 / docs:nodes:check / audit:baseline:check / audit / benchmark 全部 EXIT 0 |
 | `package.json` scripts | 30 条全部有实现，逐条实测（§七） |
 | `pnpm dev / test / pack` | 恢复可用（依赖 §七 的脚本重建） |
 
@@ -201,3 +202,43 @@ rolldown 构建会报 MISSING_EXPORT** —— 所以 build 与 typecheck 必须�
 - `.gitignore`：`node_modules/`、`out/`、`release/`、`dist/`、`coverage/`、`*.tsbuildinfo`、`_recovery/`、`_baseline/`、`projects/`、`.qqbat/`、`backups/`、`logs/`、`crashes/`、`crash-reports/`、`.env*`（保留 `.env.example`）、`*.log`。
 - **`_baseline/`（76 MB）与 `_recovery/`（169 MB）刻意不入库**：前者是打包产物取证材料（可从 `D:\H Bot 制造` 重新提取），后者是恢复过程日志与归档。push 到 GitHub 前确认这两个目录不在暂存区。
 - 第二轮清理（6 个 ops 副本、4 份死字典、`.prettierrc`/`.prettierignore`）单独提交，可用 `git show` / `git revert` 对照首个提交。
+
+## 十二、三处「目录上有、运行期没有」的缺口（2026-10-24 已补）
+
+逐条比对客户端 region 与恢复树实现时，发现三处**声明与实现不一致**：节点/配置看起来支持，
+真正跑起来却没有对应代码。三处都已按客户端语义补齐，并补了回归测试。
+
+### 1. 群操作的批量模式（group_op）
+
+- 现象：`src/shared/nodes/fieldOptions.ts` 的 `GROUP_OP_MODE_OPTIONS` 早就有 `kick_batch` / `blacklist_add` /
+  `blacklist_del`，`src/shared/nodes/groups/actionPlatform.ts` 也给 `user_ids` 端口写了 `showWhen`；但
+  `src/main/services/builtinNodes/groupOp.ts` 没有这三个分支，选中只会得到「未知 mode」。
+- 客户端语义（`_recovery/client-src/groupOp.client.js`）：`parseUserIds` 按 `/` 内的逗号/空格/顿号/换行拆分、
+  只留数字、去重；逐个 `callApi` 并收集失败；回执 `已处理 N 个目标`（加入黑名单追加「官方禁言上限 30 天，
+  到期会自动解除」）；`mute_all` / `set_card` / `set_title` 等官方不存在的模式在入口直接拒绝，原因来自
+  单一真相表 `GROUP_OP_LEGACY_REASONS`；禁言时长上限 2592000 秒。
+- 落地：`groupOp.ts` 补三个批量分支 + 遗留模式拒绝 + 30 天上限；`tests/main/services/groupOpBatch.test.ts`
+  21 例（解析 / 批量 / 部分失败 / 遗留模式 / 时长截断）；`tests/main/runtime/miscNodesE2E.test.ts` 的
+  group_op 用例从已被拒绝的 `mute_all` 改成 `ban`。
+
+### 2. 玩家库的项目隔离（persistent.db）
+
+- 现象：`persistentStore` 原来只有一份全局库，项目之间共享玩家数据；客户端 10/18 已经是
+  `<项目>/data/players/persistent.db`（旧全局库「只复制不删除」地迁移）。
+- 落地：`storeContext.ts` / `persistentStore.ts` / `FlowInterpreter.ts` 走 `runWithProjectRoot`；
+  `tests/main/services/persistentStoreScope.test.ts` 9 例覆盖预览覆盖目录、项目根、嵌套根、双项目连接隔离、
+  `loadValueSafe` / `deleteValueSafe` 不抛、旧库迁移不覆盖已有库。
+
+### 3. 全局智能体配置的保存语义（appAiConfig / botAi）
+
+逐行比对 `_recovery/client-src/appAiConfig.client.js` 后修了四处：
+
+- **界面保存会抹掉手写的 Key 池**：`writeAppAiConfig` 现在在调用方没带 `fallbacks` 时读磁盘原始形状**原样写回**
+  （密文保持密文，不重加密 —— 换机器后密钥会变，重加密会毁掉它）。
+- **写 Key 池失败却报成功**：`writeAppAiFallbacks` 在没有主配置时抛「还没有应用级 AI 配置，先保存一次主配置
+  再编辑 Key 池」（IPC 会转成失败提示），原来只 warn 后返回 `saved:true`。
+- **项目 botAi 明文落盘 / 读不了旧密文**：`projectAiConfig` 现在与客户端一致，`botAi` 加密写
+  （`_encrypted: true`）、读时解密；`ai` 历史字段仍按明文处理（客户端当年就是明文）。
+- **兜底配置丢字段**：`resolveAuthorAiConfig` 回落到项目 `ai` 时保留 `enableThinking` / `fallbacks`。
+- 测试：`tests/main/services/ai/appAiConfig.test.ts` 17 例（新旧位置双读、坏 JSON、加密往返、Key 池保留/覆盖、
+  botAi 兼容旧密文等）。
