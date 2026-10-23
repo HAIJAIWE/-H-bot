@@ -1,0 +1,15 @@
+# pnpm 11 的构建脚本白名单（pnpm 在此文件里生成模板，改成 true/false 即可；
+# package.json 的 pnpm 字段对 pnpm 11 不再生效）。
+#
+#   better-sqlite3 —— 原生绑定，必须构建（prebuild-install）
+#   electron       —— postinstall 下载运行时二进制，pnpm dev / pack 需要
+#   node-pty       —— 运行期未使用（终端实现走 child_process），编译要 VS 工具链 → 不构建
+#   cpu-features / ssh2 —— ssh2 的可选加速模块，纯 JS 实现可用 → 不构建
+#   electron-winstaller —— 打包安装器脚本，本仓库用 electron-builder → 不构建
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  cpu-features: false
+  electron-winstaller: false
+  node-pty: false
+  ssh2: false

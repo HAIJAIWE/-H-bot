@@ -28,6 +28,11 @@ pnpm install
 pnpm dev        # 主进程 + 渲染层，界面在 http://localhost:5173
 ```
 
+安装说明：pnpm 11 会把依赖的 postinstall 默认拦下来，白名单写在 `pnpm-workspace.yaml` 的
+`allowBuilds`（`better-sqlite3` 与 `electron` 为 true，其余原生可选模块为 false）。若 `pnpm install`
+之后 `node_modules/electron/dist` 仍然是空的，手动跑一次 `node node_modules/electron/install.js`
+（从本地缓存解压运行时二进制，不需要重新下载 Electron 本体）。
+
 连真实 QQ 需要在「机器人设置」里配置官方协议端或 NapCat；不连也能用「测试运行」跑流程。
 
 ## 常用命令
@@ -59,6 +64,7 @@ pnpm dev        # 主进程 + 渲染层，界面在 http://localhost:5173
 另外 12 个节点带 `requires` 能力标注（如 `message_send → ["im.message.send"]`），用来做细粒度能力绑定；
 `platform` 只决定编辑器徽标与可见性，新平台接入时**不需要复制节点**：补一个适配器 + 能力映射即可，
 通用节点原样复用。
+
 ## 目录结构
 
 ```text
