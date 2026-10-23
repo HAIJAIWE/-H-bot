@@ -134,6 +134,10 @@ const BASELINE: Record<string, string> = {
     '优先级别排在 BlockEditor 之后',
   'src\\main\\codegen\\generator.ts':
     '待拆（623 行 / 31 次）：又长又热但没过 800 线 —— 代码生成主流程',
+  'src\\main\\services\\builtinNodes\\persistentStore.ts':
+    '**超 800 警示线**（1,075 行 / 2 次）：玩家库读写 —— 建表 + 旧全局库一次性迁移 + 批量接口。' +
+    '拆的路径：迁移段 → `persistentStore.migrate.ts`、批量段 → `persistentStore.bulk.ts`；' +
+    '拆之前先给迁移补「旧库存在 / 不存在」两条用例（现有 9 例只覆盖项目作用域）。当前登记、暂不拆',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
