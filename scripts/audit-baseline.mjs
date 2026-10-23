@@ -189,6 +189,21 @@ const payload = {
   },
 };
 
+// 幂等：内容没变就不动 generatedAt，免得每跑一次清单都显示「已修改」。
+const canonical = (v) =>
+  JSON.stringify(v, (_k, x) =>
+    x && typeof x === "object" && !Array.isArray(x)
+      ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]]))
+      : x,
+  );
+try {
+  const prev = JSON.parse(fs.readFileSync(OUT, "utf8"));
+  const strip = ({ generatedAt, ...rest }) => rest;
+  if (canonical(strip(prev)) === canonical(strip(payload))) payload.generatedAt = prev.generatedAt;
+} catch {
+  // 首次生成或旧文件坏掉：直接用新时间戳
+}
+
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(payload, null, 2) + "\n");
 
