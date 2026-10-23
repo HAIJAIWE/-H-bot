@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T17:39:46.947Z",
+  "generatedAt": "2026-10-23T19:38:29.426Z",
   "baseline": {
     "kind": "packaged-client",
     "bundle": "E:\\qqbat-restored\\_baseline\\out-bundle",
@@ -8,19 +8,27 @@
     "regions": 594
   },
   "tree": {
-    "files": 846
+    "files": 830
   },
   "missing": {
-    "total": 6,
+    "total": 10,
     "unregistered": 0,
     "items": [
       {
-        "region": "src/shared/nodes/groups/dataConfig.ts",
-        "resolution": "内容是 renderer propertyDrawerConstants 的重复副本，且 shared 里反向 import renderer；全树 0 引用，已删除"
+        "region": "src/main/services/ops/diagnostics.ts",
+        "resolution": "扁平 src/main/services/diagnostics.ts 才是真源（ipc/diagnostics 导入它）；嵌套副本无 importer，已删除（原文见 _baseline/out-bundle）"
+      },
+      {
+        "region": "src/main/services/ops/metrics.ts",
+        "resolution": "扁平 src/main/services/metrics.ts 才是真源（ipc/metrics 导入它）；嵌套副本无 importer，已删除（region 见 out/main/index.js:7970-8068）"
       },
       {
         "region": "src/main/services/ops/metricsExport.ts",
         "resolution": "扁平 src/main/services/metricsExport.ts 才是真源；嵌套这份是 10/18 移植副本，无任何 importer，已删除"
+      },
+      {
+        "region": "src/main/services/ops/auditService.ts",
+        "resolution": "扁平 src/main/services/auditService.ts 才是真源（ipc/launchAudit 导入它）；嵌套副本无 importer，已删除（原文见 _baseline/out-bundle）"
       },
       {
         "region": "src/main/services/project/backupService.ts",
@@ -29,6 +37,14 @@
       {
         "region": "src/main/services/project/dataTransferService.ts",
         "resolution": "扁平 src/main/services/dataTransferService.ts 才是真源（ipc/launchTransfer 导入它）；嵌套副本无 importer，已删除"
+      },
+      {
+        "region": "src/main/services/ops/dockerExport.ts",
+        "resolution": "已移植为带类型的 src/main/services/dockerExport.ts（ipc/dockerExport 导入它，另有 5 例单测）；嵌套副本是 10/18 原文，无 importer，已删除（region 见 out/main/index.js:13292-13692）"
+      },
+      {
+        "region": "src/main/services/ops/sshDeploy.ts",
+        "resolution": "已移植为带类型的 src/main/services/sshDeploy.ts（ipc/sshDeploy 导入它）；嵌套副本是 10/18 原文，无 importer，已删除（region 见 out/main/index.js:13817-14284）"
       },
       {
         "region": "src/renderer/src/components/blocks/useEditorActions.tsx",
@@ -67,9 +83,9 @@
     }
   ],
   "delta": {
-    "total": 240,
-    "symbolHit": 96,
-    "unshipped": 112,
+    "total": 227,
+    "symbolHit": 95,
+    "unshipped": 99,
     "unshippedFiles": [
       "src/main/ipc/aiAgentCore.ts",
       "src/main/ipc/aiAllowRules.ts",
@@ -145,22 +161,11 @@
       "src/renderer/src/components/ai/TurnChangesCard.tsx",
       "src/renderer/src/components/ai/TurnFoldHeader.tsx",
       "src/renderer/src/components/blocks/AiActionEditor.tsx",
-      "src/renderer/src/components/blocks/ChainView.tsx",
       "src/renderer/src/components/blocks/HttpActionEditor.tsx",
-      "src/renderer/src/components/canvas/CanvasToolbar.tsx",
-      "src/renderer/src/components/canvas/ConnectionSuggestions.tsx",
-      "src/renderer/src/components/canvas/StepListPanel.tsx",
-      "src/renderer/src/components/canvas/TemplateMarketDialog.tsx",
-      "src/renderer/src/components/canvas/TimeMachinePanel.tsx",
-      "src/renderer/src/components/debugger/DebuggerPanel.tsx",
       "src/renderer/src/components/editor/MetricsPanel.tsx",
       "src/renderer/src/components/editor/pythonCompletions.ts",
       "src/renderer/src/components/launch/characterFields.ts",
-      "src/renderer/src/components/launch/NapCatConfigDialog.tsx",
-      "src/renderer/src/components/project/ProjectCard.tsx",
       "src/renderer/src/components/settings/PluginMarket.tsx",
-      "src/renderer/src/components/settings/ResourceLimits.tsx",
-      "src/renderer/src/components/settings/TemplateMarket.tsx",
       "src/renderer/src/components/ui/codeHighlight.tsx",
       "src/renderer/src/components/ui/ZoomableImage.tsx",
       "src/renderer/src/lib/ai/toolPresenters.tsx",
@@ -170,10 +175,8 @@
       "src/renderer/src/lib/mockRunner.ts",
       "src/renderer/src/lib/monacoSetup.ts",
       "src/renderer/src/lib/plugins/external.ts",
-      "src/renderer/src/pages/ProjectSelector.tsx",
       "src/renderer/src/stores/metricsStore.ts",
       "src/renderer/src/stores/resourceStore.ts",
-      "src/renderer/src/stores/sourceDebugStore.ts",
       "src/renderer/src/stores/terminalStore.ts",
       "src/shared/agent/policy.ts",
       "src/shared/ai/toolFailure.ts",

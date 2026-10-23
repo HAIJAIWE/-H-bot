@@ -1,7 +1,8 @@
 // src/main/services/metrics.ts
 // 运行指标聚合服务。
 //
-// 真源：10/18 打包产物 out/main/index.js:7970-8068（region `src/main/services/ops/metrics.ts`）。
+// 真源：10/18 打包产物 out/main/index.js:7970-8068（region `src/main/services/ops/metrics.ts`；
+// 树里那份同名副本已删，原文随 _baseline/out-bundle 保管）。
 // 行为要点（保持与产物一致）：
 // - 原始计数器在每次 aggregate 后清零，所以 sample 是"这 5 秒窗口"的量，不是累计量；
 // - msgCount 存的是**每秒消息数**（msgPerSec），不是窗口内的条数；
@@ -86,7 +87,7 @@ class MetricsServiceImpl {
       p95Latency: this.calcP95(this.rawLatencies),
       errorRate: Math.round((this.rawErrorCount / totalMsg) * 100),
       nodeExecutions: this.rawNodeExecCount,
-      errorTypes: { ...this.rawErrorTypes }
+      errorTypes: { ...this.rawErrorTypes },
     }
   }
 

@@ -9,7 +9,7 @@
 - 构建：`electron-vite build` 成功。清理掉恢复期 tsc 写进 `out/` 的 1558 个垃圾文件后，现在 `out/` 106 个文件（`out/main` 9 个）。
 - 启动：Electron 能起窗口，主进程无未捕获异常（只有 [errorMonitoring] 未配 SENTRY_DSN 的提示）。
 - 业务：左上项目下拉能选中项目；Bot 管理列出项目；「低代码」页能走「新建指令」向导 → 生成 2 节点 1 连线并落盘 `.qqbat/flow.json`；「布局」后节点不叠压；git 自动初始化并出现 `master (1 提交)`。
-- 规模：src 下 871 个 .ts/.tsx / 192,189 行；`[[MISSING` 标记 0 处；**223 个文件带 `// @ts-nocheck`**（见「已知债」）。
+- 规模：src 下 **830 个 .ts/.tsx / 179,279 行**（2026-10-24 清理死代码后）；`[[MISSING` 标记 0 处；**217 个文件带 `// @ts-nocheck`**（见「已知债」）。
 - 测试：**全绿**（2026-10-24 03:15 复跑）。`vitest run --maxWorkers=2` → **226 文件 / 2958 例通过**，5 文件 / 58 例 skip（0 failed，3016 例）；guards 12 文件 / 88 通过 + 2 skip。
 - 类型检查（2026-10-24 **已清零**）：`node scripts/typecheck.mjs` → node **0 错**（原 161，全在 `tests/`）、web **0 错**（原 286）；`src/main` / `src/renderer` 均干净。注意树里仍有 223 个 `// @ts-nocheck` 文件（见「已知债 1」），闸门覆盖的是其余文件；`electron-vite build` 走 rolldown 不做类型检查，所以以该脚本为准。明细与修法见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 
@@ -17,8 +17,8 @@
 
 - **基准 = 打包客户端**（`D:\H Bot 制造`，2026-10-18 04:50 的 `resources/app.asar`）。源码行为以它为准；DSH 磁带里更晚 revision 的测试只作参考，不反过来驱动恢复。
 - 基准产物已随仓库保管：`_baseline/app.asar.bin`（74,277,199B，sha256 `9bf9e626…fb7b19`）+ `_baseline/out-bundle/`（25 文件 / 5,833,371B）+ `manifest.sha256`；`scripts/audit-baseline.mjs` 默认优先用它，缺了才回退 `D:/tmp/hbot-out`。
-- 覆盖率可复算：`node scripts/audit-baseline.mjs`（产物 594 个模块 / 树 846 文件覆盖 99.0%，缺的 6 个全部登记了理由）；`--check` 会在出现未登记缺失时 exit 1。明细 `docs/restore/baseline-inventory.json`，报告 `docs/restore/baseline-alignment-2026-10-24.md`。
-- 树里另有 112 个模块**没进过这次构建**（= 10/18 之后的增量或更早的遗留），已分类但**不删**；`agent-core` / 插件内核 / presets 等增量按用户要求暂停推进。
+- 覆盖率可复算：`node scripts/audit-baseline.mjs`（产物 594 个模块 / 树 830 文件覆盖 98.3%，缺的 10 个全部登记了理由；2026-10-24 又删掉 5 个无 importer 的 ops 副本）；`--check` 会在出现未登记缺失时 exit 1。明细 `docs/restore/baseline-inventory.json`，报告 `docs/restore/baseline-alignment-2026-10-24.md`。
+- 树里另有 99 个模块**没进过这次构建**（= 10/18 之后的增量或更早的遗留），已分类但**不删**；`agent-core` / 插件内核 / presets 等增量按用户要求暂停推进。
 - **TS-only 口径**：运行时是 `botManager` + `FlowRuntime` 进程内解释 `flow.json`（ADR-003），不 spawn Python。Python 只剩旧进程运行器/代码生成/部署模板/旧插件包解析的壳，不修、不测、不扩展。
 - 取舍：renderer 有 93 个组件取自 10/20 的 Vite 开发缓存（带类型的原版），比客户端新；优先级 缓存原版 > 产物 region > 磁带重放。
 
@@ -108,6 +108,18 @@ tests 来自磁带里**更晚**的 revision（10/18–10/23），src 是 10/18 0
 CodeEditor/Terminal/elk/editor.worker/i18n/index.html）齐平；main 少 16 个 chunk 是分块策略差异
 （client 22 chunk / 我们 6 chunk，功能不缺）；IPC 的 `runtime:* → botManager.*` 是有意迁移。
 
+## 本地 git 与清理提交（2026-10-24）
+
+清理死代码之前，先给工作树做了版本控制（原 `D:\QQ bot` 已空，这棵树一直没有 .git）：
+
+- `git init -b main` + 首个提交 `97cc982 chore: 恢复工作树基线快照（清理死代码之前）`：**1271 文件 / 3.60 MiB**。
+- 入库范围 = 源码 + 测试 + 脚本 + 文档 + 配置；**不入库**：`node_modules/`、`out/`、`release/`、`dist/`、`_recovery/`（169 MB）、`_baseline/`（76 MB）、`projects/`、`.qqbat/`、`.env*`（保留 `.env.example`）、日志与崩溃转储。
+- 第二轮清理单独提交（可 `git show` / `git revert`）：
+  - 删 `src/main/services/ops/` 下 5 个无 importer 的 10/18 副本：`dockerExport`、`sshDeploy`、`auditService`、`diagnostics`、`metrics`（真源是扁平的 `services/*`；原文仍在 `_baseline/out-bundle`，`scripts/audit-baseline.mjs` 的 `MISSING_OK` 已登记）。`ops/crashReporter.ts` 首轮被误删，build 报 `UNRESOLVED_IMPORT`（被同目录 `crashLogger.ts` 相对 import）后已恢复；
+  - 删 `propertyDrawerConstants.ts` 的四份死字典（`CONFIG_LABELS`/`CONFIG_HINTS`/`PORT_HINTS`/`SELECT_OPTIONS`，512 行），文件 559 → 51 行；同步删掉 `tests/renderer/i18n/noHardcodedCopy-baseline.json` 里对应的 380 条登记；
+  - 加 `.prettierrc` + `.prettierignore`（仓库历史上从未格式化过，`format:check` 暂只作手工工具）。
+- GitHub：`_baseline/` 与 `_recovery/` 刻意不提交；若需要保留取证材料，走 Release 资产或本地备份，不要塞进仓库历史。
+
 ## 恢复期重写的源码脚本（10/18 产物不含脚本，原实现不可恢复）
 
 `package.json` 引用、但源码里已丢失的 13 个脚本**已全部重建并逐条实测**（30 条 scripts 现在都能跑）：
@@ -116,7 +128,7 @@ CodeEditor/Terminal/elk/editor.worker/i18n/index.html）齐平；main 少 16 个
 | --- | --- |
 | `scripts/ensure-sqlite.js` | 在 node/electron 运行时探测 better-sqlite3，失败才用 prebuild-install 按 runtime/target 重建（12.x 走 N-API，实测 node ABI 137 / electron ABI 146 都直接可用） |
 | `scripts/typecheck.mjs` | 串行跑 node/web 两个 tsconfig 并汇总，完整日志写 `_recovery/typecheck-{node,web}.log`；现在是**硬闸门**（两目标 0 错） |
-| `scripts/install-hooks.mjs` | 有 .git 时装 pre-commit：拒绝提交 `node_modules/out/release/dist/_recovery/_baseline` 与 >5MB 单文件；**不跑 prettier**（仓库没有 `.prettierrc`，默认配置会把整库判红） |
+| `scripts/install-hooks.mjs` | 有 .git 时装 pre-commit：拒绝提交 `node_modules/out/release/dist/_recovery/_baseline` 与 >5MB 单文件；**不跑 prettier**（`.prettierrc` 已加，但全库尚未格式化，一跑就是几千文件 diff） |
 | `scripts/clean-cache.js` | 清理 `out/ release/ node_modules/.vite node_modules/.cache *.tsbuildinfo`，不碰 `projects/`、`_baseline/` |
 | `scripts/audit.mjs` | 依赖审计：main/preload/shared 的第三方包必须在 dependencies，renderer 允许 devDependencies；未声明 exit 1，未使用只警告。实测通过（21 生产 / 27 开发，3 条已登记未用） |
 | `scripts/benchmark.mjs` | 目录/流程基准，不新增依赖、恒 exit 0；实测 buildCatalog zh/en、normalizeFlow/validateFlow 500 节点中位数 0.001 / 0.370 / 2.73 / 1.32 ms |

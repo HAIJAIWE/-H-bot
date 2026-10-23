@@ -1,0 +1,21 @@
+# 依赖与构建产物
+node_modules/
+out/
+release/
+dist/
+coverage/
+
+# 恢复期取证材料（体积大、多为原始产物摘要，不是源码）
+_recovery/
+_baseline/
+projects/
+
+# 生成文件：由脚本产出，格式化会与生成器漂移
+docs/nodes-reference.md
+docs/restore/baseline-inventory.json
+src/shared/nodes/i18n/catalog.en-US.ts
+src/renderer/src/lib/command/subflowTemplateDefs.ts
+pnpm-lock.yaml
+
+# 杂项
+*.log

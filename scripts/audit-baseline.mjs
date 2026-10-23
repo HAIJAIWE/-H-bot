@@ -47,12 +47,20 @@ const CHECK = args.get("check") === "true";
 const MISSING_OK = {
   "src/main/services/ops/metricsExport.ts":
     "扁平 src/main/services/metricsExport.ts 才是真源；嵌套这份是 10/18 移植副本，无任何 importer，已删除",
+  "src/main/services/ops/auditService.ts":
+    "扁平 src/main/services/auditService.ts 才是真源（ipc/launchAudit 导入它）；嵌套副本无 importer，已删除（原文见 _baseline/out-bundle）",
+  "src/main/services/ops/diagnostics.ts":
+    "扁平 src/main/services/diagnostics.ts 才是真源（ipc/diagnostics 导入它）；嵌套副本无 importer，已删除（原文见 _baseline/out-bundle）",
+  "src/main/services/ops/dockerExport.ts":
+    "已移植为带类型的 src/main/services/dockerExport.ts（ipc/dockerExport 导入它，另有 5 例单测）；嵌套副本是 10/18 原文，无 importer，已删除（region 见 out/main/index.js:13292-13692）",
+  "src/main/services/ops/metrics.ts":
+    "扁平 src/main/services/metrics.ts 才是真源（ipc/metrics 导入它）；嵌套副本无 importer，已删除（region 见 out/main/index.js:7970-8068）",
+  "src/main/services/ops/sshDeploy.ts":
+    "已移植为带类型的 src/main/services/sshDeploy.ts（ipc/sshDeploy 导入它）；嵌套副本是 10/18 原文，无 importer，已删除（region 见 out/main/index.js:13817-14284）",
   "src/main/services/project/backupService.ts":
     "扁平 src/main/services/backupService.ts 才是真源（launchBackup 导入它）；嵌套副本无 importer，已删除",
   "src/main/services/project/dataTransferService.ts":
     "扁平 src/main/services/dataTransferService.ts 才是真源（ipc/launchTransfer 导入它）；嵌套副本无 importer，已删除",
-  "src/shared/nodes/groups/dataConfig.ts":
-    "内容是 renderer propertyDrawerConstants 的重复副本，且 shared 里反向 import renderer；全树 0 引用，已删除",
   "src/renderer/src/components/blocks/useEditorActions.tsx":
     "真身是 useEditorActions.ts（纯 hook、无 JSX，不需要 .tsx 扩展名）",
   "src/renderer/src/assets/node-authoring.md":

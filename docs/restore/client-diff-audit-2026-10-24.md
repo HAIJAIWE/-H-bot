@@ -93,8 +93,9 @@
     改回 8 个 getter + `t('blocks.placeholders.*')`；
   - `src/renderer/src/stores/botStore.ts`：6 处 toast/文案改 `t('bot.*')`。
 - `src/renderer/src/components/blocks/propertyDrawerConstants.ts` 里的 `CONFIG_LABELS`、`CONFIG_HINTS`、
-  `SELECT_OPTIONS` 三大字典（378 个中文字面量）运行期零 importer，client 注释也写明这些已收敛到
-  `src/renderer/src/i18n/fieldLabels.ts` + `scripts/i18n/field-{zh,en}.json`，属旧版残留，未删。
+  `PORT_HINTS`、`SELECT_OPTIONS` 四份字典（512 行 / 380 个中文字面量）运行期零 importer，client 同模块
+  里也没有它们（显示名/说明已收敛到 `src/renderer/src/i18n/fieldLabels.ts` + `scripts/i18n/field-{zh,en}.json`）
+  → **2026-10-24 已删除**：文件从 559 行降到 51 行，只保留 4 个仍在用的导出。
 
 ## 六、硬编码文案与死代码
 
@@ -186,8 +187,17 @@ rolldown 构建会报 MISSING_EXPORT** —— 所以 build 与 typecheck 必须�
 
 1. ~~**品牌**~~ —— **已对齐**：`productName`/`shortcutName`/`copyright` 都是 `H Bot 制造`，portable 产物名 `H-Bot-Portable-${version}.exe`；`appId` 保持 `com.qqbat.app`（安装器里推不回来）。
 2. ~~**缺失脚本**~~ —— **已全部重建**（§七），30 条 scripts 逐条实测。
-3. **main 分块**：是否要复刻 client 的 22 chunk 拆分（需要找回原 `manualChunks` 配置，或按体积自己定规则）。
+3. ~~**main 分块**~~ —— **已核对，不改**：client out/main 23 个 js（index 607,792B；ai 706K / FlowRuntime 388K / registration 303K / dynamicHandlers 301K）；恢复树同为 23 个（index 913,595B；ai 696K / handlerRegistry 361K / FlowRuntime 333K），模块划分一致，只差索引 chunk 体积。
 4. ~~**类型债**：286 + 161 个 tsc 错误~~ —— **已清零**（2026-10-24，§八），现在 `pnpm typecheck` 是硬闸门。
-5. **死代码**：§六 的 7 个死模块 + `TimeMachinePanel.tsx`、`ProjectCard.tsx` 已归档到 `_recovery/dead-renderer/`；仍待拍板的是 `blocks/propertyDrawerConstants.ts` 里 `CONFIG_LABELS` 等 378 条死文案是否删。
-6. **format 配置**：仓库没有 `.prettierrc`/`.prettierignore`，`format`/`format:check` 目前无意义。
-7. **ops/ 旧实现**：`src/main/services/ops/{dockerExport,sshDeploy}.ts`（`@ts-nocheck`）已无调用方，是否删除。
+5. ~~**死代码**~~ —— §六 的死模块 + `TimeMachinePanel.tsx`、`ProjectCard.tsx` 已归档到 `_recovery/dead-renderer/`；`propertyDrawerConstants.ts` 的四份死字典已于 2026-10-24 删除（§五）。
+6. ~~**format 配置**~~ —— 已加 `.prettierrc`（singleQuote / semi / printWidth 100 / trailingComma all）+ `.prettierignore`（依赖、构建产物、`_recovery`、`_baseline`、生成文件）。**尚未全库格式化**（实测会动 836 个文件），`format:check` 只作手工工具、不进闸门。
+7. ~~**ops/ 旧实现**~~ —— **已删 5 个无 importer 的 10/18 副本**：`ops/{dockerExport,sshDeploy,auditService,diagnostics,metrics}.ts`；保留被引用的 5 个（`crashLogger` / `crashReporter` / `errorMonitoring` / `git` / `debugger`）。`ops/crashReporter.ts` 首轮误删，build 的 `UNRESOLVED_IMPORT`（`ops/crashLogger.ts` 的相对 import）抓到后已恢复——教训：只按 `services/ops/xxx` 全路径 grep importer 会漏掉同目录相对引用。原文仍在 `_baseline/out-bundle`，`scripts/audit-baseline.mjs` 的 `MISSING_OK` 已逐条登记。
+
+## 十一、本地 git 与清理提交（2026-10-24）
+
+工作树此前没有版本控制（原 `D:\QQ bot` 已空），本轮清理前先 `git init -b main` 做了快照：
+
+- 首个提交 `97cc982 chore: 恢复工作树基线快照（清理死代码之前）`：**1271 文件 / 3.60 MiB**。
+- `.gitignore`：`node_modules/`、`out/`、`release/`、`dist/`、`coverage/`、`*.tsbuildinfo`、`_recovery/`、`_baseline/`、`projects/`、`.qqbat/`、`backups/`、`logs/`、`crashes/`、`crash-reports/`、`.env*`（保留 `.env.example`）、`*.log`。
+- **`_baseline/`（76 MB）与 `_recovery/`（169 MB）刻意不入库**：前者是打包产物取证材料（可从 `D:\H Bot 制造` 重新提取），后者是恢复过程日志与归档。push 到 GitHub 前确认这两个目录不在暂存区。
+- 第二轮清理（6 个 ops 副本、4 份死字典、`.prettierrc`/`.prettierignore`）单独提交，可用 `git show` / `git revert` 对照首个提交。

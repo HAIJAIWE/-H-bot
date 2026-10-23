@@ -22,25 +22,31 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 | --------------------------------- | --------------------------------------------------------- |
 | 打包产物 js                       | 25 个 / 5.6 MB（main 24 + renderer index）                |
 | 产物模块清单（region 去重）       | **594 个**                                                |
-| 恢复树 `src/*.ts(x)`              | 846 个                                                    |
-| 产物模块在树里的覆盖率            | **99.0%（588/594）**                                      |
-| 缺失                              | 6 个，**全部已登记理由**（未登记 0）                      |
-| 树里有、产物里没有 region         | 240 个（其中 32 个是纯类型/再导出，构建后本就不留模块名） |
-| 这 240 里，导出符号能在产物中搜到 | 96 个（被内联或改名，不是缺）                             |
-| 真的没进过这次构建                | **112 个**                                                |
+| 恢复树 `src/*.ts(x)`              | 830 个（2026-10-24 清理 5 个 ops 副本后）                 |
+| 产物模块在树里的覆盖率            | **98.3%（584/594）**                                      |
+| 缺失                              | 10 个，**全部已登记理由**（未登记 0）                     |
+| 树里有、产物里没有 region         | 227 个（其中 33 个是纯类型/再导出，构建后本就不留模块名） |
+| 这 227 里，导出符号能在产物中搜到 | 95 个（被内联或改名，不是缺）                             |
+| 真的没进过这次构建                | **99 个**                                                 |
 
-缺的 6 个（`--check` 里逐条写明了理由，`MISSING_OK`）：
+缺的 10 个（`--check` 里逐条写明了理由，`MISSING_OK`）：
 
-| region                                                    | 为什么可以没有                                                           |
-| --------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `src/main/services/ops/metricsExport.ts`                  | 嵌套副本，真源是扁平 `services/metricsExport.ts`；0 importer，已删       |
-| `src/main/services/project/backupService.ts`              | 嵌套副本，真源是扁平 `services/backupService.ts`；0 importer，已删       |
-| `src/main/services/project/dataTransferService.ts`        | 嵌套副本，真源是扁平 `services/dataTransferService.ts`；0 importer，已删 |
-| `src/shared/nodes/groups/dataConfig.ts`                   | shared 里反向 import renderer 的重复副本；0 引用，已删                   |
-| `src/renderer/src/components/blocks/useEditorActions.tsx` | 真身是 `useEditorActions.ts`（纯 hook，无 JSX）                          |
-| `src/renderer/src/assets/node-authoring.md`               | `?raw` 伪模块；真身 md 已从同一产物提取写回                              |
+| region                                                    | 为什么可以没有                                                                                         |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `src/main/services/ops/metricsExport.ts`                  | 10/18 原文副本，真源是扁平 `services/metricsExport.ts`；0 importer，已删                               |
+| `src/main/services/ops/auditService.ts`                   | 10/18 原文副本，真源是扁平 `services/auditService.ts`（ipc/launchAudit 导入）；0 importer，已删         |
+| `src/main/services/ops/diagnostics.ts`                    | 10/18 原文副本，真源是扁平 `services/diagnostics.ts`；0 importer，已删                                 |
+| `src/main/services/ops/dockerExport.ts`                   | 10/18 原文副本；已移植为带类型 `services/dockerExport.ts`（5 例单测）；0 importer，已删                 |
+| `src/main/services/ops/metrics.ts`                        | 10/18 原文副本，真源是扁平 `services/metrics.ts`（ipc/metrics 导入）；0 importer，已删                 |
+| `src/main/services/ops/sshDeploy.ts`                      | 10/18 原文副本；已移植为带类型 `services/sshDeploy.ts`；0 importer，已删                               |
+| `src/main/services/project/backupService.ts`              | 10/18 原文副本，真源是扁平 `services/backupService.ts`；0 importer，已删                               |
+| `src/main/services/project/dataTransferService.ts`        | 10/18 原文副本，真源是扁平 `services/dataTransferService.ts`；0 importer，已删                         |
+| `src/renderer/src/components/blocks/useEditorActions.tsx` | 真身是 `useEditorActions.ts`（纯 hook，无 JSX）                                                        |
+| `src/renderer/src/assets/node-authoring.md`               | `?raw` 伪模块；真身 md 已从同一产物提取写回                                                            |
 
-结论：**产物里能还原的模块一个都没缺**；4 个删除项都是「同一职责两份实现」里没有 importer 的那份。
+结论：**产物里能还原的模块一个都没缺**；10 个缺口里 8 个是「同一职责两份实现」中没有 importer 的副本
+（其中 5 个 `ops/` 副本是 2026-10-24 第二轮清理删掉的；`ops/crashReporter.ts` 因被 `ops/crashLogger.ts`
+相对 import 而保留，首轮误删后由 build 的 `UNRESOLVED_IMPORT` 抓出并恢复），另 2 个是扩展名 / `?raw` 伪模块，真身都在。
 
 **体量核对**（同一脚本顺手做）：把每个 region 的代码字符数与树里同名文件比对，只有 4 处「树文件 < region 的 70%」，逐个看过，都不是截断：
 
