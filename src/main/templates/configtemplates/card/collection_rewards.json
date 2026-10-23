@@ -1,0 +1,20 @@
+{
+  "tableName": "collection_rewards",
+  "displayName": "图鉴奖励表",
+  "fields": [
+    { "name": "id", "label": "编号", "type": "integer", "description": "奖励配置编号", "notNull": true },
+    { "name": "milestone", "label": "收集数量", "type": "integer", "description": "达成该收集数量时触发奖励", "notNull": true },
+    { "name": "reward_type", "label": "奖励类型", "type": "enum", "enumValues": ["钻", "金币", "抽卡券", "限定卡", "称号"], "description": "奖励类型", "notNull": true },
+    { "name": "reward_amount", "label": "奖励数量", "type": "integer", "description": "奖励数量", "notNull": true },
+    { "name": "description", "label": "奖励描述", "type": "text", "description": "奖励中文名称" }
+  ],
+  "seedRows": [
+    { "id": 1, "milestone": 10, "reward_type": "钻", "reward_amount": 500, "description": "收集10张卡牌奖励" },
+    { "id": 2, "milestone": 30, "reward_type": "抽卡券", "reward_amount": 3, "description": "收集30张卡牌奖励" },
+    { "id": 3, "milestone": 50, "reward_type": "钻", "reward_amount": 1500, "description": "收集50张卡牌奖励" },
+    { "id": 4, "milestone": 80, "reward_type": "限定卡", "reward_amount": 1, "description": "收集80张卡牌奖励限定卡" },
+    { "id": 5, "milestone": 100, "reward_type": "称号", "reward_amount": 1, "description": "收集100张卡牌奖励称号" },
+    { "id": 6, "milestone": 150, "reward_type": "钻", "reward_amount": 5000, "description": "收集150张卡牌奖励" },
+    { "id": 7, "milestone": 200, "reward_type": "限定卡", "reward_amount": 1, "description": "收集200张卡牌奖励限定卡" }
+  ]
+}

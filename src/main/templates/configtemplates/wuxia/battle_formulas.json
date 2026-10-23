@@ -1,0 +1,23 @@
+{
+  "tableName": "battle_formulas",
+  "displayName": "伤害公式配置",
+  "fields": [
+    { "name": "id", "label": "编号", "type": "integer", "description": "公式编号", "notNull": true },
+    { "name": "name", "label": "公式名称", "type": "text", "description": "公式名称（如 普攻伤害、技能伤害）", "notNull": true },
+    { "name": "formula_type", "label": "公式类型", "type": "enum", "description": "subtract=减法型(DMG=max(ATK-DEF,1)); divide=除法型(DMG=ATK²/(ATK+DEF)); multiply=乘法型(DMG=ATK×(1-DEF/(DEF+K)))", "enumValues": ["subtract", "divide", "multiply"], "notNull": true },
+    { "name": "skill_multiplier", "label": "技能倍率", "type": "real", "description": "技能伤害倍率（普攻=1.0, 技能=1.5~3.0等），最终伤害=基础伤害×技能倍率", "notNull": true },
+    { "name": "def_constant_k", "label": "防御常数K", "type": "real", "description": "乘法型公式中的防御常数K（DMG=ATK×(1-DEF/(DEF+K))），影响防御边际收益；减法型/除法型可填0", "notNull": true },
+    { "name": "min_damage", "label": "最低伤害", "type": "integer", "description": "单次伤害最低值（默认1，即使完全未破防也至少造成此伤害）", "notNull": true },
+    { "name": "crit_multiplier", "label": "暴击倍率", "type": "real", "description": "暴击时的伤害倍率（默认2.0=2倍伤害）", "notNull": true },
+    { "name": "variance_range", "label": "伤害浮动范围", "type": "real", "description": "伤害随机浮动范围（0.15=±15%），0表示无浮动", "notNull": true },
+    { "name": "description", "label": "公式说明", "type": "text", "description": "该公式的完整文字说明" }
+  ],
+  "seedRows": [
+    { "id": 1, "name": "普攻伤害（外功）", "formula_type": "subtract", "skill_multiplier": 1.0, "def_constant_k": 0, "min_damage": 1, "crit_multiplier": 2.0, "variance_range": 0.1, "description": "外功普攻：DMG=max(ATK-DEF,1)×1.0，浮动±10%" },
+    { "id": 2, "name": "招式伤害（外功）", "formula_type": "subtract", "skill_multiplier": 1.8, "def_constant_k": 0, "min_damage": 1, "crit_multiplier": 2.0, "variance_range": 0.15, "description": "外功招式：DMG=max(ATK-DEF,1)×1.8，浮动±15%" },
+    { "id": 3, "name": "普攻伤害（内功）", "formula_type": "divide", "skill_multiplier": 1.0, "def_constant_k": 0, "min_damage": 1, "crit_multiplier": 1.8, "variance_range": 0.1, "description": "内功普攻：DMG=ATK²/(ATK+DEF)×1.0，浮动±10%" },
+    { "id": 4, "name": "内力伤害（内功）", "formula_type": "divide", "skill_multiplier": 2.2, "def_constant_k": 0, "min_damage": 1, "crit_multiplier": 1.8, "variance_range": 0.15, "description": "内功招式：DMG=ATK²/(ATK+DEF)×2.2，浮动±15%" },
+    { "id": 5, "name": "普攻伤害（硬功）", "formula_type": "multiply", "skill_multiplier": 1.0, "def_constant_k": 80, "min_damage": 1, "crit_multiplier": 2.2, "variance_range": 0.1, "description": "硬功普攻：DMG=ATK×(1-DEF/(DEF+80))×1.0，浮动±10%" },
+    { "id": 6, "name": "重击伤害（硬功）", "formula_type": "multiply", "skill_multiplier": 2.0, "def_constant_k": 80, "min_damage": 1, "crit_multiplier": 2.2, "variance_range": 0.2, "description": "硬功重击：DMG=ATK×(1-DEF/(DEF+80))×2.0，浮动±20%" }
+  ]
+}

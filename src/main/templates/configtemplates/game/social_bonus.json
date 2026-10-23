@@ -1,0 +1,21 @@
+{
+  "tableName": "social_bonus",
+  "displayName": "社交奖励表",
+  "fields": [
+    { "name": "id", "label": "编号", "type": "integer", "description": "社交奖励编号", "notNull": true },
+    { "name": "bonus_type", "label": "奖励类型", "type": "enum", "enumValues": ["master", "guild"], "description": "社交奖励类型（master=师徒, guild=帮派）", "notNull": true },
+    { "name": "level", "label": "等级", "type": "integer", "description": "奖励对应等级", "notNull": true },
+    { "name": "exp_multiplier", "label": "修为倍率", "type": "real", "description": "修为加成倍率", "notNull": true },
+    { "name": "attr_bonus", "label": "属性加成", "type": "integer", "description": "社交奖励属性加成", "notNull": true },
+    { "name": "description", "label": "描述", "type": "text", "description": "社交奖励描述" }
+  ],
+  "seedRows": [
+    { "id": 1, "bonus_type": "master", "level": 1, "exp_multiplier": 1.1, "attr_bonus": 0, "description": "师徒Lv1：修为+10%" },
+    { "id": 2, "bonus_type": "master", "level": 2, "exp_multiplier": 1.2, "attr_bonus": 1, "description": "师徒Lv2：修为+20%，属性+1" },
+    { "id": 3, "bonus_type": "master", "level": 3, "exp_multiplier": 1.3, "attr_bonus": 2, "description": "师徒Lv3：修为+30%，属性+2" },
+    { "id": 4, "bonus_type": "guild", "level": 1, "exp_multiplier": 1.05, "attr_bonus": 0, "description": "帮派Lv1：修为+5%" },
+    { "id": 5, "bonus_type": "guild", "level": 2, "exp_multiplier": 1.1, "attr_bonus": 1, "description": "帮派Lv2：修为+10%，属性+1" },
+    { "id": 6, "bonus_type": "guild", "level": 3, "exp_multiplier": 1.15, "attr_bonus": 2, "description": "帮派Lv3：修为+15%，属性+2" },
+    { "id": 7, "bonus_type": "guild", "level": 4, "exp_multiplier": 1.2, "attr_bonus": 3, "description": "帮派Lv4：修为+20%，属性+3" }
+  ]
+}

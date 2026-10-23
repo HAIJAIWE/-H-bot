@@ -1,0 +1,21 @@
+{
+  "tableName": "resources",
+  "displayName": "资源配置表",
+  "fields": [
+    { "name": "id", "label": "编号", "type": "integer", "description": "资源编号", "notNull": true },
+    { "name": "name", "label": "资源名称", "type": "text", "description": "资源中文名称", "notNull": true },
+    { "name": "type", "label": "资源类型", "type": "enum", "enumValues": ["基础", "高级", "货币", "特殊"], "description": "资源类型（基础/高级/货币/特殊）", "notNull": true },
+    { "name": "initial_amount", "label": "初始数量", "type": "integer", "description": "玩家初始拥有的数量", "notNull": true },
+    { "name": "max_amount", "label": "上限", "type": "integer", "description": "存储上限（0=无上限）", "notNull": true },
+    { "name": "description", "label": "描述", "type": "text", "description": "资源说明" }
+  ],
+  "seedRows": [
+    { "id": 1, "name": "金币", "type": "货币", "initial_amount": 1000, "max_amount": 0, "description": "基础货币，用于建筑升级和市场交易" },
+    { "id": 2, "name": "木材", "type": "基础", "initial_amount": 200, "max_amount": 50000, "description": "基础建筑材料" },
+    { "id": 3, "name": "石材", "type": "基础", "initial_amount": 100, "max_amount": 50000, "description": "基础建筑材料" },
+    { "id": 4, "name": "食物", "type": "基础", "initial_amount": 300, "max_amount": 30000, "description": "员工消耗品" },
+    { "id": 5, "name": "钻石", "type": "货币", "initial_amount": 50, "max_amount": 0, "description": "高级货币，用于加速和特殊购买" },
+    { "id": 6, "name": "魔法水晶", "type": "高级", "initial_amount": 0, "max_amount": 10000, "description": "高级建筑和升级材料" },
+    { "id": 7, "name": "声望", "type": "特殊", "initial_amount": 0, "max_amount": 10000, "description": "提升解锁等级和特殊奖励" }
+  ]
+}

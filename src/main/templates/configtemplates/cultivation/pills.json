@@ -1,0 +1,188 @@
+{
+  "tableName": "pills",
+  "displayName": "丹药配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "丹药编号",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "丹药名称",
+      "type": "text",
+      "description": "丹药名称",
+      "notNull": true
+    },
+    {
+      "name": "hp_restore",
+      "label": "回血量",
+      "type": "integer",
+      "description": "使用后恢复气血量",
+      "notNull": true
+    },
+    {
+      "name": "mp_restore",
+      "label": "回真气量",
+      "type": "integer",
+      "description": "使用后恢复真气量",
+      "notNull": true
+    },
+    {
+      "name": "str_bonus",
+      "label": "力量加成",
+      "type": "integer",
+      "description": "丹药提供的力量加成",
+      "notNull": true
+    },
+    {
+      "name": "agi_bonus",
+      "label": "敏捷加成",
+      "type": "integer",
+      "description": "丹药提供的敏捷加成",
+      "notNull": true
+    },
+    {
+      "name": "con_bonus",
+      "label": "体质加成",
+      "type": "integer",
+      "description": "丹药提供的体质加成",
+      "notNull": true
+    },
+    {
+      "name": "wis_bonus",
+      "label": "悟性加成",
+      "type": "integer",
+      "description": "丹药提供的悟性加成",
+      "notNull": true
+    },
+    {
+      "name": "price",
+      "label": "价格",
+      "type": "integer",
+      "description": "丹药售价（灵石）",
+      "notNull": true
+    },
+    {
+      "name": "min_level",
+      "label": "所需境界",
+      "type": "integer",
+      "description": "使用所需最低境界等级",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "丹药配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "name": "回气丹",
+      "hp_restore": 50,
+      "mp_restore": 30,
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "price": 50,
+      "min_level": 1,
+      "description": "回气丹 - 回血50 回真气30，售价50灵石"
+    },
+    {
+      "id": 2,
+      "name": "疗伤丹",
+      "hp_restore": 200,
+      "mp_restore": 0,
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "price": 120,
+      "min_level": 1,
+      "description": "疗伤丹 - 回血200，售价120灵石"
+    },
+    {
+      "id": 3,
+      "name": "回灵丹",
+      "hp_restore": 0,
+      "mp_restore": 150,
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "price": 150,
+      "min_level": 2,
+      "description": "回灵丹 - 回真气150，售价150灵石"
+    },
+    {
+      "id": 4,
+      "name": "力量丹",
+      "hp_restore": 0,
+      "mp_restore": 0,
+      "str_bonus": 5,
+      "agi_bonus": 0,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "price": 500,
+      "min_level": 2,
+      "description": "力量丹 - 力量+5，售价500灵石"
+    },
+    {
+      "id": 5,
+      "name": "敏捷丹",
+      "hp_restore": 0,
+      "mp_restore": 0,
+      "str_bonus": 0,
+      "agi_bonus": 5,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "price": 500,
+      "min_level": 2,
+      "description": "敏捷丹 - 敏捷+5，售价500灵石"
+    },
+    {
+      "id": 6,
+      "name": "体质丹",
+      "hp_restore": 0,
+      "mp_restore": 0,
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 5,
+      "wis_bonus": 0,
+      "price": 500,
+      "min_level": 2,
+      "description": "体质丹 - 体质+5，售价500灵石"
+    },
+    {
+      "id": 7,
+      "name": "悟性丹",
+      "hp_restore": 0,
+      "mp_restore": 0,
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 0,
+      "wis_bonus": 5,
+      "price": 500,
+      "min_level": 2,
+      "description": "悟性丹 - 悟性+5，售价500灵石"
+    },
+    {
+      "id": 8,
+      "name": "九转金丹",
+      "hp_restore": 1000,
+      "mp_restore": 500,
+      "str_bonus": 3,
+      "agi_bonus": 3,
+      "con_bonus": 3,
+      "wis_bonus": 3,
+      "price": 3000,
+      "min_level": 4,
+      "description": "九转金丹 - 回血1000 回真气500 力量+3 敏捷+3 体质+3 悟性+3，售价3000灵石"
+    }
+  ]
+}

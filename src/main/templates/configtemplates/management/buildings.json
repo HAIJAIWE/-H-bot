@@ -1,0 +1,165 @@
+{
+  "tableName": "buildings",
+  "displayName": "建筑配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "建筑编号",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "建筑名称",
+      "type": "text",
+      "description": "建筑中文名称",
+      "notNull": true
+    },
+    {
+      "name": "type",
+      "label": "建筑类型",
+      "type": "enum",
+      "enumValues": [
+        "生产",
+        "住宅",
+        "装饰",
+        "功能",
+        "防御"
+      ],
+      "description": "建筑类型（生产/住宅/装饰/功能/防御）",
+      "notNull": true
+    },
+    {
+      "name": "level_max",
+      "label": "最大等级",
+      "type": "integer",
+      "description": "建筑可升级到的最大等级",
+      "notNull": true
+    },
+    {
+      "name": "base_cost",
+      "label": "基础造价",
+      "type": "integer",
+      "description": "1级建造所需金币",
+      "notNull": true
+    },
+    {
+      "name": "cost_multiplier",
+      "label": "升级成本倍率",
+      "type": "real",
+      "description": "每级升级成本相对上一级的倍率（如1.5=每级增加50%）",
+      "notNull": true
+    },
+    {
+      "name": "build_time",
+      "label": "建造时间",
+      "type": "integer",
+      "description": "1级建造所需秒数",
+      "notNull": true
+    },
+    {
+      "name": "unlock_level",
+      "label": "解锁等级",
+      "type": "integer",
+      "description": "玩家声望达到该等级时解锁",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "建筑配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "name": "伐木场",
+      "type": "生产",
+      "level_max": 20,
+      "base_cost": 100,
+      "cost_multiplier": 1.5,
+      "build_time": 30,
+      "unlock_level": 0,
+      "description": "伐木场 - 生产类建筑，最大20级，造价100金币，建造30秒"
+    },
+    {
+      "id": 2,
+      "name": "采石场",
+      "type": "生产",
+      "level_max": 20,
+      "base_cost": 150,
+      "cost_multiplier": 1.5,
+      "build_time": 45,
+      "unlock_level": 0,
+      "description": "采石场 - 生产类建筑，最大20级，造价150金币，建造45秒"
+    },
+    {
+      "id": 3,
+      "name": "农田",
+      "type": "生产",
+      "level_max": 20,
+      "base_cost": 80,
+      "cost_multiplier": 1.4,
+      "build_time": 20,
+      "unlock_level": 0,
+      "description": "农田 - 生产类建筑，最大20级，造价80金币，建造20秒"
+    },
+    {
+      "id": 4,
+      "name": "民居",
+      "type": "住宅",
+      "level_max": 15,
+      "base_cost": 200,
+      "cost_multiplier": 1.6,
+      "build_time": 60,
+      "unlock_level": 1,
+      "description": "民居 - 住宅类建筑，最大15级，造价200金币，建造60秒"
+    },
+    {
+      "id": 5,
+      "name": "市场",
+      "type": "功能",
+      "level_max": 10,
+      "base_cost": 500,
+      "cost_multiplier": 1.8,
+      "build_time": 120,
+      "unlock_level": 3,
+      "description": "市场 - 功能类建筑，最大10级，造价500金币，建造120秒"
+    },
+    {
+      "id": 6,
+      "name": "魔法塔",
+      "type": "生产",
+      "level_max": 15,
+      "base_cost": 1000,
+      "cost_multiplier": 2.0,
+      "build_time": 300,
+      "unlock_level": 5,
+      "description": "魔法塔 - 生产类建筑，最大15级，造价1000金币，建造300秒"
+    },
+    {
+      "id": 7,
+      "name": "城墙",
+      "type": "防御",
+      "level_max": 10,
+      "base_cost": 300,
+      "cost_multiplier": 1.7,
+      "build_time": 90,
+      "unlock_level": 2,
+      "description": "城墙 - 防御类建筑，最大10级，造价300金币，建造90秒"
+    },
+    {
+      "id": 8,
+      "name": "喷泉雕像",
+      "type": "装饰",
+      "level_max": 5,
+      "base_cost": 800,
+      "cost_multiplier": 1.5,
+      "build_time": 180,
+      "unlock_level": 4,
+      "description": "喷泉雕像 - 装饰类建筑，最大5级，造价800金币，建造180秒"
+    }
+  ]
+}

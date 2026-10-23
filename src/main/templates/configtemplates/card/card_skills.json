@@ -1,0 +1,21 @@
+{
+  "tableName": "card_skills",
+  "displayName": "卡牌技能表",
+  "fields": [
+    { "name": "id", "label": "编号", "type": "integer", "description": "技能编号", "notNull": true },
+    { "name": "name", "label": "技能名称", "type": "text", "description": "技能中文名称", "notNull": true },
+    { "name": "element", "label": "属性", "type": "enum", "enumValues": ["火", "水", "风", "雷", "光", "暗", "无"], "description": "技能属性（与卡牌属性对应）", "notNull": true },
+    { "name": "effect_type", "label": "效果类型", "type": "enum", "enumValues": ["伤害", "治疗", "增益", "减益", "控制"], "description": "技能效果分类", "notNull": true },
+    { "name": "effect_value", "label": "效果数值", "type": "real", "description": "效果数值（伤害=倍率，治疗=百分比，增益/减益=百分比，控制=回合数）", "notNull": true },
+    { "name": "cooldown", "label": "冷却回合", "type": "integer", "description": "技能冷却回合数（0=每回合可用）", "notNull": true },
+    { "name": "description", "label": "技能描述", "type": "text", "description": "技能效果说明文本" }
+  ],
+  "seedRows": [
+    { "id": 1, "name": "烈焰吐息", "element": "火", "effect_type": "伤害", "effect_value": 2.5, "cooldown": 2, "description": "对单体造成攻击力250%的火属性伤害" },
+    { "id": 2, "name": "冰封领域", "element": "水", "effect_type": "控制", "effect_value": 2.0, "cooldown": 3, "description": "冻结敌方全体2回合，无法行动" },
+    { "id": 3, "name": "雷霆一击", "element": "雷", "effect_type": "伤害", "effect_value": 3.0, "cooldown": 3, "description": "对单体造成攻击力300%的雷属性伤害，无视防御" },
+    { "id": 4, "name": "疾风突刺", "element": "风", "effect_type": "伤害", "effect_value": 1.8, "cooldown": 1, "description": "快速突刺，造成攻击力180%的风属性伤害" },
+    { "id": 5, "name": "圣光治愈", "element": "光", "effect_type": "治疗", "effect_value": 0.5, "cooldown": 2, "description": "恢复己方单体最大生命值50%的血量" },
+    { "id": 6, "name": "暗影诅咒", "element": "暗", "effect_type": "减益", "effect_value": 0.3, "cooldown": 2, "description": "降低敌方单体攻击力30%，持续3回合" }
+  ]
+}

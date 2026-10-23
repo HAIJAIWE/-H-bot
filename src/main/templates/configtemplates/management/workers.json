@@ -1,0 +1,167 @@
+{
+  "tableName": "workers",
+  "displayName": "员工配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "员工编号",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "员工名称",
+      "type": "text",
+      "description": "员工中文名称",
+      "notNull": true
+    },
+    {
+      "name": "role",
+      "label": "职业",
+      "type": "enum",
+      "enumValues": [
+        "农夫",
+        "矿工",
+        "木匠",
+        "商人",
+        "法师",
+        "守卫",
+        "学者"
+      ],
+      "description": "员工职业类型",
+      "notNull": true
+    },
+    {
+      "name": "hire_cost",
+      "label": "雇佣费用",
+      "type": "integer",
+      "description": "雇佣所需金币",
+      "notNull": true
+    },
+    {
+      "name": "salary",
+      "label": "每小时工资",
+      "type": "integer",
+      "description": "每小时消耗金币（0=无工资）",
+      "notNull": true
+    },
+    {
+      "name": "efficiency",
+      "label": "效率倍率",
+      "type": "real",
+      "description": "对建筑产出的效率倍率（1.0=100%）",
+      "notNull": true
+    },
+    {
+      "name": "food_consumption",
+      "label": "食物消耗",
+      "type": "integer",
+      "description": "每小时消耗食物数量",
+      "notNull": true
+    },
+    {
+      "name": "unlock_level",
+      "label": "解锁等级",
+      "type": "integer",
+      "description": "玩家声望达到该等级时解锁",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "员工配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "name": "初级农夫",
+      "role": "农夫",
+      "hire_cost": 100,
+      "salary": 5,
+      "efficiency": 1.0,
+      "food_consumption": 2,
+      "unlock_level": 0,
+      "description": "初级农夫 - 农夫，雇佣100金币，工资5/h，效率×1.0，食物消耗2/h"
+    },
+    {
+      "id": 2,
+      "name": "资深农夫",
+      "role": "农夫",
+      "hire_cost": 500,
+      "salary": 15,
+      "efficiency": 1.5,
+      "food_consumption": 3,
+      "unlock_level": 3,
+      "description": "资深农夫 - 农夫，雇佣500金币，工资15/h，效率×1.5，食物消耗3/h"
+    },
+    {
+      "id": 3,
+      "name": "普通矿工",
+      "role": "矿工",
+      "hire_cost": 150,
+      "salary": 8,
+      "efficiency": 1.0,
+      "food_consumption": 2,
+      "unlock_level": 1,
+      "description": "普通矿工 - 矿工，雇佣150金币，工资8/h，效率×1.0，食物消耗2/h"
+    },
+    {
+      "id": 4,
+      "name": "熟练矿工",
+      "role": "矿工",
+      "hire_cost": 700,
+      "salary": 20,
+      "efficiency": 1.6,
+      "food_consumption": 4,
+      "unlock_level": 4,
+      "description": "熟练矿工 - 矿工，雇佣700金币，工资20/h，效率×1.6，食物消耗4/h"
+    },
+    {
+      "id": 5,
+      "name": "商旅",
+      "role": "商人",
+      "hire_cost": 800,
+      "salary": 25,
+      "efficiency": 1.3,
+      "food_consumption": 3,
+      "unlock_level": 3,
+      "description": "商旅 - 商人，雇佣800金币，工资25/h，效率×1.3，食物消耗3/h"
+    },
+    {
+      "id": 6,
+      "name": "魔法学徒",
+      "role": "法师",
+      "hire_cost": 1500,
+      "salary": 40,
+      "efficiency": 2.0,
+      "food_consumption": 5,
+      "unlock_level": 5,
+      "description": "魔法学徒 - 法师，雇佣1500金币，工资40/h，效率×2.0，食物消耗5/h"
+    },
+    {
+      "id": 7,
+      "name": "民兵",
+      "role": "守卫",
+      "hire_cost": 300,
+      "salary": 12,
+      "efficiency": 1.0,
+      "food_consumption": 3,
+      "unlock_level": 2,
+      "description": "民兵 - 守卫，雇佣300金币，工资12/h，效率×1.0，食物消耗3/h"
+    },
+    {
+      "id": 8,
+      "name": "学者",
+      "role": "学者",
+      "hire_cost": 2000,
+      "salary": 50,
+      "efficiency": 1.8,
+      "food_consumption": 4,
+      "unlock_level": 6,
+      "description": "学者 - 学者，雇佣2000金币，工资50/h，效率×1.8，食物消耗4/h"
+    }
+  ]
+}

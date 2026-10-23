@@ -1,0 +1,24 @@
+{
+  "tableName": "class_attrs",
+  "displayName": "职业基础属性",
+  "fields": [
+    { "name": "class", "label": "职业代号", "type": "enum", "enumValues": ["sword", "magic", "body", "alchemy"], "description": "职业英文代号（sword=剑修, magic=法修, body=体修, alchemy=丹修）", "notNull": true },
+    { "name": "name", "label": "职业名称", "type": "text", "description": "职业中文名称", "notNull": true },
+    { "name": "str", "label": "力量初始值", "type": "integer", "description": "创建角色时的初始力量", "notNull": true },
+    { "name": "agi", "label": "敏捷初始值", "type": "integer", "description": "创建角色时的初始敏捷", "notNull": true },
+    { "name": "con", "label": "体质初始值", "type": "integer", "description": "创建角色时的初始体质", "notNull": true },
+    { "name": "wis", "label": "悟性初始值", "type": "integer", "description": "创建角色时的初始悟性", "notNull": true },
+    { "name": "str_growth", "label": "力量成长率", "type": "real", "description": "每级自动增加的力量值（如1.5=每级+1.5力量）", "notNull": true },
+    { "name": "agi_growth", "label": "敏捷成长率", "type": "real", "description": "每级自动增加的敏捷值", "notNull": true },
+    { "name": "con_growth", "label": "体质成长率", "type": "real", "description": "每级自动增加的体质值", "notNull": true },
+    { "name": "wis_growth", "label": "悟性成长率", "type": "real", "description": "每级自动增加的悟性值", "notNull": true },
+    { "name": "free_points_per_level", "label": "每级自由点数", "type": "integer", "description": "每级升级获得的可自由分配属性点数", "notNull": true },
+    { "name": "description", "label": "职业说明", "type": "text", "description": "职业特色描述" }
+  ],
+  "seedRows": [
+    { "class": "sword", "name": "剑修", "str": 12, "agi": 10, "con": 10, "wis": 8, "str_growth": 1.5, "agi_growth": 1.2, "con_growth": 1.0, "wis_growth": 0.8, "free_points_per_level": 3, "description": "剑修：力量成长高，物理输出型职业" },
+    { "class": "magic", "name": "法修", "str": 8, "agi": 9, "con": 9, "wis": 14, "str_growth": 0.8, "agi_growth": 1.0, "con_growth": 1.0, "wis_growth": 1.5, "free_points_per_level": 3, "description": "法修：悟性成长高，法术输出型职业" },
+    { "class": "body", "name": "体修", "str": 11, "agi": 8, "con": 14, "wis": 7, "str_growth": 1.2, "agi_growth": 0.8, "con_growth": 1.5, "wis_growth": 0.7, "free_points_per_level": 3, "description": "体修：体质成长高，坦克防御型职业" },
+    { "class": "alchemy", "name": "丹修", "str": 7, "agi": 9, "con": 11, "wis": 12, "str_growth": 0.7, "agi_growth": 1.0, "con_growth": 1.2, "wis_growth": 1.3, "free_points_per_level": 3, "description": "丹修：悟性体质均衡，辅助治疗型职业" }
+  ]
+}

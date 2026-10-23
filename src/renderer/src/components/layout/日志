@@ -1,0 +1,995 @@
+Windows PowerShell 5.1
+版权所有 (C) Microsoft Corporation。保留所有权利。
+
+安装最新的 PowerShell 以获得新功能和改进！https://aka.ms/PSWindows
+
+PS D:\JP\keystroke-overlay> npm run dev
+
+> keystroke-overlay@1.0.0 dev
+> electron-vite dev
+
+vite v7.3.5 building ssr environment for development...
+✓ 10 modules transformed.
+out/main/index.js  37.72 kB
+✓ built in 293ms
+
+electron main process built successfully
+
+-----
+
+vite v7.3.5 building ssr environment for development...
+✓ 2 modules transformed.
+out/preload/overlay.js   0.95 kB
+out/preload/settings.js  1.02 kB
+✓ built in 11ms
+
+electron preload scripts built successfully
+
+-----
+
+dev server running for the electron renderer process at:
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+
+starting electron app...
+
+
+[WM] createOverlay, ELECTRON_RENDERER_URL: http://localhost:5173
+[WM] loading overlay URL: http://localhost:5173/overlay.html
+[WM] createSettings, ELECTRON_RENDERER_URL: http://localhost:5173
+[WM] loading settings URL: http://localhost:5173/settings.html
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 160,
+  x: 1644,
+  y: 904,
+  actualX: 1644,
+  actualY: 904,
+  actualW: 260,
+  actualH: 160
+}
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[overlay-console:0] [vite] connecting...
+[settings-console:0] [vite] connecting...
+[overlay-console:1] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[overlay-console:2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.
+[settings-console:1] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[overlay-console:0] [vite] connected.
+[settings-console:2] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.
+[overlay-console:1] [Theme] 3d-skeuomorphic v3
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[settings-console:0] [vite] connected.
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 100 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 100,
+  x: 1644,
+  y: 964,
+  actualX: 1644,
+  actualY: 964,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 100 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 100,
+  x: 1644,
+  y: 964,
+  actualX: 1644,
+  actualY: 964,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 100 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 100,
+  x: 1644,
+  y: 964,
+  actualX: 1644,
+  actualY: 964,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 100 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 100,
+  x: 1644,
+  y: 964,
+  actualX: 1644,
+  actualY: 964,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 102 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 102,
+  x: 1644,
+  y: 962,
+  actualX: 1644,
+  actualY: 962,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 210, ch: 220 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 210,
+  h: 220,
+  x: 1694,
+  y: 844,
+  actualX: 1694,
+  actualY: 844,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 53 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 53,
+  x: 1644,
+  y: 1011,
+  actualX: 1644,
+  actualY: 1011,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: { cw: 260, ch: 55 } getSize after setSize: { oldW: 260, oldH: 220 }
+[position] calc: {
+  anchor: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  b: { x: 0, y: 0, width: 1920, height: 1080 },
+  w: 260,
+  h: 55,
+  x: 1644,
+  y: 1009,
+  actualX: 1644,
+  actualY: 1009,
+  actualW: 260,
+  actualH: 220
+}
+[resize] requested: {

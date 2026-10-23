@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node", "electron"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "./out",
+    "paths": { "@shared/*": ["./src/shared/*"], "@main/*": ["./src/main/*"] }
+  },
+  "include": ["src/main/**/*", "src/preload/**/*", "src/shared/**/*", "tests/main/**/*", "tests/shared/**/*", "tests/runtime/**/*", "tests/setup/**/*", "tests/helpers/**/*", "electron.vite.config.ts", "vitest.config.ts"],
+  "exclude": ["src/main/__tests__/**/*"]
+}

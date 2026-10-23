@@ -1,0 +1,58 @@
+/* src/renderer/src/styles/themes.css */
+
+/* ===== CSS 变量声明 ===== */
+:root {
+  --color-primary: #818cf8;
+  --color-bg: #09090b;
+  --color-bg-alt: #18181b;
+  --color-surface: #27272a;
+  --color-text: #f4f4f5;
+  --color-text-muted: #71717a;
+  --color-border: #3f3f46;
+  --color-accent: #22d3ee;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+}
+
+/* ===== 暗色默认 (qqbat-dark) ===== */
+[data-theme='qqbat-dark'],
+.theme-dark {
+  --color-bg: #09090b;
+  --color-bg-alt: #18181b;
+  --color-surface: #27272a;
+  --color-text: #f4f4f5;
+  --color-text-muted: #71717a;
+  --color-primary: #818cf8;
+  --color-accent: #22d3ee;
+  --color-border: #3f3f46;
+  --color-error: #f87171;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+}
+
+/* ===== 亮色 (qqbat-light) ===== */
+[data-theme='qqbat-light'],
+.theme-light {
+  --color-bg: #fafafa;
+  --color-bg-alt: #f4f4f5;
+  --color-surface: #e4e4e7;
+  --color-text: #18181b;
+  --color-text-muted: #71717a;
+  --color-primary: #6366f1;
+  --color-accent: #06b6d4;
+  --color-border: #d4d4d8;
+  --color-error: #ef4444;
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+}
+
+/* ===== 亮色模式滚动条 ===== */
+[data-theme='qqbat-light'] ::-webkit-scrollbar-thumb,
+.theme-light ::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+}
+[data-theme='qqbat-light'] ::-webkit-scrollbar-thumb:hover,
+.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: #71717a;
+}

@@ -1,0 +1,128 @@
+{
+  "tableName": "production",
+  "displayName": "产出配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "产出配置编号",
+      "notNull": true
+    },
+    {
+      "name": "building_id",
+      "label": "建筑编号",
+      "type": "integer",
+      "description": "关联建筑编号（对应 buildings.id）",
+      "notNull": true
+    },
+    {
+      "name": "level",
+      "label": "建筑等级",
+      "type": "integer",
+      "description": "建筑等级",
+      "notNull": true
+    },
+    {
+      "name": "resource_id",
+      "label": "产出资源",
+      "type": "integer",
+      "description": "产出资源编号（对应 resources.id）",
+      "notNull": true
+    },
+    {
+      "name": "production_per_hour",
+      "label": "每小时产出",
+      "type": "integer",
+      "description": "每小时产出数量",
+      "notNull": true
+    },
+    {
+      "name": "consumption_per_hour",
+      "label": "每小时消耗",
+      "type": "integer",
+      "description": "每小时消耗资源数量（0=无消耗）",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "产出配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "building_id": 1,
+      "level": 1,
+      "resource_id": 2,
+      "production_per_hour": 60,
+      "consumption_per_hour": 0,
+      "description": "建筑1等级1 - 每小时产出60资源2"
+    },
+    {
+      "id": 2,
+      "building_id": 1,
+      "level": 10,
+      "resource_id": 2,
+      "production_per_hour": 240,
+      "consumption_per_hour": 0,
+      "description": "建筑1等级10 - 每小时产出240资源2"
+    },
+    {
+      "id": 3,
+      "building_id": 2,
+      "level": 1,
+      "resource_id": 3,
+      "production_per_hour": 40,
+      "consumption_per_hour": 0,
+      "description": "建筑2等级1 - 每小时产出40资源3"
+    },
+    {
+      "id": 4,
+      "building_id": 2,
+      "level": 10,
+      "resource_id": 3,
+      "production_per_hour": 180,
+      "consumption_per_hour": 0,
+      "description": "建筑2等级10 - 每小时产出180资源3"
+    },
+    {
+      "id": 5,
+      "building_id": 3,
+      "level": 1,
+      "resource_id": 4,
+      "production_per_hour": 80,
+      "consumption_per_hour": 0,
+      "description": "建筑3等级1 - 每小时产出80资源4"
+    },
+    {
+      "id": 6,
+      "building_id": 3,
+      "level": 10,
+      "resource_id": 4,
+      "production_per_hour": 320,
+      "consumption_per_hour": 0,
+      "description": "建筑3等级10 - 每小时产出320资源4"
+    },
+    {
+      "id": 7,
+      "building_id": 6,
+      "level": 1,
+      "resource_id": 6,
+      "production_per_hour": 10,
+      "consumption_per_hour": 5,
+      "description": "建筑6等级1 - 每小时产出10资源6（消耗5/h）"
+    },
+    {
+      "id": 8,
+      "building_id": 6,
+      "level": 10,
+      "resource_id": 6,
+      "production_per_hour": 60,
+      "consumption_per_hour": 20,
+      "description": "建筑6等级10 - 每小时产出60资源6（消耗20/h）"
+    }
+  ]
+}

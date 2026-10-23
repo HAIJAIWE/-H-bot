@@ -1,0 +1,47 @@
+appId: com.qqbat.app
+# 显示名与 10/18 打包客户端（D:/H Bot 制造）一致：exe 名、安装目录、快捷方式、
+# VersionInfo 的 ProductName/FileDescription/InternalName 都从这里派生。
+productName: H Bot 制造
+copyright: Copyright © 2026 H Bot 制造
+
+directories:
+  output: release
+
+files:
+  - out/**/*
+
+# 原生模块必须从 asar 中解包，否则 dlopen 无法加载 .node 文件。
+# 覆盖 better-sqlite3（SQLite 存储）与 node-pty（终端）等所有原生依赖；
+# 同时显式解包 better-sqlite3 整个包，确保 build/Release/*.node 与辅助文件可用。
+asarUnpack:
+  - "**/*.node"
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/node-pty/**"
+  # ssh2 在运行时动态 require 协议实现，asar 内路径解析不可靠（基线同样解包）。
+  - "node_modules/ssh2/**"
+  # fork() 必须指向真实文件：不可信节点沙箱的 worker 与它的 chunk 都不能留在 asar 里。
+  - "out/main/chunks/**"
+  - "out/main/untrustedWorker.js"
+
+extraResources:
+  - resources/**/*
+
+win:
+  icon: resources/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: H Bot 制造
+
+portable:
+  # 文件名用 ASCII，避免压缩/上传链路对中文名转码不一致；安装后显示名仍是中文品牌。
+  artifactName: H-Bot-Portable-${version}.exe

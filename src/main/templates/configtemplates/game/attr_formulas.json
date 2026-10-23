@@ -1,0 +1,24 @@
+{
+  "tableName": "attr_formulas",
+  "displayName": "属性基础公式",
+  "fields": [
+    { "name": "name", "label": "属性标识", "type": "text", "description": "属性英文标识（如 hp、mp、atk、def），供步骤积木引用", "notNull": true },
+    { "name": "label", "label": "显示名", "type": "text", "description": "属性中文显示名（如 气血、真气、攻击、防御）", "notNull": true },
+    { "name": "source_attr", "label": "源四维属性", "type": "enum", "description": "该属性由哪个四维属性驱动（con=体质, wis=悟性, agi=敏捷, str=力量）", "enumValues": ["con", "wis", "agi", "str"], "notNull": true },
+    { "name": "base_coeff", "label": "基础系数", "type": "real", "description": "公式中的基础乘数（如生命=根骨×(基础系数+境界序号×每级系数)×境界加成，此处为基础系数）", "notNull": true },
+    { "name": "realm_coeff", "label": "每级境界系数", "type": "real", "description": "每级境界序号增加的乘数（如生命公式中境界序号×10，此处为10）", "notNull": true },
+    { "name": "description", "label": "公式说明", "type": "text", "description": "该公式的完整说明（如：气血 = 体质 × (100 + 境界序号×10) × 境界加成）" }
+  ],
+  "seedRows": [
+    { "name": "hp", "label": "气血", "source_attr": "con", "base_coeff": 100, "realm_coeff": 10, "description": "气血 = 体质 × (100 + 境界序号×10) × 境界加成" },
+    { "name": "mp", "label": "真气", "source_attr": "wis", "base_coeff": 50, "realm_coeff": 5, "description": "真气 = 悟性 × (50 + 境界序号×5) × 境界加成" },
+    { "name": "atk", "label": "攻击", "source_attr": "str", "base_coeff": 2.0, "realm_coeff": 0.2, "description": "攻击 = 力量 × (2.0 + 境界序号×0.2) × 境界加成" },
+    { "name": "matk", "label": "法攻", "source_attr": "wis", "base_coeff": 2.0, "realm_coeff": 0.2, "description": "法攻 = 悟性 × (2.0 + 境界序号×0.2) × 境界加成" },
+    { "name": "def", "label": "防御", "source_attr": "con", "base_coeff": 1.0, "realm_coeff": 0.1, "description": "防御 = 体质 × (1.0 + 境界序号×0.1) × 境界加成" },
+    { "name": "mdef", "label": "法防", "source_attr": "wis", "base_coeff": 1.0, "realm_coeff": 0.1, "description": "法防 = 悟性 × (1.0 + 境界序号×0.1) × 境界加成" },
+    { "name": "spd", "label": "速度", "source_attr": "agi", "base_coeff": 1.0, "realm_coeff": 0.1, "description": "速度 = 敏捷 × (1.0 + 境界序号×0.1)" },
+    { "name": "crit", "label": "暴击率", "source_attr": "agi", "base_coeff": 0.005, "realm_coeff": 0.001, "description": "暴击率 = 敏捷 × (0.005 + 境界序号×0.001)" },
+    { "name": "dodge", "label": "闪避率", "source_attr": "agi", "base_coeff": 0.003, "realm_coeff": 0.001, "description": "闪避率 = 敏捷 × (0.003 + 境界序号×0.001)" },
+    { "name": "hit", "label": "命中率", "source_attr": "agi", "base_coeff": 0.99, "realm_coeff": 0.001, "description": "命中率 = 敏捷 × (0.99 + 境界序号×0.001)" }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "tableName": "battle_config",
+  "displayName": "战斗配置",
+  "fields": [
+    { "name": "key", "label": "键名", "type": "text", "description": "战斗配置键名（如 weapon_bonus/skill_bonus/class_sword/win_threshold）", "notNull": true },
+    { "name": "value", "label": "数值", "type": "real", "description": "配置值", "notNull": true },
+    { "name": "description", "label": "描述", "type": "text", "description": "配置项说明" }
+  ],
+  "seedRows": [
+    { "key": "weapon_bonus", "value": 1.5, "description": "持武器攻击力加成倍率（1.5=+50%攻击）" },
+    { "key": "armor_bonus", "value": 1.3, "description": "穿防具防御力加成倍率（1.3=+30%防御）" },
+    { "key": "skill_bonus", "value": 1.5, "description": "技能伤害基础倍率" },
+    { "key": "crit_default_rate", "value": 0.05, "description": "默认暴击率（5%）" },
+    { "key": "crit_default_multiplier", "value": 2.0, "description": "默认暴击伤害倍率（2倍）" },
+    { "key": "dodge_default_rate", "value": 0.03, "description": "默认闪避率（3%）" },
+    { "key": "win_threshold", "value": 0, "description": "胜利阈值（0=怪物HP<=0即胜利）" },
+    { "key": "flee_chance", "value": 0.5, "description": "逃跑成功率（50%）" },
+    { "key": "flee_penalty_stone", "value": 0.1, "description": "逃跑失败灵石惩罚比例（10%）" },
+    { "key": "turn_limit", "value": 30, "description": "战斗最大回合数（超过判负）" }
+  ]
+}

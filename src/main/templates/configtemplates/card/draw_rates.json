@@ -1,0 +1,260 @@
+{
+  "tableName": "draw_rates",
+  "displayName": "抽卡概率表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "概率配置编号",
+      "notNull": true
+    },
+    {
+      "name": "pool_id",
+      "label": "卡池编号",
+      "type": "integer",
+      "description": "关联卡池编号（对应 card_pools.id）",
+      "notNull": true
+    },
+    {
+      "name": "rarity",
+      "label": "稀有度",
+      "type": "enum",
+      "enumValues": [
+        "N",
+        "R",
+        "SR",
+        "SSR",
+        "UR"
+      ],
+      "description": "稀有度标识",
+      "notNull": true
+    },
+    {
+      "name": "base_rate",
+      "label": "基础概率",
+      "type": "real",
+      "description": "该稀有度的基础掉落概率（0.0~1.0）",
+      "notNull": true
+    },
+    {
+      "name": "pity_rate",
+      "label": "保底增量",
+      "type": "real",
+      "description": "每抽未出该稀有度时概率增加量（0=无递增）",
+      "notNull": true
+    },
+    {
+      "name": "max_pity_count",
+      "label": "保底阈值",
+      "type": "integer",
+      "description": "触发硬保底的抽卡次数（0=无硬保底）",
+      "notNull": true
+    },
+    {
+      "name": "guarantee_count",
+      "label": "软保底起始",
+      "type": "integer",
+      "description": "软保底开始的抽卡次数（0=无软保底）",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "抽卡概率说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "pool_id": 1,
+      "rarity": "N",
+      "base_rate": 0.5,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池1 - N稀有度，基础概率50.0%"
+    },
+    {
+      "id": 2,
+      "pool_id": 1,
+      "rarity": "R",
+      "base_rate": 0.35,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池1 - R稀有度，基础概率35.0%"
+    },
+    {
+      "id": 3,
+      "pool_id": 1,
+      "rarity": "SR",
+      "base_rate": 0.15,
+      "pity_rate": 0.0,
+      "max_pity_count": 20,
+      "guarantee_count": 0,
+      "description": "卡池1 - SR稀有度，基础概率15.0%，硬保底20抽"
+    },
+    {
+      "id": 4,
+      "pool_id": 2,
+      "rarity": "N",
+      "base_rate": 0.6,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池2 - N稀有度，基础概率60.0%"
+    },
+    {
+      "id": 5,
+      "pool_id": 2,
+      "rarity": "R",
+      "base_rate": 0.28,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池2 - R稀有度，基础概率28.0%"
+    },
+    {
+      "id": 6,
+      "pool_id": 2,
+      "rarity": "SR",
+      "base_rate": 0.09,
+      "pity_rate": 0.0,
+      "max_pity_count": 10,
+      "guarantee_count": 0,
+      "description": "卡池2 - SR稀有度，基础概率9.0%，硬保底10抽"
+    },
+    {
+      "id": 7,
+      "pool_id": 2,
+      "rarity": "SSR",
+      "base_rate": 0.03,
+      "pity_rate": 0.006,
+      "max_pity_count": 90,
+      "guarantee_count": 75,
+      "description": "卡池2 - SSR稀有度，基础概率3.0%，每抽+0.6%，硬保底90抽，软保底75抽起"
+    },
+    {
+      "id": 8,
+      "pool_id": 3,
+      "rarity": "N",
+      "base_rate": 0.545,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池3 - N稀有度，基础概率54.5%"
+    },
+    {
+      "id": 9,
+      "pool_id": 3,
+      "rarity": "R",
+      "base_rate": 0.3,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池3 - R稀有度，基础概率30.0%"
+    },
+    {
+      "id": 10,
+      "pool_id": 3,
+      "rarity": "SR",
+      "base_rate": 0.1,
+      "pity_rate": 0.0,
+      "max_pity_count": 10,
+      "guarantee_count": 0,
+      "description": "卡池3 - SR稀有度，基础概率10.0%，硬保底10抽"
+    },
+    {
+      "id": 11,
+      "pool_id": 3,
+      "rarity": "SSR",
+      "base_rate": 0.05,
+      "pity_rate": 0.01,
+      "max_pity_count": 90,
+      "guarantee_count": 70,
+      "description": "卡池3 - SSR稀有度，基础概率5.0%，每抽+1.0%，硬保底90抽，软保底70抽起"
+    },
+    {
+      "id": 12,
+      "pool_id": 4,
+      "rarity": "N",
+      "base_rate": 0.85,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池4 - N稀有度，基础概率85.0%"
+    },
+    {
+      "id": 13,
+      "pool_id": 4,
+      "rarity": "R",
+      "base_rate": 0.15,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池4 - R稀有度，基础概率15.0%"
+    },
+    {
+      "id": 14,
+      "pool_id": 5,
+      "rarity": "N",
+      "base_rate": 0.495,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池5 - N稀有度，基础概率49.5%"
+    },
+    {
+      "id": 15,
+      "pool_id": 5,
+      "rarity": "R",
+      "base_rate": 0.3,
+      "pity_rate": 0.0,
+      "max_pity_count": 0,
+      "guarantee_count": 0,
+      "description": "卡池5 - R稀有度，基础概率30.0%"
+    },
+    {
+      "id": 16,
+      "pool_id": 5,
+      "rarity": "SR",
+      "base_rate": 0.15,
+      "pity_rate": 0.0,
+      "max_pity_count": 10,
+      "guarantee_count": 0,
+      "description": "卡池5 - SR稀有度，基础概率15.0%，硬保底10抽"
+    },
+    {
+      "id": 17,
+      "pool_id": 5,
+      "rarity": "SSR",
+      "base_rate": 0.05,
+      "pity_rate": 0.012,
+      "max_pity_count": 60,
+      "guarantee_count": 50,
+      "description": "卡池5 - SSR稀有度，基础概率5.0%，每抽+1.2%，硬保底60抽，软保底50抽起"
+    },
+    {
+      "id": 18,
+      "pool_id": 3,
+      "rarity": "UR",
+      "base_rate": 0.005,
+      "pity_rate": 0.002,
+      "max_pity_count": 200,
+      "guarantee_count": 150,
+      "description": "卡池3 - UR稀有度，基础概率0.5%，每抽+0.2%，硬保底200抽，软保底150抽起"
+    },
+    {
+      "id": 19,
+      "pool_id": 5,
+      "rarity": "UR",
+      "base_rate": 0.005,
+      "pity_rate": 0.002,
+      "max_pity_count": 200,
+      "guarantee_count": 150,
+      "description": "卡池5 - UR稀有度，基础概率0.5%，每抽+0.2%，硬保底200抽，软保底150抽起"
+    }
+  ]
+}

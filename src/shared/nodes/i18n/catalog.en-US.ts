@@ -1,0 +1,5909 @@
+// src/shared/nodes/i18n/catalog.en-US.ts
+//
+// 英文节点文案（**由 scripts/i18n-build-catalog.mjs 生成，请勿手改**）。
+//
+// 结构由中文目录逐项映射而来，与契约层（builtinCatalog.ts）的 kind / 端口 id /
+// 选项 value 一一对应；改文案请改 scripts/i18n/zh-en-map.json 后重新生成。
+//
+// 契约字段（handler / toolName / showWhen / 选项 value / defaultConfig）不在此文件：
+// 它们被运行时与代码生成器依赖，**必须**单一真相，见 copy.types.ts 的说明。
+import type { CatalogCopy } from './copy.types';
+
+export const CATALOG_EN_US: CatalogCopy = {
+  "message_received": {
+    "label": "Message received",
+    "description": "Message trigger (match modes: any message / @bot / command / keyword / regex)",
+    "summary": "Fires when a chat message arrives. Match modes: any message / @bot / command / keyword / regex (capture-group extraction supported)",
+    "tags": [
+      "QQ",
+      "Message",
+      "Trigger",
+      "Listen"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Next"
+      },
+      "outputs.event": {
+        "name": "Event object",
+        "description": "Event object"
+      },
+      "outputs.raw_message": {
+        "name": "Raw message",
+        "description": "Raw message text"
+      },
+      "outputs.args": {
+        "name": "Command args",
+        "description": "Command arguments (only in \"command\" mode; empty list in other modes)"
+      },
+      "outputs.ark_type": {
+        "name": "Card type",
+        "description": "The official ark message type (for example picture); empty for plain text messages. The picture value was added by the official API on 2026-09-16"
+      },
+      "outputs.matched": {
+        "name": "Matched text",
+        "description": "The full regex match (only in \"regex\" mode; empty string in other modes)"
+      },
+      "outputs.groups": {
+        "name": "Capture group",
+        "description": "List of regex capture groups (only in \"regex\" mode; empty list in other modes)"
+      }
+    },
+    "options": {
+      "match": {
+        "any": {
+          "label": "Any message"
+        },
+        "at_me": {
+          "label": "@bot"
+        },
+        "command": {
+          "label": "Command"
+        },
+        "keyword": {
+          "label": "Keyword"
+        },
+        "regex": {
+          "label": "Regex"
+        }
+      },
+      "message_type": {
+        "any": {
+          "label": "All"
+        },
+        "group": {
+          "label": "Group messages"
+        },
+        "private": {
+          "label": "Private chat"
+        },
+        "guild": {
+          "label": "Channel messages"
+        }
+      }
+    }
+  },
+  "scheduled": {
+    "label": "Scheduled trigger",
+    "description": "Cron-scheduled task or interval execution",
+    "summary": "Trigger on a Cron expression or a fixed interval — for scheduled pushes and polling tasks",
+    "tags": [
+      "Scheduled",
+      "Trigger",
+      "Cron"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Next"
+      },
+      "outputs.time": {
+        "name": "Trigger time",
+        "description": "Trigger time"
+      }
+    }
+  },
+  "request_received": {
+    "label": "Request event",
+    "description": "Listen for group join requests / invites (the only \"request\" event the official API has; **adding a friend is NOT a request event** — it arrives as \"Notice event → user added the bot\")",
+    "summary": "Fires when a user applies to join the group, or a member invites the bot into a group — commonly used to auto-approve joins. There is NO such thing as a \"friend request\": friend-adding is a notice event, not an approvable request, so do not wait for it here",
+    "tags": [
+      "QQ",
+      "Request",
+      "Approve",
+      "Join"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Exit"
+      },
+      "outputs.event": {
+        "name": "Event object",
+        "description": "Raw request event object"
+      },
+      "outputs.request_type": {
+        "name": "Request type",
+        "description": "The type actually received: under the official API there is only \"group join request / invite\" (value group)"
+      },
+      "outputs.user_id": {
+        "name": "User QQ",
+        "description": "QQ number that sent the request"
+      },
+      "outputs.group_id": {
+        "name": "Group",
+        "description": "Group number being joined (group messages only)"
+      },
+      "outputs.comment": {
+        "name": "Comment",
+        "description": "Request comment"
+      },
+      "outputs.flag": {
+        "name": "Flag",
+        "description": "Request flag, passed back when approving or rejecting"
+      }
+    },
+    "options": {
+      "request_type": {
+        "any": {
+          "label": "Any request"
+        },
+        "group": {
+          "label": "Group join request / invite"
+        }
+      }
+    }
+  },
+  "notice_received": {
+    "label": "Notice event",
+    "description": "Listen for notice events: member joined / left, message audit result, interaction",
+    "summary": "Listen for notice events (optionally filtered by type) — for welcome messages, leave alerts and audit-result handling. The receivable types are exactly the ones in the \"Notice type\" dropdown (whatever the official adapter emits is what is listed there)",
+    "tags": [
+      "QQ",
+      "Notice",
+      "Join",
+      "Leave",
+      "Audit",
+      "Listen"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Exit"
+      },
+      "outputs.event": {
+        "name": "Event object",
+        "description": "Raw notice event object"
+      },
+      "outputs.notice_type": {
+        "name": "Notice type",
+        "description": "Actually received type (the official adapter emits group_member_add / group_member_remove / message_audit / interaction etc. — see the values in the \"Notice type\" dropdown)"
+      },
+      "outputs.user_id": {
+        "name": "Target QQ",
+        "description": "QQ number of the affected user"
+      },
+      "outputs.group_id": {
+        "name": "Group",
+        "description": "Group number where the event happened"
+      },
+      "outputs.sub_type": {
+        "name": "Sub type",
+        "description": "Notice sub type: approve / invite / leave / kick, etc."
+      },
+      "outputs.operator_id": {
+        "name": "Operator QQ",
+        "description": "User who performed the action (inviter or admin for join/leave events; 0 when absent)"
+      }
+    },
+    "options": {
+      "notice_type": {
+        "any": {
+          "label": "Any notice"
+        },
+        "group_member_add": {
+          "label": "Member joined",
+          "group": "Group members"
+        },
+        "group_member_remove": {
+          "label": "Member left",
+          "group": "Group members"
+        },
+        "group_join_request": {
+          "label": "Join request received",
+          "group": "Group members"
+        },
+        "group_add_robot": {
+          "label": "Bot added to group",
+          "group": "Bot"
+        },
+        "group_del_robot": {
+          "label": "Bot removed from group",
+          "group": "Bot"
+        },
+        "group_msg_receive": {
+          "label": "Group messages enabled for bot",
+          "group": "Bot"
+        },
+        "group_msg_reject": {
+          "label": "Group messages disabled for bot",
+          "group": "Bot"
+        },
+        "friend_add": {
+          "label": "User added the bot",
+          "group": "Friend"
+        },
+        "friend_del": {
+          "label": "User removed the bot",
+          "group": "Friend"
+        },
+        "c2c_msg_receive": {
+          "label": "Private messages enabled",
+          "group": "Friend"
+        },
+        "c2c_msg_reject": {
+          "label": "Private messages disabled",
+          "group": "Friend"
+        },
+        "subscribe_message_status": {
+          "label": "Subscription status changed",
+          "group": "Subscription"
+        },
+        "message_audit": {
+          "label": "Message audit result (channel)",
+          "group": "Audit"
+        },
+        "interaction": {
+          "label": "Interaction (button callback etc.)",
+          "group": "Interaction"
+        },
+        "guild_create": {
+          "label": "Guild created",
+          "group": "Channel"
+        },
+        "guild_update": {
+          "label": "Guild updated",
+          "group": "Channel"
+        },
+        "guild_delete": {
+          "label": "Guild deleted",
+          "group": "Channel"
+        },
+        "channel_create": {
+          "label": "Channel created",
+          "group": "Channel"
+        },
+        "channel_update": {
+          "label": "Channel updated",
+          "group": "Channel"
+        },
+        "channel_delete": {
+          "label": "Channel deleted",
+          "group": "Channel"
+        }
+      }
+    }
+  },
+  "button_clicked": {
+    "label": "Button click",
+    "description": "Listen for users clicking InlineKeyboard buttons",
+    "summary": "Fires when a button from \"Send message\" (Button UI) is clicked. The official QQ API surfaces command-button clicks as a message whose content equals the button's action.data, so catch it with the \"Message received\" trigger",
+    "tags": [
+      "QQ",
+      "Button",
+      "Click",
+      "Callback",
+      "Trigger"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Exit"
+      },
+      "outputs.event": {
+        "name": "Event object",
+        "description": "Raw event object"
+      },
+      "outputs.button_id": {
+        "name": "Button ID",
+        "description": "ID of the clicked button (QQ official API)"
+      },
+      "outputs.button_data": {
+        "name": "Button data",
+        "description": "The button's action_data (the data field set when configuring the button)"
+      },
+      "outputs.user_id": {
+        "name": "Clicker QQ",
+        "description": "QQ number of the user who clicked"
+      },
+      "outputs.group_id": {
+        "name": "Group",
+        "description": "Group number the button belongs to (empty in private chat)"
+      }
+    }
+  },
+  "on_ready": {
+    "label": "Connection ready",
+    "description": "Fires automatically once the bot connection is ready (lifecycle trigger)",
+    "summary": "Fires automatically once the bot connects to the OneBot implementation — for startup notices, data initialization, cache warm-up and registering scheduled tasks. Multiple \"Connection ready\" triggers run in order. Each runtime instance fires it only once (not on reconnect; never before connecting)",
+    "tags": [
+      "QQ",
+      "Lifecycle",
+      "Startup",
+      "Ready",
+      "Trigger"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Exit"
+      },
+      "outputs.event": {
+        "name": "Event object",
+        "description": "Synthetic event object (no real user message; for downstream nodes to reference)"
+      },
+      "outputs.ready_at": {
+        "name": "Ready at",
+        "description": "Unix timestamp when the bot connection became ready (seconds)"
+      }
+    }
+  },
+  "on_startup": {
+    "label": "Bot startup",
+    "description": "Fires automatically when the TS runtime starts (lifecycle trigger, earlier than connection ready)",
+    "summary": "Fires when the runtime (FlowRuntime) starts, earlier than \"Connection ready\" (the translator gateway is not connected yet). Only suitable for initialization that sends no messages: creating database tables, loading config, warming caches. Use \"Connection ready\" if you need to send messages",
+    "tags": [
+      "QQ",
+      "Lifecycle",
+      "Startup",
+      "Initialization",
+      "Trigger"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Exit"
+      },
+      "outputs.event": {
+        "name": "Event object",
+        "description": "Synthetic event object (no real user message; for downstream nodes to reference)"
+      },
+      "outputs.started_at": {
+        "name": "Started at",
+        "description": "Unix timestamp when the driver started (seconds)"
+      }
+    }
+  },
+  "message_send": {
+    "label": "Send message",
+    "description": "Send a message (plain text / Button UI / message segment / forward — four modes)",
+    "summary": "Send a message (plain text / Button UI / message segment / forward × reply / proactive push). Choose the format as needed; the destination is decided by \"Target type / Target ID\".",
+    "tags": [
+      "QQ",
+      "Message",
+      "Reply",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: plain text / Button UI / message segment / forward"
+      },
+      "inputs.text": {
+        "name": "Text content",
+        "description": "The text to send (used in plain-text mode; when empty, the upstream output bound via the data source is used). Supports the {var1}~{var4} placeholders: wire an upstream value into the matching \"Variable N\" port to interpolate it directly — no extra \"Text template\" node needed. Use \"Text template\" only when you need more than 4 placeholders or want to reuse the same text."
+      },
+      "inputs.var1": {
+        "name": "{var1}",
+        "description": "Replaces the {var1} placeholder (optional)"
+      },
+      "inputs.var2": {
+        "name": "{var2}",
+        "description": "Replaces the {var2} placeholder (optional)"
+      },
+      "inputs.var3": {
+        "name": "{var3}",
+        "description": "Replaces the {var3} placeholder (optional)"
+      },
+      "inputs.var4": {
+        "name": "{var4}",
+        "description": "Replaces the {var4} placeholder (optional)"
+      },
+      "inputs.markdown": {
+        "name": "Markdown text",
+        "description": "The message's Markdown content (Button UI mode; buttons must accompany a Markdown message). Also supports the {var1}~{var4} placeholders"
+      },
+      "inputs.force_verify_image_resource": {
+        "name": "Fail when the image cannot be mirrored",
+        "description": "Added by the official API on 2026-08-10 (Markdown messages only): abort the send and return a failure when the image cannot be mirrored. Off by default, which keeps the old behaviour of sending anyway (the card will be missing its image)"
+      },
+      "inputs.keyboard": {
+        "name": "Button config",
+        "description": "InlineKeyboard config (Button UI mode, rows/buttons structure)"
+      },
+      "inputs.segments": {
+        "name": "Message segment",
+        "description": "Message segment: a dict or a list of dicts (message segment mode)"
+      },
+      "inputs.messages": {
+        "name": "Message list",
+        "description": "Forward message list as JSON (\"forward\" mode, [{\"content\":\"...\",\"user_id\":\"123\",\"name\":\"nickname\"}])"
+      },
+      "inputs.user_id": {
+        "name": "QQ number",
+        "description": "Sender QQ for \"forward\" mode (empty = current user)"
+      },
+      "inputs.media_url": {
+        "name": "Media URL",
+        "description": "Media to send (required in rich-media mode). Two accepted forms: an http(s) direct link, which the official QQ API fetches server-side (must be publicly reachable); or an absolute path to a local file, which goes through the official chunked upload and needs no public exposure (image/video/voice/file up to 200MB)"
+      },
+      "inputs.media_type": {
+        "name": "Media type",
+        "description": "Image / video / voice / file (rich-media mode)"
+      },
+      "inputs.file_name": {
+        "name": "File name",
+        "description": "File name shown when sending as a file (optional)"
+      },
+      "inputs.reply_to": {
+        "name": "Reply to",
+        "description": "The message to quote: use the message id in the current session, or wire in the value of \"Get context → Reference ID\". The official REFIDX is resolved by the adapter and reports a clear error when unavailable. \"Forward\" mode does not support quoting"
+      },
+      "inputs.is_wakeup": {
+        "name": "Interaction recall",
+        "description": "Interaction recall message (official is_wakeup, **private-chat push only**). The official API allocates a quota per 4 periods within 30 days; exceeding it is rejected server-side — the quota is decided by the official API, so it is not blocked locally and the error is passed through as-is. It is mutually exclusive with event_id / msg_id: when enabled those two fields are no longer sent"
+      },
+      "inputs.stream_content_type": {
+        "name": "Stream content format",
+        "description": "Text / Markdown (the official stream API's content_type, stream-message mode only)"
+      },
+      "inputs.stream_chunk_size": {
+        "name": "Chunk size",
+        "description": "Length of each chunk in characters (default 50). The node splits \"Text content\" into chunks and sends them one by one, marking the last chunk as finished; 0 or a negative number falls back to the default"
+      },
+      "inputs.stream_interval_ms": {
+        "name": "Chunk interval (ms)",
+        "description": "Wait between two consecutive chunks (default 300 ms). The official rate limit is 50 QPS, so do not set this too low"
+      },
+      "inputs.input_second": {
+        "name": "Duration (seconds)",
+        "description": "How many seconds the \"typing\" indicator stays on (official cap is 60; larger values are clamped; leave empty for 30). The other side sees a typing indicator for that long."
+      },
+      "inputs.ark_template_id": {
+        "name": "Card template ID",
+        "description": "Template id of an official structured card (documented values: 23 link + text list / 24 text + thumbnail / 37 large image). A card is \"pick a template, fill its variables\", and the template decides which variables exist. Requires admission approval from QQ platform operations."
+      },
+      "inputs.ark_kv": {
+        "name": "Card variables",
+        "description": "JSON array of template variables, e.g. [{\"key\":\"#DESC#\",\"value\":\"notice\"}]. Array-typed variables nest through obj/obj_kv: [{\"key\":\"#LIST#\",\"obj\":[{\"obj_kv\":[{\"key\":\"desc\",\"value\":\"reviewed\"}]}]}]. Keys must match the chosen template exactly (such as #DESC# / #PROMPT# / #TITLE#)."
+      },
+      "inputs.embed_title": {
+        "name": "Card title",
+        "description": "Title of the Embed card. `title` is the only required field in an official Embed."
+      },
+      "inputs.embed_prompt": {
+        "name": "Card prompt",
+        "description": "Small caption in the corner of the card (the official example uses it for the source, such as \"notification\")."
+      },
+      "inputs.embed_description": {
+        "name": "Card description",
+        "description": "Description text below the title (optional)."
+      },
+      "inputs.embed_thumbnail": {
+        "name": "Thumbnail URL",
+        "description": "http(s) direct link to the thumbnail on the right (optional; leave empty to omit)."
+      },
+      "inputs.embed_fields": {
+        "name": "Card fields",
+        "description": "Lines of body text in the card, as a JSON array: [\"Current rank: Gold\",\"Previous rank: Silver\"], or [{\"name\":\"Current rank: Gold\"}]. Each entry is one line."
+      },
+      "inputs.target_type": {
+        "name": "Target type",
+        "description": "Empty means reply in the current session; you can also push to a private chat or a group"
+      },
+      "inputs.target_id": {
+        "name": "Target ID",
+        "description": "Target ID (required when target_type is set)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the send succeeded"
+      },
+      "outputs.message_id": {
+        "name": "Message ID",
+        "description": "ID of the sent message (may be empty in plain-text mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "text": {
+          "label": "Plain text"
+        },
+        "markdown": {
+          "label": "Markdown / Button"
+        },
+        "media": {
+          "label": "Rich media"
+        },
+        "stream": {
+          "label": "Stream message"
+        },
+        "input_notify": {
+          "label": "Typing state (private chat only)"
+        },
+        "ark": {
+          "label": "Structured card (channel only)"
+        },
+        "embed": {
+          "label": "Embed card (channel only)"
+        },
+        "segment": {
+          "label": "Message segment"
+        }
+      },
+      "media_type": {
+        "image": {
+          "label": "Image"
+        },
+        "video": {
+          "label": "Video"
+        },
+        "record": {
+          "label": "Voice"
+        },
+        "file": {
+          "label": "File"
+        }
+      },
+      "stream_content_type": {
+        "text": {
+          "label": "Text"
+        },
+        "markdown": {
+          "label": "Markdown"
+        }
+      },
+      "target_type": {
+        "": {
+          "label": "Reply in current session"
+        },
+        "user": {
+          "label": "Private push"
+        },
+        "group": {
+          "label": "Group push"
+        },
+        "channel": {
+          "label": "Channel push"
+        }
+      }
+    }
+  },
+  "message_recall": {
+    "label": "Recall",
+    "description": "Recall a message",
+    "summary": "Recall a message by ID — handy for taking back a mis-sent message quickly",
+    "tags": [
+      "QQ",
+      "Recall",
+      "Message",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.message_id": {
+        "name": "Message ID",
+        "description": "ID of the message to recall (OneBot protocol message ID, as a string)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the recall succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "message_edit": {
+    "label": "Edit message",
+    "description": "Edit an already-sent message (requires adapter support)",
+    "summary": "Edit a sent message by ID. Note: this depends on the adapter supporting the \"edit message\" API; when unsupported the call returns an error without breaking the flow",
+    "tags": [
+      "QQ",
+      "Edit",
+      "Message",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.message_id": {
+        "name": "Message ID",
+        "description": "ID of the message to edit"
+      },
+      "inputs.new_text": {
+        "name": "New text",
+        "description": "The edited message text"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the edit succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "message_op": {
+    "label": "Build message segment",
+    "description": "Build a message segment without sending it; segment_type switches between 9 segment types",
+    "summary": "Build one message segment (@mention, image, face, voice, share, music, poke, reply, forward) and hand it to \"Send message\" to send as a segment",
+    "tags": [
+      "QQ",
+      "Message segment",
+      "Build",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.segment_type": {
+        "name": "Segment type",
+        "description": "Options: @mention / image / QQ face / voice / link share / music share / poke / reply / forward"
+      },
+      "inputs.user_id": {
+        "name": "QQ number",
+        "description": "Message segment for \"@mention / poke\": QQ number"
+      },
+      "inputs.url": {
+        "name": "URL",
+        "description": "Message segment for \"image / voice / link share / music share\": resource URL"
+      },
+      "inputs.file": {
+        "name": "File",
+        "description": "Message segment for \"image / voice\": local file path"
+      },
+      "inputs.face_id": {
+        "name": "Face ID",
+        "description": "\"QQ face\" message segment: face ID"
+      },
+      "inputs.title": {
+        "name": "Title",
+        "description": "Message segment for \"link share / music share\": title"
+      },
+      "inputs.content": {
+        "name": "Content",
+        "description": "Message segment for \"link share\": share content"
+      },
+      "inputs.image_url": {
+        "name": "Image URL",
+        "description": "Message segment for \"link share / music share\": cover image URL"
+      },
+      "inputs.music_type": {
+        "name": "Music type",
+        "description": "Source of the message segment: NetEase Cloud Music / QQ Music / custom"
+      },
+      "inputs.audio_url": {
+        "name": "Audio URL",
+        "description": "\"Music share · custom\" message segment: direct audio URL"
+      },
+      "inputs.singer": {
+        "name": "Artist",
+        "description": "\"Music share · custom\" message segment: artist name"
+      },
+      "inputs.message_id": {
+        "name": "Message ID",
+        "description": "\"Reply\" message segment: ID of the message to reply to"
+      },
+      "inputs.forward_id": {
+        "name": "Forward ID",
+        "description": "\"Message segment · forward\" resource ID"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.segment": {
+        "name": "Message segment",
+        "description": "The constructed message segment object"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether it succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "segment_type": {
+        "at": {
+          "label": "@mention"
+        },
+        "image": {
+          "label": "Image"
+        },
+        "face": {
+          "label": "QQ face"
+        },
+        "record": {
+          "label": "Voice"
+        },
+        "share": {
+          "label": "Link share"
+        },
+        "music": {
+          "label": "Music share"
+        },
+        "poke": {
+          "label": "Poke"
+        },
+        "reply": {
+          "label": "Reply"
+        },
+        "forward": {
+          "label": "Forward"
+        }
+      },
+      "music_type": {
+        "163": {
+          "label": "NetEase Cloud Music"
+        },
+        "qq": {
+          "label": "QQ Music"
+        },
+        "custom": {
+          "label": "Custom"
+        }
+      }
+    }
+  },
+  "message_compose": {
+    "label": "Compose message",
+    "description": "Compose title/stats/quote/buttons/tappable commands into a card or list without sending it; hand it to \"Send message\" (Button UI mode)",
+    "summary": "Compose a markdown card or list, optionally with buttons or tappable command tags. Line breaks, alignment and the mandatory button fields are handled here — no string concatenation. Wire the result into \"Send message\" with mode = Button UI.",
+    "tags": [
+      "QQ",
+      "Message",
+      "Card",
+      "Markdown",
+      "Button",
+      "Command",
+      "Layout",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.layout": {
+        "name": "Layout",
+        "description": "Options: card (title + stats + quote) / list (items + empty-state hint)"
+      },
+      "inputs.title": {
+        "name": "Title",
+        "description": "Large bold title (markdown \"#\"), e.g. \"Echo of the World\""
+      },
+      "inputs.subtitle": {
+        "name": "Subtitle",
+        "description": "One bold line under the title, e.g. \"[Who] did what\""
+      },
+      "inputs.body": {
+        "name": "Body",
+        "description": "Body lines: an array (one item per line) or multi-line text"
+      },
+      "inputs.stats": {
+        "name": "Stats",
+        "description": "Name→value table, auto-aligned. Accepts an object {\"Level\":\"Lv3\"}, pairs [[\"Level\",\"Lv3\"]] or \"Level:Lv3\" multi-line text"
+      },
+      "inputs.bars": {
+        "name": "Progress bars",
+        "description": "Progress bars: [\"821/821\"] or [{\"current\":821,\"max\":821,\"width\":12}], rendered as ▰▰▱▱"
+      },
+      "inputs.quote": {
+        "name": "Quote",
+        "description": "Grey-bar quote block (markdown \">\") for a narration or hint. Multi-line input gets \">\" on every line"
+      },
+      "inputs.footer": {
+        "name": "Footer",
+        "description": "One bottom line (e.g. \"Obtained: Treasure Box ×1\"), separated by a blank line"
+      },
+      "inputs.buttons": {
+        "name": "Button",
+        "description": "Button rows: an array of rows, each row an array of buttons. A button is \"text\" (text = command) or {label,data} / {label,url}. Limit 5 rows × 5 buttons; overflow is trimmed and reported"
+      },
+      "inputs.buttons_json": {
+        "name": "Buttons (JSON)",
+        "description": "JSON-string form of the buttons (for upstream nodes that already built JSON). Use instead of \"Buttons\"; \"Buttons\" wins when both are set"
+      },
+      "inputs.inline_commands": {
+        "name": "Tappable commands",
+        "description": "A piece of **tappable text inside the body** (official names: command-input / command-enter). Same shape as \"Buttons\": outer array = rows, inner = tags in that row. Write `\"/checkin\"` directly; to show `[checkin]` but send `/checkin`, write `{label:\"[checkin]\",data:\"/checkin\"}`. A tap **fills the input box** by default (works everywhere); the tappable-command editor can switch it to sending straight away, which is officially **unsupported in group chats**"
+      },
+      "inputs.items": {
+        "name": "List items",
+        "description": "For the list layout: an array (one item per line) or multi-line text"
+      },
+      "inputs.empty_text": {
+        "name": "Empty text",
+        "description": "For the list layout: shown when there is no data (a fallback is used when empty)"
+      },
+      "inputs.page": {
+        "name": "Page",
+        "description": "List layout only: paging turns on when this is set (1-based). When one page does not fit, items and buttons are sliced and a \"Previous / Next\" row is appended"
+      },
+      "inputs.page_size": {
+        "name": "Items per page",
+        "description": "Items per page when paging (default 8). Lowered automatically to fit the 5-row button budget, with a warning"
+      },
+      "inputs.page_command": {
+        "name": "Paging command",
+        "description": "Command prefix the paging buttons send (e.g. `/shop all`); the page number is appended. Leave empty to send only the number"
+      },
+      "inputs.paging_json": {
+        "name": "Paging (JSON)",
+        "description": "Full paging config (object or JSON string) for advanced fields: fixedRows (a button row present on every page, e.g. \"back\") and footerHint. Overrides the simple fields above"
+      },
+      "inputs.title_level": {
+        "name": "Title level",
+        "description": "1 = largest (\"#\"), 2/3 get smaller (\"##\"/\"###\")"
+      },
+      "inputs.max_length": {
+        "name": "Length limit",
+        "description": "Markdown character limit; exceeding it raises an error (truncation would break the syntax, so it is not done automatically)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.markdown": {
+        "name": "Markdown",
+        "description": "Composed markdown → wire into the \"markdown\" port of \"Send message\" (Button UI mode)"
+      },
+      "outputs.keyboard": {
+        "name": "Button config",
+        "description": "Composed InlineKeyboard → wire into the \"keyboard\" port of \"Send message\""
+      },
+      "outputs.button_count": {
+        "name": "Button rows",
+        "description": "How many button rows (0 = no buttons, a plain markdown card)"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether a sendable message was composed"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success). Button overflow, missing markdown and over-length are reported here"
+      },
+      "outputs.warnings": {
+        "name": "Warnings",
+        "description": "Non-fatal warnings (trimmed buttons, buttons that do nothing when clicked); surfaced instead of being dropped silently"
+      }
+    },
+    "options": {
+      "layout": {
+        "card": {
+          "label": "Card (title + stats + quote)"
+        },
+        "list": {
+          "label": "List (items + empty-state hint)"
+        }
+      }
+    }
+  },
+  "battle_panel": {
+    "label": "Battle panel",
+    "description": "Turn-based battle panel (compose only, does not send): monster info + player info + round log + action buttons; outputs markdown and a keyboard",
+    "summary": "Compose the battle state into one button message (monster/player HP, round log, attack / skill / item / flee). Re-sending it each round is how the panel \"refreshes\", because the official API cannot edit a sent message.",
+    "tags": [
+      "QQ",
+      "Battle",
+      "Turn-based",
+      "Panel",
+      "Button",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.monster_name": {
+        "name": "Monster name",
+        "description": "Monster name (panel title)"
+      },
+      "inputs.monster_level": {
+        "name": "Monster level",
+        "description": "Shown as \"Slime Lv.1\" when filled; empty shows the name only"
+      },
+      "inputs.monster_tag": {
+        "name": "Monster tag",
+        "description": "The small line under the name, e.g. \"normal\" / \"elite\" / \"BOSS\""
+      },
+      "inputs.monster_hp": {
+        "name": "Monster HP",
+        "description": "Current HP"
+      },
+      "inputs.monster_max_hp": {
+        "name": "Monster max HP",
+        "description": "Upper bound (0 means no bar is drawn, avoiding a fake 0/0)"
+      },
+      "inputs.player_name": {
+        "name": "Player name",
+        "description": "How the player is called inside the panel"
+      },
+      "inputs.player_hp": {
+        "name": "Player HP",
+        "description": "Current HP"
+      },
+      "inputs.player_max_hp": {
+        "name": "Player max HP",
+        "description": "Upper bound"
+      },
+      "inputs.player_mp": {
+        "name": "Player MP",
+        "description": "Current MP (leave empty and the \"MP\" line does not appear at all)"
+      },
+      "inputs.player_max_mp": {
+        "name": "Player max MP",
+        "description": "MP upper bound"
+      },
+      "inputs.round": {
+        "name": "Round",
+        "description": "Rendered as \"Round N\""
+      },
+      "inputs.log": {
+        "name": "Round log",
+        "description": "What happened this round (multi-line text, one entry per line)"
+      },
+      "inputs.footer": {
+        "name": "Footer",
+        "description": "Bottom quote block: drops, experience, hints"
+      },
+      "inputs.actions": {
+        "name": "Action buttons",
+        "description": "Button labels, comma or space separated (up to 5). Empty uses the default four. NOTE: labels are frozen once sent — never put changing values such as HP here (keep those in the body)"
+      },
+      "inputs.command_prefix": {
+        "name": "Command prefix",
+        "description": "The text actually sent on click = prefix + button label (e.g. \"/battle \")"
+      },
+      "inputs.bar_width": {
+        "name": "Bar width",
+        "description": "How many blocks the HP bar uses (1–40)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.markdown": {
+        "name": "Panel content",
+        "description": "Composed markdown; wire it into \"Send message\" (Markdown / Button mode)"
+      },
+      "outputs.keyboard": {
+        "name": "Button",
+        "description": "Composed button structure; wire it into the \"Keyboard\" port of \"Send message\""
+      },
+      "outputs.button_count": {
+        "name": "Button rows",
+        "description": "Button rows"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "group_op": {
+    "label": "Group admin",
+    "description": "Unified group admin node (mode switch): mute / mute all / kick / set card / set title / approve friend request / approve join request / leave group / announcement / upload file / pin as essence",
+    "summary": "Pick a group management action: mute / kick / mute all / set card / set title / leave / approve friend / approve join / announcement / upload file / pin as essence",
+    "tags": [
+      "QQ",
+      "Group admin",
+      "Group op",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: mute / mute all / kick / set card / set title / approve friend request / approve join request / leave group / announcement / upload file / pin as essence"
+      },
+      "inputs.group_id": {
+        "name": "Group",
+        "description": "Target group number (empty = current group)"
+      },
+      "inputs.user_id": {
+        "name": "QQ number",
+        "description": "Target QQ number"
+      },
+      "inputs.user_ids": {
+        "name": "QQ numbers (batch)",
+        "description": "Several QQ numbers for the batch modes, comma or space separated (e.g. 111,222). Used only by \"kick batch / blacklist add / blacklist remove\""
+      },
+      "inputs.duration": {
+        "name": "Duration (s)",
+        "description": "Mute duration (\"mute\" mode)"
+      },
+      "inputs.enable": {
+        "name": "Enable",
+        "description": "Whether to enable mute-all (\"mute all\" mode)"
+      },
+      "inputs.card": {
+        "name": "Card",
+        "description": "Group card (\"set card\" mode)"
+      },
+      "inputs.title": {
+        "name": "Title",
+        "description": "Group title (\"set title\" mode)"
+      },
+      "inputs.flag": {
+        "name": "Flag",
+        "description": "Request flag (\"approve friend / approve join\" modes)"
+      },
+      "inputs.approve": {
+        "name": "Approve",
+        "description": "Whether to approve the request"
+      },
+      "inputs.sub_type": {
+        "name": "Sub type",
+        "description": "Options: group invite / someone's application (\"approve join request\" only)"
+      },
+      "inputs.remark": {
+        "name": "Remark",
+        "description": "Friend remark (\"approve friend request\" mode)"
+      },
+      "inputs.content": {
+        "name": "Content",
+        "description": "Announcement content (\"announcement\" mode)"
+      },
+      "inputs.file_path": {
+        "name": "File path",
+        "description": "Local file path (\"upload file\" mode)"
+      },
+      "inputs.file_name": {
+        "name": "File name",
+        "description": "File name after upload (\"upload file\" mode)"
+      },
+      "inputs.message_id": {
+        "name": "Message ID",
+        "description": "ID of the message to pin as essence (\"pin as essence\" mode; empty = the current event message)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "mode": {
+        "ban": {
+          "label": "Mute",
+          "group": "Mute"
+        },
+        "kick": {
+          "label": "Kick",
+          "group": "Member management"
+        },
+        "kick_batch": {
+          "label": "Kick (batch)",
+          "group": "Member management"
+        },
+        "blacklist_add": {
+          "label": "Add to blacklist",
+          "group": "Member management"
+        },
+        "blacklist_del": {
+          "label": "Remove from blacklist",
+          "group": "Member management"
+        },
+        "approve_group": {
+          "label": "Approve join request",
+          "group": "Request approval"
+        }
+      },
+      "sub_type": {
+        "add": {
+          "label": "Group invite"
+        },
+        "approve": {
+          "label": "Someone's application"
+        }
+      }
+    }
+  },
+  "join_approval": {
+    "label": "Join auto-approval",
+    "description": "Join auto-approval strategies: list / create / update / delete / execute / maintain whitelist",
+    "summary": "Configure auto-approval rules on the official side: which groups, enabled or not, whitelist numbers, plus a manual full scan. Useful when approval must work while offline.",
+    "tags": [
+      "QQ",
+      "Join",
+      "Approve",
+      "Auto",
+      "Strategy",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: list strategies / create strategy / update strategy / update whitelist / execute strategy / delete strategy"
+      },
+      "inputs.strategy_id": {
+        "name": "Strategy ID",
+        "description": "Strategy to operate on (get it from \"list strategies\" first; required for everything except create)"
+      },
+      "inputs.group_openids": {
+        "name": "Related group openids",
+        "description": "Group openids to associate (one per line, comma/space separated, up to 100). Only one of this and \"Related group numbers\" may be filled (the official API rejects both)"
+      },
+      "inputs.group_ids": {
+        "name": "Related group numbers",
+        "description": "QQ group numbers to associate (one per line, up to 100). Only one of this and \"Related group openids\" may be filled; once chosen, later updates must use the same form"
+      },
+      "inputs.is_enable": {
+        "name": "Enabled",
+        "description": "Enable / disable (the official API uses the on/off string). Defaults to enabled"
+      },
+      "inputs.expire_at": {
+        "name": "Expires at",
+        "description": "RFC3339 timestamp; empty means one year from now"
+      },
+      "inputs.remark": {
+        "name": "Remark",
+        "description": "Strategy remark, up to 255 characters"
+      },
+      "inputs.group_op": {
+        "name": "Group action",
+        "description": "\"Update strategy\" mode: add or remove related groups (fill the group identifiers above as well)"
+      },
+      "inputs.op": {
+        "name": "Whitelist action",
+        "description": "\"Update whitelist\" mode: add or remove numbers"
+      },
+      "inputs.whitelist_users": {
+        "name": "Whitelist numbers",
+        "description": "QQ numbers (one per line or comma separated), up to 10000 per call and 100000 in total"
+      },
+      "inputs.cursor": {
+        "name": "Cursor",
+        "description": "\"List strategies\" paging cursor (pass the \"next cursor\" from the previous call)"
+      },
+      "inputs.limit": {
+        "name": "Page size",
+        "description": "\"List strategies\" only (the official API defaults to 20 and allows at most 50)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.data": {
+        "name": "Data",
+        "description": "For list: the strategies (strategy_id / related groups / whitelist count / enabled state / expiry); for create: the new strategy id; for execute: an \"accepted\" note (the official API scans asynchronously, about 10 minutes)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "list": {
+          "label": "List strategies",
+          "group": "Load"
+        },
+        "create": {
+          "label": "Create strategy",
+          "group": "Write"
+        },
+        "update": {
+          "label": "Update strategy",
+          "group": "Write"
+        },
+        "whitelist": {
+          "label": "Update whitelist",
+          "group": "Write"
+        },
+        "execute": {
+          "label": "Execute strategy",
+          "group": "Execute"
+        },
+        "delete": {
+          "label": "Delete strategy",
+          "group": "Delete"
+        }
+      },
+      "is_enable": {
+        "on": {
+          "label": "Enabled"
+        },
+        "off": {
+          "label": "Disabled"
+        }
+      },
+      "group_op": {
+        "add": {
+          "label": "Add related groups"
+        },
+        "del": {
+          "label": "Remove related groups"
+        }
+      },
+      "op": {
+        "add": {
+          "label": "Add numbers"
+        },
+        "del": {
+          "label": "Remove numbers"
+        }
+      }
+    }
+  },
+  "channel_op": {
+    "label": "Channel operations",
+    "description": "QQ channel sub-channels, announcements, pins and reactions",
+    "summary": "Manages a QQ channel: sub-channels, announcements, pinned messages and emoji reactions. The bot must be in the channel with the required permissions; creating/editing/deleting sub-channels needs admin rights.",
+    "tags": [
+      "QQ",
+      "Channel",
+      "Sub-channel",
+      "Announcement",
+      "Pin",
+      "Reaction",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Which channel operation to run"
+      },
+      "inputs.guild_id": {
+        "name": "Guild ID",
+        "description": "Target guild ID; wire it from the \"Message received\" trigger output"
+      },
+      "inputs.channel_id": {
+        "name": "Channel ID",
+        "description": "Target sub-channel ID; wire it from the \"Message received\" trigger output"
+      },
+      "inputs.message_id": {
+        "name": "Message ID",
+        "description": "Target message ID (required for pins and reactions; pass all when deleting a recommend-type announcement)"
+      },
+      "inputs.name": {
+        "name": "Channel name",
+        "description": "Channel name"
+      },
+      "inputs.type": {
+        "name": "Channel type",
+        "description": "Only used on creation (category type requires position >= 2)"
+      },
+      "inputs.position": {
+        "name": "Position",
+        "description": "Sort order, starting from 1"
+      },
+      "inputs.parent_id": {
+        "name": "Category ID",
+        "description": "Leave empty or 0 to keep it outside any category"
+      },
+      "inputs.speak_permission": {
+        "name": "Speak permission",
+        "description": "0 = none, 1 = everyone, 2 = owner/admins plus listed members"
+      },
+      "inputs.announces_type": {
+        "name": "Announcement kind",
+        "description": "0 = member announcement, 1 = welcome (for recommend-type announcements)"
+      },
+      "inputs.recommend_channels": {
+        "name": "Recommended channels",
+        "description": "JSON list of recommended sub-channels. Filling it makes this a recommend-type announcement and replaces the whole list; at most 3 per guild, and only channels visible to all members can be recommended. Mutually exclusive with Message ID"
+      },
+      "inputs.emoji_type": {
+        "name": "Emoji type",
+        "description": "System emoji uses an emoji id; emoji uses a code point"
+      },
+      "inputs.emoji_id": {
+        "name": "Emoji ID",
+        "description": "System emoji id (e.g. 4 delighted, 76 like) or an emoji code point"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.data": {
+        "name": "Data",
+        "description": "Query results; includes the new sub-channel id on creation"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success). Sub-channel changes need admin rights; insufficient permission is reported here"
+      }
+    },
+    "options": {
+      "mode": {
+        "channel_list": {
+          "label": "List sub-channels",
+          "group": "Sub-channel"
+        },
+        "channel_get": {
+          "label": "Sub-channel detail",
+          "group": "Sub-channel"
+        },
+        "channel_create": {
+          "label": "Create sub-channel",
+          "group": "Sub-channel"
+        },
+        "channel_update": {
+          "label": "Edit sub-channel",
+          "group": "Sub-channel"
+        },
+        "channel_delete": {
+          "label": "Delete sub-channel",
+          "group": "Sub-channel"
+        },
+        "announce_create": {
+          "label": "Create announcement",
+          "group": "Announcement"
+        },
+        "announce_delete": {
+          "label": "Delete announcement",
+          "group": "Announcement"
+        },
+        "pin_add": {
+          "label": "Pin message",
+          "group": "Pinned messages"
+        },
+        "pin_list": {
+          "label": "List pins",
+          "group": "Pinned messages"
+        },
+        "pin_remove": {
+          "label": "Unpin message",
+          "group": "Pinned messages"
+        },
+        "reaction_add": {
+          "label": "Add reaction",
+          "group": "Reactions"
+        },
+        "reaction_remove": {
+          "label": "Remove reaction",
+          "group": "Reactions"
+        },
+        "reaction_users": {
+          "label": "Reaction users",
+          "group": "Reactions"
+        }
+      },
+      "type": {
+        "text": {
+          "label": "Text"
+        },
+        "voice": {
+          "label": "Voice"
+        },
+        "category": {
+          "label": "Category"
+        },
+        "live": {
+          "label": "Live"
+        },
+        "application": {
+          "label": "Application"
+        },
+        "forum": {
+          "label": "Forum"
+        }
+      },
+      "emoji_type": {
+        "system": {
+          "label": "System emoji"
+        },
+        "unicode": {
+          "label": "Emoji"
+        }
+      }
+    }
+  },
+  "answer_interaction": {
+    "label": "Button acknowledgement",
+    "description": "Acknowledge a user button or menu click",
+    "summary": "Acknowledges a user button or menu click so the client stops waiting. Without it the client spins until it times out (a fallback acknowledgement is built in). Wire the interaction ID from the \"Button click\" trigger",
+    "tags": [
+      "QQ",
+      "Button",
+      "Interaction",
+      "Acknowledgement",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.interaction_id": {
+        "name": "Interaction ID",
+        "description": "Wire the \"Interaction ID\" port of the \"Button click\" trigger"
+      },
+      "inputs.code": {
+        "name": "Result",
+        "description": "Result sent back to the client; drives the hint text"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "code": {
+        "0": {
+          "label": "Success"
+        },
+        "1": {
+          "label": "Action failed"
+        },
+        "2": {
+          "label": "Too many requests"
+        },
+        "3": {
+          "label": "Duplicate action"
+        },
+        "4": {
+          "label": "No permission"
+        },
+        "5": {
+          "label": "Admins only"
+        }
+      }
+    }
+  },
+  "menu_config": {
+    "label": "Custom menu",
+    "description": "Query or set the bot's global custom menu",
+    "summary": "Queries or sets the global custom menu (private chat only, shared by all users). Setting replaces the whole menu rather than patching it. At most 10 items; links must start with https.",
+    "tags": [
+      "QQ",
+      "Menu",
+      "Custom menu",
+      "Configuration",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Read the current menu, or replace it with a new one"
+      },
+      "inputs.menu": {
+        "name": "Menu content",
+        "description": "Menu structure (required when setting). Item types: switch, send_message, link, or menu for a collapsible submenu (at most 5 sub-items, no further nesting)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.data": {
+        "name": "Data",
+        "description": "The current menu when reading; includes the menu version when setting"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success), including count limits and content-safety rejections"
+      }
+    },
+    "options": {
+      "mode": {
+        "get": {
+          "label": "Read menu",
+          "group": "Load"
+        },
+        "set": {
+          "label": "Set menu",
+          "group": "Write"
+        }
+      }
+    }
+  },
+  "panel_config": {
+    "label": "Command panel",
+    "description": "Manage the bot's command panels",
+    "summary": "Manages command panels (private chat / group / text channel / channel DM). List and inspect, or create, edit content, change targets and delete. A panel item fills the input box or opens a link when tapped.",
+    "tags": [
+      "QQ",
+      "Command panel",
+      "Panel",
+      "Configuration",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Which panel operation to run"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Where the panel applies. Text channel and channel DM only support global panels"
+      },
+      "inputs.panel_id": {
+        "name": "Panel ID",
+        "description": "Target panel ID (returned by the API on creation)"
+      },
+      "inputs.target_type": {
+        "name": "Target range",
+        "description": "All targets, or only the listed users/groups (specific targets are private chat and group only)"
+      },
+      "inputs.user_openids": {
+        "name": "Users",
+        "description": "OpenIDs of target users for private chat; separate with commas or spaces (at most 20)"
+      },
+      "inputs.group_openids": {
+        "name": "Groups",
+        "description": "OpenIDs of target groups; separate with commas or spaces (at most 20)"
+      },
+      "inputs.panel": {
+        "name": "Panel content",
+        "description": "Panel configuration (required for create/update). At most 20 items; item type is command or link, and links must start with https"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.data": {
+        "name": "Data",
+        "description": "Panel data for list/detail; includes panel_id on creation"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success), including invalid scope/range and count limits"
+      }
+    },
+    "options": {
+      "mode": {
+        "list": {
+          "label": "List panels",
+          "group": "Load"
+        },
+        "get": {
+          "label": "Panel detail",
+          "group": "Load"
+        },
+        "create": {
+          "label": "Create panel",
+          "group": "Write"
+        },
+        "update": {
+          "label": "Edit content",
+          "group": "Write"
+        },
+        "set_target": {
+          "label": "Change targets",
+          "group": "Write"
+        },
+        "delete": {
+          "label": "Delete panel",
+          "group": "Delete"
+        }
+      },
+      "scope": {
+        "c2c": {
+          "label": "Private chat"
+        },
+        "group": {
+          "label": "Groups"
+        },
+        "channel": {
+          "label": "Text channel"
+        },
+        "dm": {
+          "label": "Channel DM"
+        }
+      },
+      "target_type": {
+        "all": {
+          "label": "All users/groups"
+        },
+        "specific": {
+          "label": "Listed targets only"
+        }
+      }
+    }
+  },
+  "api_call": {
+    "label": "API call",
+    "description": "Call the OneBot API",
+    "summary": "Call a OneBot protocol API (e.g. get_group_list) — for advanced protocol work",
+    "tags": [
+      "QQ",
+      "API",
+      "OneBot",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.action": {
+        "name": "API name",
+        "description": "Name of the OneBot API to call"
+      },
+      "inputs.params": {
+        "name": "Params",
+        "description": "API parameter object"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "API result"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the call succeeded"
+      },
+      "outputs.data": {
+        "name": "Data",
+        "description": "API response data"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "http_request": {
+    "label": "HTTP request",
+    "description": "HTTP calls supporting GET/POST/PUT/DELETE",
+    "summary": "Make an HTTP request to fetch external data — for weather lookups, calling APIs, or third-party services",
+    "tags": [
+      "HTTP",
+      "Network",
+      "Request"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.url": {
+        "name": "URL",
+        "description": "Request URL"
+      },
+      "inputs.method": {
+        "name": "Method",
+        "description": "HTTP method"
+      },
+      "inputs.headers": {
+        "name": "Headers",
+        "description": "Headers JSON object, e.g. {\"Authorization\":\"Bearer xxx\"}; fill {} or leave empty for no custom headers"
+      },
+      "inputs.body": {
+        "name": "Body",
+        "description": "Body"
+      },
+      "inputs.timeout": {
+        "name": "Timeout (s)",
+        "description": "Timeout in seconds"
+      },
+      "inputs.params": {
+        "name": "URL params",
+        "description": "URL query params JSON"
+      },
+      "inputs.response_format": {
+        "name": "Response format",
+        "description": "Response format (options: auto / JSON / text / binary)"
+      },
+      "inputs.max_response_size": {
+        "name": "Max response (bytes)",
+        "description": "Maximum allowed response body size (bytes)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.status": {
+        "name": "Status",
+        "description": "HTTP status code"
+      },
+      "outputs.data": {
+        "name": "Response data",
+        "description": "Response data"
+      },
+      "outputs.text": {
+        "name": "Text",
+        "description": "Raw response body text (ALWAYS a string — JSON responses keep their original text too, so you can re-parse it or paste it straight into a message). Empty string when the request fails"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "method": {
+        "GET": {
+          "label": "GET"
+        },
+        "POST": {
+          "label": "POST"
+        },
+        "PUT": {
+          "label": "PUT"
+        },
+        "DELETE": {
+          "label": "DELETE"
+        }
+      },
+      "response_format": {
+        "auto": {
+          "label": "Auto"
+        },
+        "json": {
+          "label": "JSON"
+        },
+        "text": {
+          "label": "Text"
+        },
+        "binary": {
+          "label": "Binary"
+        }
+      }
+    }
+  },
+  "file_operate": {
+    "label": "File op",
+    "description": "Unified file node (mode switch): read/write text or JSON, copy/move/delete, check existence, list directory, create directory",
+    "summary": "Eight file operations: read/write text or JSON, copy/move/delete files, check existence, list directory, create directory",
+    "tags": [
+      "File",
+      "Read/write",
+      "Directory",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: read / write / copy / move or rename / delete / exists / list directory / create directory"
+      },
+      "inputs.file_path": {
+        "name": "File path",
+        "description": "File/directory path (the source path for \"copy / move\")"
+      },
+      "inputs.dest_path": {
+        "name": "Destination path",
+        "description": "Destination path (\"copy / move\" modes)"
+      },
+      "inputs.content": {
+        "name": "Content",
+        "description": "Content to write (\"write file\" mode)"
+      },
+      "inputs.write_mode": {
+        "name": "Write format",
+        "description": "JSON or text (\"write file\" mode)"
+      },
+      "inputs.encoding": {
+        "name": "Encoding",
+        "description": "File encoding (\"read / write\" modes)"
+      },
+      "inputs.append": {
+        "name": "Append",
+        "description": "Whether to append to the end of the file (\"write file\" mode)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Content",
+        "description": "\"Read\" returns file content; \"List directory\" returns the file name list"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether it succeeded (always True in \"exists\" mode)"
+      },
+      "outputs.path": {
+        "name": "Path",
+        "description": "Actual path operated on (\"write / copy / move / create directory\")"
+      },
+      "outputs.size": {
+        "name": "Size",
+        "description": "File size in bytes (\"write file\" mode)"
+      },
+      "outputs.exists": {
+        "name": "Exists",
+        "description": "Whether it exists (\"exists\" mode)"
+      },
+      "outputs.is_file": {
+        "name": "Is file",
+        "description": "Whether it is a regular file (\"exists\" mode)"
+      },
+      "outputs.is_dir": {
+        "name": "Is dir",
+        "description": "Whether it is a directory (\"exists\" mode)"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of files (\"list directory\" mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "mode": {
+        "read": {
+          "label": "Read file"
+        },
+        "write": {
+          "label": "Write file"
+        },
+        "copy": {
+          "label": "Copy file"
+        },
+        "move": {
+          "label": "Move/rename"
+        },
+        "delete": {
+          "label": "Delete file"
+        },
+        "exists": {
+          "label": "Exists"
+        },
+        "list_dir": {
+          "label": "List directory"
+        },
+        "mkdir": {
+          "label": "Create directory"
+        }
+      },
+      "write_mode": {
+        "json": {
+          "label": "JSON"
+        },
+        "text": {
+          "label": "Text"
+        }
+      }
+    }
+  },
+  "system_log": {
+    "label": "System log",
+    "description": "Write a system log to the log panel (unlike \"Send message\", which messages users)",
+    "summary": "Write a log line to the bot log panel at info / warning / error / debug level — for debugging, tracing execution and recording errors",
+    "tags": [
+      "Log",
+      "Debug",
+      "Output",
+      "Tool"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.level": {
+        "name": "Level",
+        "description": "Options: info / warning / error / debug"
+      },
+      "inputs.message": {
+        "name": "Log message",
+        "description": "Log text to output"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "level": {
+        "info": {
+          "label": "Info"
+        },
+        "warning": {
+          "label": "Warning"
+        },
+        "error": {
+          "label": "Error"
+        },
+        "debug": {
+          "label": "Debug"
+        }
+      }
+    }
+  },
+  "bot_info": {
+    "label": "Bot info",
+    "description": "Read the bot profile, or generate an invite share link",
+    "summary": "Read the bot nickname / avatar / share URL; or generate an invite link with custom data so the source travels back into your flow when a user adds the bot.",
+    "tags": [
+      "QQ",
+      "Bot",
+      "Profile",
+      "Invite",
+      "Share",
+      "Action"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: bot profile / generate invite link"
+      },
+      "inputs.callback_data": {
+        "name": "Custom data",
+        "description": "\"Generate invite link\" mode: up to 32 characters. When a user adds the bot through that link, this value shows up as the comment of the \"Notice event → user added the bot\" trigger, so you can tell channels apart"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.data": {
+        "name": "Data",
+        "description": "Profile mode: QQ number / nickname / avatar / share URL; invite-link mode: the url field"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "self": {
+          "label": "Bot profile"
+        },
+        "url_link": {
+          "label": "Generate invite link"
+        }
+      }
+    }
+  },
+  "branch_if": {
+    "label": "Conditional branch",
+    "description": "if/else branch",
+    "summary": "Follow the true or false branch based on a condition expression — for data-driven branching",
+    "tags": [
+      "Condition",
+      "Branch",
+      "Logic"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.value": {
+        "name": "Value",
+        "description": "The value used in the condition. Supported expressions: value (truthiness), not value (falsiness), value == xxx, value > 5, etc. (syntax: True/False/None capitalized; and/or/not supported)"
+      },
+      "outputs.true": {
+        "name": "True branch"
+      },
+      "outputs.false": {
+        "name": "False branch"
+      }
+    }
+  },
+  "branch_switch": {
+    "label": "Multi-branch switch",
+    "description": "switch/case multi-branching with exact match, numeric comparison, wildcards and multi-values",
+    "summary": "Match a value to a branch. Supports ==, >=, <=, >, <, !=, wildcard *, and comma-separated values — for command routing and state checks",
+    "tags": [
+      "Branch",
+      "switch",
+      "case",
+      "Routing"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.value": {
+        "name": "Value",
+        "description": "Value to match"
+      },
+      "inputs.cases": {
+        "name": "Branch list",
+        "description": "JSON array where each item has a match value and a branch label, e.g. [{\"match\":\"a\",\"label\":\"Branch A\"}, {\"match\":\">=10\",\"label\":\"High level\"}]"
+      },
+      "inputs.default": {
+        "name": "Default branch",
+        "description": "Branch name when nothing matches"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.matched": {
+        "name": "Matched label",
+        "description": "The matched branch label (for display or routing)"
+      },
+      "outputs.matched_value": {
+        "name": "Matched value",
+        "description": "The matched match field (for precise routing with \"Conditional Branch\")"
+      },
+      "outputs.index": {
+        "name": "Matched index",
+        "description": "Index of the matched branch (-1 means the default branch was taken)"
+      },
+      "outputs.is_default": {
+        "name": "Is default",
+        "description": "Whether the default branch was taken"
+      }
+    }
+  },
+  "check_permission": {
+    "label": "Check permission",
+    "description": "Check whether the current user holds the given permission level",
+    "summary": "Checks permission by the hierarchy super admin > owner > admin > member > guest; in private chats only super admin passes",
+    "tags": [
+      "QQ",
+      "Permission",
+      "Check",
+      "Action",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.role": {
+        "name": "Role",
+        "description": "Options: super admin / owner / admin / member / guest. Super admin = the bot owner (env var SUPER_ADMIN_IDS, comma-separated)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.passed": {
+        "name": "Passed",
+        "description": "Whether permission is granted"
+      },
+      "outputs.user_role": {
+        "name": "User role",
+        "description": "Actual role"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "role": {
+        "super_admin": {
+          "label": "Super admin"
+        },
+        "owner": {
+          "label": "Owner"
+        },
+        "admin": {
+          "label": "Admin"
+        },
+        "member": {
+          "label": "Member"
+        },
+        "guest": {
+          "label": "Guest"
+        }
+      }
+    }
+  },
+  "delay": {
+    "label": "Delay",
+    "description": "Async wait",
+    "summary": "Wait asynchronously for the given seconds, then continue — for throttling, delayed replies and typing simulation",
+    "tags": [
+      "Delay",
+      "Wait",
+      "Logic"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.seconds": {
+        "name": "Seconds",
+        "description": "Seconds to wait"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Whether the wait completed: always true once the delay finishes (this node has no failure path, so it never yields false)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "loop": {
+    "label": "Loop",
+    "description": "Repeatedly run the loop-body sub-chain (mode switch: repeat N times / iterate list or dict / while)",
+    "summary": "Three loop kinds: repeat N times, iterate a list or dict (auto-adapted, exposing the current item), or while (evaluates the expression before each iteration)",
+    "tags": [
+      "Loop",
+      "Control flow",
+      "for",
+      "Count",
+      "Iterate",
+      "while",
+      "Condition",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: repeat N times / iterate list or dict / while"
+      },
+      "inputs.count": {
+        "name": "Count",
+        "description": "\"Repeat N times\" loop: iteration count"
+      },
+      "inputs.list": {
+        "name": "Data",
+        "description": "\"Iterate list/dict\": the list or dict to iterate"
+      },
+      "inputs.expression": {
+        "name": "Condition expression",
+        "description": "Loop condition, e.g. \"hp > 0\" or \"value == True\" (\"while loop\" only)"
+      },
+      "inputs.max_iterations": {
+        "name": "Max iterations",
+        "description": "Max iterations to prevent infinite loops (applies to \"iterate / while\")"
+      },
+      "outputs.body": {
+        "name": "Loop body",
+        "description": "Entry of the sub-chain run on each iteration"
+      },
+      "outputs.done": {
+        "name": "Done",
+        "description": "Entry of the sub-chain run after the loop ends"
+      },
+      "outputs.index": {
+        "name": "Current index",
+        "description": "Current loop index (0-based; all three loop kinds)"
+      },
+      "outputs.count": {
+        "name": "Total",
+        "description": "Total iterations / total items iterated"
+      },
+      "outputs.item": {
+        "name": "Current item",
+        "description": "Current item value (\"iterate list/dict\" only: element for lists, value for dicts)"
+      },
+      "outputs.key": {
+        "name": "Current key",
+        "description": "Current key (\"iterate list/dict\" only: numeric index for lists, key name for dicts)"
+      },
+      "outputs.result": {
+        "name": "Iterations",
+        "description": "\"While loop\": actual number of iterations"
+      }
+    },
+    "options": {
+      "mode": {
+        "times": {
+          "label": "Repeat N times"
+        },
+        "iterate": {
+          "label": "Iterate list/dict"
+        },
+        "while": {
+          "label": "While loop"
+        }
+      }
+    }
+  },
+  "try_catch": {
+    "label": "Try/Catch",
+    "description": "Catch exceptions from the sub-chain and follow the catch branch",
+    "summary": "The try branch runs normally; if any node throws, the catch branch runs and can read error_message",
+    "tags": [
+      "Exception",
+      "Catch",
+      "Error handling",
+      "Logic"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "outputs.try": {
+        "name": "Try",
+        "description": "Runs when no exception occurred"
+      },
+      "outputs.catch": {
+        "name": "Exception",
+        "description": "Runs when an exception occurred"
+      },
+      "outputs.finally": {
+        "name": "Finally",
+        "description": "Runs whether or not an exception occurred"
+      },
+      "outputs.error_message": {
+        "name": "Error message",
+        "description": "Exception message (available on the catch branch)"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "State value: ok when normal, error on exception"
+      }
+    }
+  },
+  "wait_input": {
+    "label": "Wait for reply",
+    "description": "Suspend the current chain and continue after the next message (cross-event wait): whose reply / how long / what to do on timeout. Known limits: the pending table lives in memory and is lost on restart; timeouts settle on the heartbeat (once per second — no need to wait for the next message); deleting the exit node while suspended raises a clear error instead of silently continuing",
+    "summary": "Suspend the flow and continue from the received exit after the next message; timeouts take the timeout exit. Built for idle-game settlement, card battles, multi-step conversations — any \"wait for the next step\" gameplay. The pending table lives in memory and is lost on restart",
+    "tags": [
+      "QQ",
+      "Wait",
+      "Reply",
+      "Interaction",
+      "Pause",
+      "Cross-event"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.prompt": {
+        "name": "Prompt message",
+        "description": "Prompt message sent before waiting (optional)"
+      },
+      "inputs.scope": {
+        "name": "Whose reply",
+        "description": "Options: only the triggerer / anyone in this group / a specific person"
+      },
+      "inputs.target_user": {
+        "name": "Target user",
+        "description": "When “who to wait for” is “a specific person”: **the QQ number of that person**. Leave it empty and it degrades to “only the trigger user” (with a warning in the log)"
+      },
+      "inputs.timeout": {
+        "name": "Timeout in seconds",
+        "description": "Timeout in seconds (default 60)"
+      },
+      "inputs.expected_pattern": {
+        "name": "Expected pattern",
+        "description": "Empty means no validation; if set, the user's reply must match this regex"
+      },
+      "inputs.invalid_message": {
+        "name": "Invalid-format message",
+        "description": "Message sent to the user when validation fails"
+      },
+      "inputs.max_retries": {
+        "name": "Max retries",
+        "description": "Max retries after a failed validation"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.timeout": {
+        "name": "Timeout exit",
+        "description": "Continue from here when no reply arrives before the timeout (if unconnected, the wait simply times out with no action)"
+      },
+      "outputs.reply": {
+        "name": "Reply content",
+        "description": "The user's reply text"
+      },
+      "outputs.user_id": {
+        "name": "Replier ID",
+        "description": "Replier user ID"
+      },
+      "outputs.timed_out": {
+        "name": "Timed out",
+        "description": "True when no reply arrived before the timeout"
+      },
+      "outputs.is_valid": {
+        "name": "Is valid",
+        "description": "Whether the reply matches expected_pattern (true when no validation is set)"
+      }
+    },
+    "options": {
+      "scope": {
+        "trigger_user": {
+          "label": "Only the triggerer"
+        },
+        "any_in_group": {
+          "label": "Anyone in this group"
+        },
+        "specific_user": {
+          "label": "A specific person"
+        }
+      }
+    }
+  },
+  "loop_control": {
+    "label": "Loop control",
+    "description": "Flow control (mode switch): break loop / early return",
+    "summary": "Two uses: break out of the current loop body (inside a loop); or end the current command chain early with an optional return value",
+    "tags": [
+      "Control flow",
+      "break",
+      "return",
+      "Break",
+      "Return",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: break loop / early return"
+      },
+      "inputs.value": {
+        "name": "Return value",
+        "description": "\"Early return\": value to return (optional)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      }
+    },
+    "options": {
+      "mode": {
+        "break": {
+          "label": "Break loop"
+        },
+        "return": {
+          "label": "Early return"
+        }
+      }
+    }
+  },
+  "error_op": {
+    "label": "Error op",
+    "description": "Unified error node (mode switch): throw / assert",
+    "summary": "Two uses: \"throw\" raises an error that \"Try/Catch\" can catch on its failure branch; \"assert\" aborts the flow with an error when the condition fails",
+    "tags": [
+      "Exception",
+      "Assert",
+      "Error",
+      "Control flow"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.condition": {
+        "name": "Condition",
+        "description": "Assertion condition (\"assert\" only; must be True)"
+      },
+      "inputs.message": {
+        "name": "Error message",
+        "description": "Error message (the exception message for \"throw\", the assertion failure hint for \"assert\")"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.passed": {
+        "name": "Passed",
+        "description": "Whether the assertion passed (\"assert\" only)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = passed)"
+      }
+    },
+    "options": {
+      "mode": {
+        "throw": {
+          "label": "Throw"
+        },
+        "assert": {
+          "label": "Assertion check"
+        }
+      }
+    }
+  },
+  "parallel_exec": {
+    "label": "Parallel exec",
+    "description": "Run several branches at once and wait for all to finish",
+    "summary": "Run several sub-chains in parallel and continue once all finish — for firing multiple requests at once or batch operations",
+    "tags": [
+      "Parallel",
+      "Concurrency",
+      "Control flow"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.branches": {
+        "name": "Branch list",
+        "description": "Branches to run in parallel: a JSON array whose elements are the HEAD NODE ID of each branch, e.g. [{\"chain_head\":\"n_ab12\"},{\"chain_head\":\"n_cd34\"}] (a head runs together with everything downstream of it). Empty [] = no branches (the node honestly reports \"no parallel branches\" and continues through its exit)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.results": {
+        "name": "Results",
+        "description": "Results of each branch"
+      },
+      "outputs.count": {
+        "name": "Branch count",
+        "description": "Number of branches executed"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "subflow_defined": {
+    "label": "Subflow definition",
+    "description": "Pack a run of nodes into a reusable whole (a **no-code reuse mechanism**) that can be invoked by \"Call subflow\"",
+    "summary": "Define a subflow: set the function name and parameter list in the config, wire the subflow body to the `next` port, and map return values with the \"End\" node (its \"return values\" table). It is never triggered directly by messages — only by \"Call subflow\".",
+    "tags": [
+      "Subflow",
+      "Function",
+      "Reuse",
+      "Control flow",
+      "composite"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Subflow body",
+        "description": "Connect to the subflow's first node"
+      }
+    }
+  },
+  "subflow_call": {
+    "label": "Call subflow",
+    "description": "Call a defined subflow (function) with arguments and get its return value",
+    "summary": "Pick the subflow to call in the config (declare it first with \"Subflow definition\"), pass JSON through the args port, and read the return value from the result port",
+    "tags": [
+      "Subflow",
+      "Function",
+      "Call",
+      "Control flow",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.args": {
+        "name": "Args JSON",
+        "description": "Arguments JSON object, e.g. {\"atk\":100,\"def\":50}. Key names must match the parameter names declared by the subflow"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Return value",
+        "description": "The subflow's return value"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "retry_exec": {
+    "label": "Retry exec",
+    "description": "Run the loop-body sub-chain with retries on failure",
+    "summary": "Run the loop-body sub-chain; on an exception, wait the configured seconds and retry up to the configured count. All attempts failing takes the \"failed\" branch; success takes the \"success\" branch",
+    "tags": [
+      "Retry",
+      "Fault tolerance",
+      "Control flow",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.max_retries": {
+        "name": "Max retries",
+        "description": "Max attempts (including the first run)"
+      },
+      "inputs.delay": {
+        "name": "Retry delay",
+        "description": "Seconds to wait before each retry"
+      },
+      "outputs.body": {
+        "name": "Body",
+        "description": "Entry of the sub-chain to retry"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Follow this branch after a successful run"
+      },
+      "outputs.failed": {
+        "name": "All failed",
+        "description": "Follow this branch when retries are exhausted and it still fails"
+      },
+      "outputs.attempts": {
+        "name": "Attempts",
+        "description": "Number of attempts actually made"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message from the last failure"
+      }
+    }
+  },
+  "timer": {
+    "label": "Timer",
+    "description": "Unified timer node (mode switch): start / stop and return elapsed / view total elapsed",
+    "summary": "Three timing operations: start a timer (returns its ID), stop and return elapsed seconds, or read the accumulated elapsed time without stopping",
+    "tags": [
+      "Timing",
+      "Elapsed",
+      "Performance",
+      "Control flow",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: start timer / stop and return elapsed / view total elapsed"
+      },
+      "inputs.timer_id": {
+        "name": "Timer ID",
+        "description": "Timer identifier (multiple independent timers supported)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.elapsed": {
+        "name": "Elapsed (s)",
+        "description": "Elapsed seconds (\"stop / view total elapsed\" modes)"
+      },
+      "outputs.elapsed_ms": {
+        "name": "Elapsed (ms)",
+        "description": "Elapsed milliseconds (\"stop / view total elapsed\" modes)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "start": {
+          "label": "Start timer"
+        },
+        "stop": {
+          "label": "Stop timer"
+        },
+        "elapsed": {
+          "label": "Get total elapsed"
+        }
+      }
+    }
+  },
+  "start_node": {
+    "label": "Start",
+    "description": "Flow start (trigger type embedded)",
+    "summary": "The flow's starting node with the trigger config embedded. Pick a trigger type (message received / scheduled / request / notice / subflow) and set its parameters. Comparable to Coze's \"Start\" node",
+    "tags": [
+      "Start",
+      "Trigger",
+      "Entrance",
+      "Boundary"
+    ],
+    "ports": {
+      "outputs.next": {
+        "name": "Next"
+      },
+      "outputs.event": {
+        "name": "Event object",
+        "description": "Event object"
+      },
+      "outputs.raw_message": {
+        "name": "Raw message",
+        "description": "Raw message text"
+      },
+      "outputs.args": {
+        "name": "Command args",
+        "description": "Command arguments (only in \"command\" mode; empty list in other modes)"
+      },
+      "outputs.matched": {
+        "name": "Matched text",
+        "description": "The regex-matched text (only in \"regex\" mode)"
+      },
+      "outputs.groups": {
+        "name": "Capture group",
+        "description": "List of regex capture groups (only in \"regex\" mode)"
+      },
+      "outputs.time": {
+        "name": "Trigger time",
+        "description": "Trigger time (\"scheduled\" mode)"
+      }
+    },
+    "options": {
+      "trigger_type": {
+        "message_received": {
+          "label": "Message received"
+        },
+        "scheduled": {
+          "label": "Scheduled trigger"
+        },
+        "request_received": {
+          "label": "Request received"
+        },
+        "notice_received": {
+          "label": "Notice received"
+        },
+        "subflow_defined": {
+          "label": "Subflow definition"
+        }
+      }
+    }
+  },
+  "end_node": {
+    "label": "End",
+    "description": "Flow end (define return value / finish)",
+    "summary": "The flow's ending node. For a normal chain it marks the end; for a subflow it defines the return-value field mapping. Comparable to Coze's End node",
+    "tags": [
+      "End",
+      "Return",
+      "Exit",
+      "Boundary"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      }
+    }
+  },
+  "variable_set": {
+    "label": "Set variable",
+    "description": "Set a temporary variable for later nodes to reference",
+    "summary": "Set a temporary variable within a single chain run for later nodes to reference. Variables are not shared across chains and have no by-user / by-group / global scoping — use \"Persistent op\" if you need persistence or per-user/per-group isolation.",
+    "tags": [
+      "Variable",
+      "State",
+      "Logic"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.var_name": {
+        "name": "Variable name",
+        "description": "Variable name (referenced by this name in \"Conditional Branch\", \"Expression Eval\" and similar nodes)"
+      },
+      "inputs.value": {
+        "name": "Value",
+        "description": "Value to assign"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Value",
+        "description": "The assigned value (injected into the var_name variable by the interpreter)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "variable_merge": {
+    "label": "Merge variables",
+    "description": "Merge several upstream outputs into a dict or list",
+    "summary": "Three merge styles: merge into a dict by key names, merge into a list in order (skipping empty values), or concatenate several lists into one",
+    "tags": [
+      "Variable",
+      "Aggregate",
+      "Merge",
+      "Data"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: merge into dict / merge into list / concat lists"
+      },
+      "inputs.v1": {
+        "name": "Value 1",
+        "description": "First input value"
+      },
+      "inputs.v2": {
+        "name": "Value 2",
+        "description": "Second input value"
+      },
+      "inputs.v3": {
+        "name": "Value 3",
+        "description": "Third input value"
+      },
+      "inputs.v4": {
+        "name": "Value 4",
+        "description": "Fourth input value"
+      },
+      "inputs.v5": {
+        "name": "Value 5",
+        "description": "Fifth input value"
+      },
+      "inputs.v6": {
+        "name": "Value 6",
+        "description": "Sixth input value"
+      },
+      "inputs.key_names": {
+        "name": "Key names",
+        "description": "\"Merge into dict\" only: key-name array such as [\"name\",\"age\",\"level\"]; v1-v6 map to them in order"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Merged result",
+        "description": "\"Merge into dict\" takes a dict; \"Merge into list / Concat lists\" take lists"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of elements after merging"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "dict": {
+          "label": "Merge into dict"
+        },
+        "list": {
+          "label": "Merge into list"
+        },
+        "concat": {
+          "label": "Concat lists"
+        }
+      }
+    }
+  },
+  "json_op": {
+    "label": "JSON op",
+    "description": "Unified JSON node (mode switch): get field / set field / delete field / merge JSON",
+    "summary": "Four JSON operations: extract a field by dot path, set a value by path, delete by path, or merge a JSON fragment in",
+    "tags": [
+      "JSON",
+      "Parse",
+      "Modify",
+      "Extract",
+      "Merge",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: get field / set field / delete field / merge JSON"
+      },
+      "inputs.source_from": {
+        "name": "Source from",
+        "description": "Either \"upstream link\" or \"named variable\". With a named variable the source is that variable’s current value — no need to detour through an \"Expression eval\" node just to read it"
+      },
+      "inputs.source": {
+        "name": "Source JSON",
+        "description": "JSON string or an already-parsed object"
+      },
+      "inputs.var_name": {
+        "name": "Variable name",
+        "description": "The named variable to read/write (the same name used in \"Set variable\" and the Variables panel). If it does not exist yet: extracting a field gives an empty value, while set/merge start from an empty dict and create it"
+      },
+      "inputs.write_back": {
+        "name": "Write result back",
+        "description": "When on, this node’s result is written back into that named variable in place — set / delete / merge then need no extra \"Set variable\" node. \"Get field\" never writes back (that would replace the whole variable with the field value)"
+      },
+      "inputs.key": {
+        "name": "Field path",
+        "description": "\"Get field\" takes a JSONPath or dot path (**leave it empty to get the whole value** — handy for handing a variable’s dict to the next node); \"Set field / Delete field\" take a dot path such as user.name"
+      },
+      "inputs.value": {
+        "name": "Value",
+        "description": "\"Set field\" takes the value to set; \"Merge JSON\" takes the JSON to merge in (shallow merge, same-name keys are overwritten)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "\"Get field\" returns the extracted value; other modes return the modified JSON string"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "get": {
+          "label": "Get field"
+        },
+        "set": {
+          "label": "Set field"
+        },
+        "delete": {
+          "label": "Delete field"
+        },
+        "merge": {
+          "label": "Merge JSON"
+        }
+      },
+      "source_from": {
+        "port": {
+          "label": "Upstream link"
+        },
+        "variable": {
+          "label": "Named variables"
+        }
+      }
+    }
+  },
+  "file_read": {
+    "label": "Read file",
+    "description": "Read file contents / check existence / list directory — **read-only, never touches the disk**",
+    "summary": "Use it when you only want to read contents, check whether a file exists, or list a directory (never modifies the disk)",
+    "tags": [
+      "File",
+      "Read-only"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: read file / check existence / list directory"
+      },
+      "inputs.file_path": {
+        "name": "File path",
+        "description": "File/directory path (the source path for \"copy / move\")"
+      },
+      "inputs.encoding": {
+        "name": "Encoding",
+        "description": "File encoding (\"read / write\" modes)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Content",
+        "description": "\"Read\" returns file content; \"List directory\" returns the file name list"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether it succeeded (always True in \"exists\" mode)"
+      },
+      "outputs.exists": {
+        "name": "Exists",
+        "description": "Whether it exists (\"exists\" mode)"
+      },
+      "outputs.is_file": {
+        "name": "Is file",
+        "description": "Whether it is a regular file (\"exists\" mode)"
+      },
+      "outputs.is_dir": {
+        "name": "Is dir",
+        "description": "Whether it is a directory (\"exists\" mode)"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of files (\"list directory\" mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "mode": {
+        "read": {
+          "label": "Read file"
+        },
+        "exists": {
+          "label": "Exists"
+        },
+        "list_dir": {
+          "label": "List directory"
+        }
+      }
+    }
+  },
+  "file_write": {
+    "label": "Write file",
+    "description": "Write / copy / move / delete files, create directories — **modifies the disk**",
+    "summary": "Use it to write to disk, copy, rename, delete or create a directory (modifies the disk)",
+    "tags": [
+      "File",
+      "Modifies the disk"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: write file / copy file / move or rename / delete file / create directory"
+      },
+      "inputs.file_path": {
+        "name": "File path",
+        "description": "File/directory path (the source path for \"copy / move\")"
+      },
+      "inputs.dest_path": {
+        "name": "Destination path",
+        "description": "Destination path (\"copy / move\" modes)"
+      },
+      "inputs.content": {
+        "name": "Content",
+        "description": "Content to write (\"write file\" mode)"
+      },
+      "inputs.write_mode": {
+        "name": "Write format",
+        "description": "JSON or text (\"write file\" mode)"
+      },
+      "inputs.encoding": {
+        "name": "Encoding",
+        "description": "File encoding (\"read / write\" modes)"
+      },
+      "inputs.append": {
+        "name": "Append",
+        "description": "Whether to append to the end of the file (\"write file\" mode)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether it succeeded (always True in \"exists\" mode)"
+      },
+      "outputs.path": {
+        "name": "Path",
+        "description": "Actual path operated on (\"write / copy / move / create directory\")"
+      },
+      "outputs.size": {
+        "name": "Size",
+        "description": "File size in bytes (\"write file\" mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "mode": {
+        "write": {
+          "label": "Write file"
+        },
+        "copy": {
+          "label": "Copy file"
+        },
+        "move": {
+          "label": "Move/rename"
+        },
+        "delete": {
+          "label": "Delete file"
+        },
+        "mkdir": {
+          "label": "Create directory"
+        }
+      },
+      "write_mode": {
+        "json": {
+          "label": "JSON"
+        },
+        "text": {
+          "label": "Text"
+        }
+      }
+    }
+  },
+  "list_op": {
+    "label": "List op",
+    "description": "General list operations (append / remove / query / sort / unique / merge / slice / insert / index / pop / accumulate by field)",
+    "summary": "Basic toolkit for collections such as inventory / friends / blocklist — 14 modes including append / remove / query / sort / unique / merge / slice (\"accumulate by field\" finds a matching item and adds to its count, i.e. \"add to inventory\")",
+    "tags": [
+      "List",
+      "Inventory",
+      "Collection",
+      "Array",
+      "Tool",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: append / remove / contains / size / get element / sort / reverse / unique / merge / slice / insert / find index / pop / accumulate by field"
+      },
+      "inputs.source_from": {
+        "name": "List from",
+        "description": "Either \"upstream link\" or \"named variable\". With a named variable the node reads and writes that variable directly — so accumulating into the same list inside a loop needs no extra \"Expression eval\" node to read it back"
+      },
+      "inputs.source_list": {
+        "name": "Input list",
+        "description": "The list to operate on"
+      },
+      "inputs.var_name": {
+        "name": "Variable name",
+        "description": "The named variable to read/write (same name as in \"Set variable\" / the Variables panel). If it does not exist yet it starts as an empty list — \"Append\" then creates it"
+      },
+      "inputs.write_back": {
+        "name": "Write result back",
+        "description": "When on, the result is written back into that named variable in place. Use it for list-changing modes (append / remove / insert / sort / unique / merge / slice / accumulate by field…); query modes (size / contains / get / index of) never write back"
+      },
+      "inputs.item": {
+        "name": "Item",
+        "description": "Used by \"append / remove / contains / insert\"; for \"merge\" it is the second list; for \"accumulate by field\" it is the item object to add"
+      },
+      "inputs.index": {
+        "name": "Index",
+        "description": "Used by \"get element / insert\" (default 0); \"pop\" defaults to the last element"
+      },
+      "inputs.start": {
+        "name": "Start index",
+        "description": "Slice start (\"slice\" mode, inclusive)"
+      },
+      "inputs.end": {
+        "name": "End index",
+        "description": "Slice end (\"slice\" mode, exclusive)"
+      },
+      "inputs.key_field": {
+        "name": "Match field",
+        "description": "\"Accumulate by field\": which field identifies \"the same item\" (e.g. name)"
+      },
+      "inputs.count_field": {
+        "name": "Count field",
+        "description": "\"Accumulate by field\": which field to add the delta to (e.g. count)"
+      },
+      "inputs.delta": {
+        "name": "Delta",
+        "description": "\"Accumulate by field\": how much to add when the item already exists (default 1)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Operation result (list / element / boolean / number, depending on the mode)"
+      },
+      "outputs.changed": {
+        "name": "Changed",
+        "description": "Whether the list changed"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of result elements (list length for list modes, 0 or 1 for single-element modes)"
+      },
+      "outputs.total": {
+        "name": "Total",
+        "description": "Original list length (returned by every mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message; empty = success"
+      }
+    },
+    "options": {
+      "mode": {
+        "append": {
+          "label": "Append",
+          "group": "Add/remove/edit"
+        },
+        "remove": {
+          "label": "Delete",
+          "group": "Add/remove/edit"
+        },
+        "insert": {
+          "label": "Insert",
+          "group": "Add/remove/edit"
+        },
+        "upsert": {
+          "label": "Accumulate by field (add to inventory)",
+          "group": "Add/remove/edit"
+        },
+        "contains": {
+          "label": "Contains",
+          "group": "Query"
+        },
+        "size": {
+          "label": "Length",
+          "group": "Query"
+        },
+        "get": {
+          "label": "Get element",
+          "group": "Query"
+        },
+        "index_of": {
+          "label": "Find index",
+          "group": "Query"
+        },
+        "sort": {
+          "label": "Sort",
+          "group": "Sort/transform"
+        },
+        "reverse": {
+          "label": "Reverse",
+          "group": "Sort/transform"
+        },
+        "unique": {
+          "label": "Unique",
+          "group": "Sort/transform"
+        },
+        "merge": {
+          "label": "Merge",
+          "group": "Merge/slice"
+        },
+        "slice": {
+          "label": "Slice",
+          "group": "Merge/slice"
+        },
+        "pop": {
+          "label": "Pop",
+          "group": "Merge/slice"
+        }
+      },
+      "source_from": {
+        "port": {
+          "label": "Upstream link"
+        },
+        "variable": {
+          "label": "Named variables"
+        }
+      }
+    }
+  },
+  "list_edit": {
+    "label": "List edit",
+    "description": "Append / remove / insert into a list, or accumulate a field (use field-accumulate for inventory items)",
+    "summary": "Use it to change list contents: append, remove, insert, accumulate matching items",
+    "tags": [
+      "List",
+      "Data",
+      "append",
+      "remove"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: append / remove / insert / accumulate a field (inventory items)"
+      },
+      "inputs.source_from": {
+        "name": "List from",
+        "description": "Either \"upstream link\" or \"named variable\". With a named variable the node reads and writes that variable directly — so accumulating into the same list inside a loop needs no extra \"Expression eval\" node to read it back"
+      },
+      "inputs.source_list": {
+        "name": "Input list",
+        "description": "The list to operate on"
+      },
+      "inputs.var_name": {
+        "name": "Variable name",
+        "description": "The named variable to read/write (same name as in \"Set variable\" / the Variables panel). If it does not exist yet it starts as an empty list — \"Append\" then creates it"
+      },
+      "inputs.write_back": {
+        "name": "Write result back",
+        "description": "When on, the result is written back into that named variable in place. Use it for list-changing modes (append / remove / insert / sort / unique / merge / slice / accumulate by field…); query modes (size / contains / get / index of) never write back"
+      },
+      "inputs.item": {
+        "name": "Item",
+        "description": "Used by \"append / remove / contains / insert\"; for \"merge\" it is the second list; for \"accumulate by field\" it is the item object to add"
+      },
+      "inputs.index": {
+        "name": "Index",
+        "description": "Used by \"get element / insert\" (default 0); \"pop\" defaults to the last element"
+      },
+      "inputs.key_field": {
+        "name": "Match field",
+        "description": "\"Accumulate by field\": which field identifies \"the same item\" (e.g. name)"
+      },
+      "inputs.count_field": {
+        "name": "Count field",
+        "description": "\"Accumulate by field\": which field to add the delta to (e.g. count)"
+      },
+      "inputs.delta": {
+        "name": "Delta",
+        "description": "\"Accumulate by field\": how much to add when the item already exists (default 1)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Operation result (list / element / boolean / number, depending on the mode)"
+      },
+      "outputs.changed": {
+        "name": "Changed",
+        "description": "Whether the list changed"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of result elements (list length for list modes, 0 or 1 for single-element modes)"
+      },
+      "outputs.total": {
+        "name": "Total",
+        "description": "Original list length (returned by every mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message; empty = success"
+      }
+    },
+    "options": {
+      "mode": {
+        "append": {
+          "label": "Append",
+          "group": "Add/remove/edit"
+        },
+        "remove": {
+          "label": "Delete",
+          "group": "Add/remove/edit"
+        },
+        "insert": {
+          "label": "Insert",
+          "group": "Add/remove/edit"
+        },
+        "upsert": {
+          "label": "Accumulate by field (add to inventory)",
+          "group": "Add/remove/edit"
+        }
+      },
+      "source_from": {
+        "port": {
+          "label": "Upstream link"
+        },
+        "variable": {
+          "label": "Named variables"
+        }
+      }
+    }
+  },
+  "list_query": {
+    "label": "List query",
+    "description": "Query a list: contains an element / length / get the Nth / index of an element",
+    "summary": "Use it to ask a list \"does it contain / how long / what is the Nth\" (does not modify the list)",
+    "tags": [
+      "List",
+      "Data",
+      "contains",
+      "size"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: contains / length / get element / find index"
+      },
+      "inputs.source_from": {
+        "name": "List from",
+        "description": "Either \"upstream link\" or \"named variable\". With a named variable the node reads and writes that variable directly — so accumulating into the same list inside a loop needs no extra \"Expression eval\" node to read it back"
+      },
+      "inputs.source_list": {
+        "name": "Input list",
+        "description": "The list to operate on"
+      },
+      "inputs.var_name": {
+        "name": "Variable name",
+        "description": "The named variable to read/write (same name as in \"Set variable\" / the Variables panel). If it does not exist yet it starts as an empty list — \"Append\" then creates it"
+      },
+      "inputs.item": {
+        "name": "Item",
+        "description": "Used by \"append / remove / contains / insert\"; for \"merge\" it is the second list; for \"accumulate by field\" it is the item object to add"
+      },
+      "inputs.index": {
+        "name": "Index",
+        "description": "Used by \"get element / insert\" (default 0); \"pop\" defaults to the last element"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Operation result (list / element / boolean / number, depending on the mode)"
+      },
+      "outputs.changed": {
+        "name": "Changed",
+        "description": "Whether the list changed"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of result elements (list length for list modes, 0 or 1 for single-element modes)"
+      },
+      "outputs.total": {
+        "name": "Total",
+        "description": "Original list length (returned by every mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message; empty = success"
+      }
+    },
+    "options": {
+      "mode": {
+        "contains": {
+          "label": "Contains",
+          "group": "Query"
+        },
+        "size": {
+          "label": "Length",
+          "group": "Query"
+        },
+        "get": {
+          "label": "Get element",
+          "group": "Query"
+        },
+        "index_of": {
+          "label": "Find index",
+          "group": "Query"
+        }
+      },
+      "source_from": {
+        "port": {
+          "label": "Upstream link"
+        },
+        "variable": {
+          "label": "Named variables"
+        }
+      }
+    }
+  },
+  "list_transform": {
+    "label": "List sort & transform",
+    "description": "Sort / reverse / dedupe (returns a new list)",
+    "summary": "Use it to reorder or dedupe a list",
+    "tags": [
+      "List",
+      "Data",
+      "sort",
+      "reverse"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: sort / reverse / dedupe"
+      },
+      "inputs.source_from": {
+        "name": "List from",
+        "description": "Either \"upstream link\" or \"named variable\". With a named variable the node reads and writes that variable directly — so accumulating into the same list inside a loop needs no extra \"Expression eval\" node to read it back"
+      },
+      "inputs.source_list": {
+        "name": "Input list",
+        "description": "The list to operate on"
+      },
+      "inputs.var_name": {
+        "name": "Variable name",
+        "description": "The named variable to read/write (same name as in \"Set variable\" / the Variables panel). If it does not exist yet it starts as an empty list — \"Append\" then creates it"
+      },
+      "inputs.write_back": {
+        "name": "Write result back",
+        "description": "When on, the result is written back into that named variable in place. Use it for list-changing modes (append / remove / insert / sort / unique / merge / slice / accumulate by field…); query modes (size / contains / get / index of) never write back"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Operation result (list / element / boolean / number, depending on the mode)"
+      },
+      "outputs.changed": {
+        "name": "Changed",
+        "description": "Whether the list changed"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of result elements (list length for list modes, 0 or 1 for single-element modes)"
+      },
+      "outputs.total": {
+        "name": "Total",
+        "description": "Original list length (returned by every mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message; empty = success"
+      }
+    },
+    "options": {
+      "mode": {
+        "sort": {
+          "label": "Sort",
+          "group": "Sort/transform"
+        },
+        "reverse": {
+          "label": "Reverse",
+          "group": "Sort/transform"
+        },
+        "unique": {
+          "label": "Unique",
+          "group": "Sort/transform"
+        }
+      },
+      "source_from": {
+        "port": {
+          "label": "Upstream link"
+        },
+        "variable": {
+          "label": "Named variables"
+        }
+      }
+    }
+  },
+  "list_combine": {
+    "label": "List merge & slice",
+    "description": "Merge two lists / slice a range / pop the last element",
+    "summary": "Use it to concatenate two lists, take a range, or pop the last element",
+    "tags": [
+      "List",
+      "Data",
+      "merge",
+      "slice"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: merge / slice / pop last"
+      },
+      "inputs.source_from": {
+        "name": "List from",
+        "description": "Either \"upstream link\" or \"named variable\". With a named variable the node reads and writes that variable directly — so accumulating into the same list inside a loop needs no extra \"Expression eval\" node to read it back"
+      },
+      "inputs.source_list": {
+        "name": "Input list",
+        "description": "The list to operate on"
+      },
+      "inputs.var_name": {
+        "name": "Variable name",
+        "description": "The named variable to read/write (same name as in \"Set variable\" / the Variables panel). If it does not exist yet it starts as an empty list — \"Append\" then creates it"
+      },
+      "inputs.write_back": {
+        "name": "Write result back",
+        "description": "When on, the result is written back into that named variable in place. Use it for list-changing modes (append / remove / insert / sort / unique / merge / slice / accumulate by field…); query modes (size / contains / get / index of) never write back"
+      },
+      "inputs.item": {
+        "name": "Item",
+        "description": "Used by \"append / remove / contains / insert\"; for \"merge\" it is the second list; for \"accumulate by field\" it is the item object to add"
+      },
+      "inputs.start": {
+        "name": "Start index",
+        "description": "Slice start (\"slice\" mode, inclusive)"
+      },
+      "inputs.end": {
+        "name": "End index",
+        "description": "Slice end (\"slice\" mode, exclusive)"
+      },
+      "inputs.index": {
+        "name": "Index",
+        "description": "Used by \"get element / insert\" (default 0); \"pop\" defaults to the last element"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Operation result (list / element / boolean / number, depending on the mode)"
+      },
+      "outputs.changed": {
+        "name": "Changed",
+        "description": "Whether the list changed"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "Number of result elements (list length for list modes, 0 or 1 for single-element modes)"
+      },
+      "outputs.total": {
+        "name": "Total",
+        "description": "Original list length (returned by every mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message; empty = success"
+      }
+    },
+    "options": {
+      "mode": {
+        "merge": {
+          "label": "Merge",
+          "group": "Merge/slice"
+        },
+        "slice": {
+          "label": "Slice",
+          "group": "Merge/slice"
+        },
+        "pop": {
+          "label": "Pop",
+          "group": "Merge/slice"
+        }
+      },
+      "source_from": {
+        "port": {
+          "label": "Upstream link"
+        },
+        "variable": {
+          "label": "Named variables"
+        }
+      }
+    }
+  },
+  "config_query": {
+    "label": "Query config table",
+    "description": "Read a project config table (read-only) and hand the rows to formulas — item/monster/level data no longer has to be hardcoded in formulas",
+    "summary": "Read from a data/config table (filter, sort, take a single row). The table is the single source of truth: change the table to change the gameplay, no formula edits",
+    "tags": [
+      "Config table",
+      "Data",
+      "Read-only",
+      "Lookup"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "All rows = for iteration/filtering; single row = take one row by condition (outputs first)"
+      },
+      "inputs.table": {
+        "name": "Table name",
+        "description": "Config table name (items / monsters / levels / drops / skills) → data/config/<name>.db"
+      },
+      "inputs.db_path": {
+        "name": "DB path",
+        "description": "Empty = data/config/<table>.db; fill only when the table lives elsewhere"
+      },
+      "inputs.where": {
+        "name": "Filter",
+        "description": "SQL fragment using ? placeholders (e.g. `type = ? AND price > 0`). Do NOT write quoted literals — pass values via \"Filter params\"; write keywords are rejected"
+      },
+      "inputs.where_params": {
+        "name": "Filter params",
+        "description": "Values for the ? placeholders, as an array, e.g. [\"weapon\"]"
+      },
+      "inputs.order": {
+        "name": "Sort",
+        "description": "Fragment without ORDER BY, e.g. `price DESC` or `id`. Use `RANDOM()` for a random row"
+      },
+      "inputs.limit": {
+        "name": "Row limit",
+        "description": "Maximum rows to read (default 1000)"
+      },
+      "inputs.field": {
+        "name": "Value field",
+        "description": "When set, its value becomes `value` (e.g. `price`); empty means value = first row"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.rows": {
+        "name": "All rows",
+        "description": "Array of row objects — iterate with list(rows).forEach(...) in a formula"
+      },
+      "outputs.count": {
+        "name": "Row count",
+        "description": "How many rows were read"
+      },
+      "outputs.first": {
+        "name": "First row",
+        "description": "The first row object (null when empty) — easier than rows[0]"
+      },
+      "outputs.value": {
+        "name": "Value",
+        "description": "The value of \"Value field\" when set, otherwise the first row"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the query succeeded (a missing table is false + error, not an empty result)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success). A typo in the table name lists the available tables"
+      }
+    },
+    "options": {
+      "mode": {
+        "all": {
+          "label": "All rows (iterate/filter)"
+        },
+        "row": {
+          "label": "Single row (by condition)"
+        }
+      }
+    }
+  },
+  "embedding": {
+    "label": "Text embedding",
+    "description": "Turn text into a vector, for semantic search / similarity scoring",
+    "summary": "Calls the embedding model from your configuration, turning the text into a vector (`vector`) and reporting its size (`dimensions`). Requires a configured model and API key; when the configuration is missing, or the vector comes back empty, it fails with a clear error instead of returning a fake vector.",
+    "tags": [
+      "AI",
+      "embedding",
+      "Vector",
+      "RAG",
+      "Semantic"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.text": {
+        "name": "Text",
+        "description": "Text to embed"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.vector": {
+        "name": "Vector",
+        "description": "The text's vector representation (a list of floats)"
+      },
+      "outputs.dimensions": {
+        "name": "Dimensions",
+        "description": "Vector dimensions"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "agent_chat": {
+    "label": "AI agent chat",
+    "description": "LLM conversation with optional tool calling",
+    "summary": "Unified AI agent node. \"Single chat\" answers once; \"Agent\" dynamically picks and calls tool nodes based on the user message, supporting multi-round conversation.",
+    "tags": [
+      "LLM",
+      "AI",
+      "Chat",
+      "Agent",
+      "Tool calling"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: single chat / multi-round tool calls"
+      },
+      "inputs.prompt": {
+        "name": "Prompt",
+        "description": "User input or system prompt"
+      },
+      "inputs.history": {
+        "name": "History",
+        "description": "Conversation history JSON"
+      },
+      "inputs.system_prompt": {
+        "name": "System prompt",
+        "description": "AI system prompt (role setting)"
+      },
+      "inputs.temperature": {
+        "name": "Temperature",
+        "description": "LLM sampling temperature (0-2)"
+      },
+      "inputs.max_rounds": {
+        "name": "Max rounds",
+        "description": "Max tool-calling rounds under \"multi-round tool calls\""
+      },
+      "inputs.confirm_high_risk": {
+        "name": "Confirm high-risk",
+        "description": "High-risk tools require confirmation"
+      },
+      "inputs.tools": {
+        "name": "Available tools",
+        "description": "Tool nodes available in \"multi-round tool calls\" mode; empty means all are available"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.response": {
+        "name": "Reply",
+        "description": "The AI's final reply text"
+      },
+      "outputs.tool_calls": {
+        "name": "Tool call log",
+        "description": "Tool-call history under \"multi-round tool calls\""
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "chat": {
+          "label": "Single chat"
+        },
+        "agent": {
+          "label": "Multi-round tool calls"
+        }
+      }
+    }
+  },
+  "intent_classify": {
+    "label": "Intent classify",
+    "description": "Classify a user message into one of your intents using an LLM",
+    "summary": "Give it a set of candidate intents and the model picks the best match, returning the label (`intent`), a confidence score (`confidence`) and per-intent scores (`all_scores`). A label outside your candidates fails with a clear error instead of being passed through.",
+    "tags": [
+      "AI",
+      "Intent",
+      "Classify"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.user_message": {
+        "name": "User message",
+        "description": "User message text to classify"
+      },
+      "inputs.intents": {
+        "name": "Intent list",
+        "description": "Intent list JSON (overrides config), e.g. [{\"label\":\"chitchat\",\"desc\":\"small talk\"},{\"label\":\"lookup\",\"desc\":\"look up info\"}]"
+      },
+      "inputs.system_prompt": {
+        "name": "System prompt",
+        "description": "Optional custom system prompt (empty = built-in prompt)"
+      },
+      "inputs.temperature": {
+        "name": "Temperature",
+        "description": "LLM sampling temperature (0-2; a low value such as 0.3 keeps classification stable)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.intent": {
+        "name": "Intent",
+        "description": "Best-matching intent label"
+      },
+      "outputs.confidence": {
+        "name": "Confidence",
+        "description": "Confidence score between 0 and 1"
+      },
+      "outputs.all_scores": {
+        "name": "All scores",
+        "description": "Score list for all intents, e.g. [{\"label\":\"chitchat\",\"score\":0.9},{\"label\":\"lookup\",\"score\":0.1}]"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "variable_persist": {
+    "label": "Persistent op",
+    "description": "Unified persistence node (mode switch): save / load / delete / exists / increment / compare-update / batch load / batch save / list append. compare-update = atomic conditional change (read + test + write in one step) for oversell-proof scenarios like gacha, flash sales, auctions and red-packet grabs: when the condition fails it takes the \"condition not met\" exit. Known limit: atomicity holds within a single process (multi-instance deployments need SQL-level CAS — future work)",
+    "summary": "Pick a persistence action: save / load / delete / exists / increment / compare-update / batch load / batch save / list append (compare-update is atomic, for oversell-proof claims)",
+    "tags": [
+      "Persistence",
+      "Variable",
+      "State",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: save / load / delete / exists / load-or-default / increment / batch load / batch save / list append / compare-update"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.value": {
+        "name": "Value",
+        "description": "Value to save (\"save\" mode)"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "inputs.ttl": {
+        "name": "TTL (s)",
+        "description": "0 means never expires (\"save / batch save\" only)"
+      },
+      "inputs.default": {
+        "name": "Default",
+        "description": "Default value (\"load-or-default / increment\" only); for \"compare-update\" it is the value assumed when the key does not exist"
+      },
+      "inputs.amount": {
+        "name": "Amount",
+        "description": "Increment amount, may be negative (\"increment\")"
+      },
+      "inputs.auto_save": {
+        "name": "Auto save",
+        "description": "Whether to auto-save the default (\"load-or-default\" mode)"
+      },
+      "inputs.keys": {
+        "name": "Key list",
+        "description": "JSON array (\"batch load\")"
+      },
+      "inputs.data": {
+        "name": "Data",
+        "description": "JSON object (\"batch save\"); JSON array [{\"key\",\"op\",\"value\",\"expectOp\",\"expect\"}] (\"batch update\")"
+      },
+      "inputs.item": {
+        "name": "Item",
+        "description": "Element to append (\"list append\")"
+      },
+      "inputs.max_length": {
+        "name": "Max length",
+        "description": "0 means unlimited (\"list append\" only)"
+      },
+      "inputs.compare_op": {
+        "name": "Condition",
+        "description": "Comparison operator: >= / > / <= / < / == / != (\"compare-update\" only changes when it passes)"
+      },
+      "inputs.threshold": {
+        "name": "Threshold",
+        "description": "The value compared against, e.g. 1 in \">= 1\" (\"compare-update\" only)"
+      },
+      "inputs.delta": {
+        "name": "Delta",
+        "description": "How much to add to the variable when the condition passes (may be negative; -1 subtracts one) (\"compare-update\" only)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result (available in \"load / load-or-default / increment / list append / compare-update\")"
+      },
+      "outputs.reason": {
+        "name": "Reason",
+        "description": "Why the condition was not met (\"compare-update / batch update\"; this is a normal outcome, not an error)"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      },
+      "outputs.exists": {
+        "name": "Exists",
+        "description": "Whether the variable exists (\"exists\" mode)"
+      },
+      "outputs.is_default": {
+        "name": "Is default",
+        "description": "Whether the default was used (\"load-or-default\" mode)"
+      },
+      "outputs.old_value": {
+        "name": "Old value",
+        "description": "Value before incrementing (\"increment / compare-update\")"
+      },
+      "outputs.values": {
+        "name": "Values",
+        "description": "\"Batch load\": the returned key/value pairs; \"batch update\": each key's value **after** the change (the unchanged current values when a condition failed)"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "\"Batch load\": number of entries read"
+      },
+      "outputs.saved": {
+        "name": "Saved",
+        "description": "\"Batch save\": number of entries saved"
+      },
+      "outputs.keys_list": {
+        "name": "Key list",
+        "description": "\"Batch save\": which keys were saved; \"batch update\": which keys were actually written (empty when nothing was written)"
+      },
+      "outputs.failed_key": {
+        "name": "Failed key",
+        "description": "\"Batch update\": which key failed its condition (therefore nothing in the batch was written)"
+      },
+      "outputs.length": {
+        "name": "Length",
+        "description": "List length after appending (\"list append\" only)"
+      },
+      "outputs.new": {
+        "name": "Is new",
+        "description": "Whether the list was created by this call (\"list append\" only)"
+      }
+    },
+    "options": {
+      "mode": {
+        "save": {
+          "label": "Save"
+        },
+        "load": {
+          "label": "Load"
+        },
+        "delete": {
+          "label": "Delete"
+        },
+        "exists": {
+          "label": "Exists"
+        },
+        "load_or_default": {
+          "label": "Load or default"
+        },
+        "increment": {
+          "label": "Increment"
+        },
+        "batch_load": {
+          "label": "Batch load"
+        },
+        "batch_save": {
+          "label": "Batch save"
+        },
+        "list_append": {
+          "label": "List append"
+        },
+        "compare_update": {
+          "label": "Compare-update (oversell-proof)"
+        },
+        "batch_update": {
+          "label": "Batch update (atomic, multi-key)"
+        }
+      },
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "load_variable": {
+    "label": "Read player data",
+    "description": "Read from the save: single key / with default / batch read several keys",
+    "summary": "Use it for a player's points, level or last check-in time (reads the save, never modifies it)",
+    "tags": [
+      "State",
+      "Save data",
+      "Read",
+      "Player data"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: read / read-or-default / batch read"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.keys": {
+        "name": "Key list",
+        "description": "JSON array (\"batch load\")"
+      },
+      "inputs.default": {
+        "name": "Default",
+        "description": "Default value (\"load-or-default / increment\" only); for \"compare-update\" it is the value assumed when the key does not exist"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result (available in \"load / load-or-default / increment / list append / compare-update\")"
+      },
+      "outputs.exists": {
+        "name": "Exists",
+        "description": "Whether the variable exists (\"exists\" mode)"
+      },
+      "outputs.is_default": {
+        "name": "Is default",
+        "description": "Whether the default was used (\"load-or-default\" mode)"
+      },
+      "outputs.values": {
+        "name": "Values",
+        "description": "\"Batch load\": the returned key/value pairs; \"batch update\": each key's value **after** the change (the unchanged current values when a condition failed)"
+      },
+      "outputs.count": {
+        "name": "Count",
+        "description": "\"Batch load\": number of entries read"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "mode": {
+        "load": {
+          "label": "Load"
+        },
+        "load_or_default": {
+          "label": "Load or default"
+        },
+        "batch_load": {
+          "label": "Batch load"
+        }
+      },
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "save_variable": {
+    "label": "Write player data",
+    "description": "Write to the save: save a single key / batch save / atomic multi-key update",
+    "summary": "Use it to add points or record progress (writes the save)",
+    "tags": [
+      "State",
+      "Save data",
+      "Write",
+      "Player data"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: save / batch save / batch update"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.value": {
+        "name": "Value",
+        "description": "Value to save (\"save\" mode)"
+      },
+      "inputs.ttl": {
+        "name": "TTL (s)",
+        "description": "0 means never expires (\"save / batch save\" only)"
+      },
+      "inputs.auto_save": {
+        "name": "Auto save",
+        "description": "Whether to auto-save the default (\"load-or-default\" mode)"
+      },
+      "inputs.keys": {
+        "name": "Key list",
+        "description": "JSON array (\"batch load\")"
+      },
+      "inputs.data": {
+        "name": "Data",
+        "description": "JSON object (\"batch save\"); JSON array [{\"key\",\"op\",\"value\",\"expectOp\",\"expect\"}] (\"batch update\")"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result (available in \"load / load-or-default / increment / list append / compare-update\")"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      },
+      "outputs.saved": {
+        "name": "Saved",
+        "description": "\"Batch save\": number of entries saved"
+      },
+      "outputs.keys_list": {
+        "name": "Key list",
+        "description": "\"Batch save\": which keys were saved; \"batch update\": which keys were actually written (empty when nothing was written)"
+      },
+      "outputs.failed_key": {
+        "name": "Failed key",
+        "description": "\"Batch update\": which key failed its condition (therefore nothing in the batch was written)"
+      }
+    },
+    "options": {
+      "mode": {
+        "save": {
+          "label": "Save"
+        },
+        "batch_save": {
+          "label": "Batch save"
+        },
+        "batch_update": {
+          "label": "Batch update (atomic, multi-key)"
+        }
+      },
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "incr_variable": {
+    "label": "Increment",
+    "description": "Increment a number in the save (atomic)",
+    "summary": "Use it to add points, counts or EXP — concurrency-safe, updates are never lost",
+    "tags": [
+      "State",
+      "Save data",
+      "Increment",
+      "Atomic"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.amount": {
+        "name": "Amount",
+        "description": "Increment amount, may be negative (\"increment\")"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result (available in \"load / load-or-default / increment / list append / compare-update\")"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.new": {
+        "name": "Is new",
+        "description": "Whether the list was created by this call (\"list append\" only)"
+      },
+      "outputs.old_value": {
+        "name": "Old value",
+        "description": "Value before incrementing (\"increment / compare-update\")"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "update_if_variable": {
+    "label": "Conditional update",
+    "description": "Update only when the condition holds (compare + delta); test and write happen in one step, so overselling is impossible",
+    "summary": "Use it for stock deduction, flash sales or attempt limits — concurrent calls cannot jump the queue",
+    "tags": [
+      "State",
+      "Save data",
+      "Atomic",
+      "No oversell"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.compare_op": {
+        "name": "Condition",
+        "description": "Comparison operator: >= / > / <= / < / == / != (\"compare-update\" only changes when it passes)"
+      },
+      "inputs.threshold": {
+        "name": "Threshold",
+        "description": "The value compared against, e.g. 1 in \">= 1\" (\"compare-update\" only)"
+      },
+      "inputs.delta": {
+        "name": "Delta",
+        "description": "How much to add to the variable when the condition passes (may be negative; -1 subtracts one) (\"compare-update\" only)"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result (available in \"load / load-or-default / increment / list append / compare-update\")"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.new": {
+        "name": "Is new",
+        "description": "Whether the list was created by this call (\"list append\" only)"
+      },
+      "outputs.old_value": {
+        "name": "Old value",
+        "description": "Value before incrementing (\"increment / compare-update\")"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "append_variable": {
+    "label": "List append",
+    "description": "Append one item to a list in the save (with an optional length cap)",
+    "summary": "Use it for check-in records or battle logs — the oldest entries are trimmed automatically",
+    "tags": [
+      "State",
+      "Save data",
+      "List"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.item": {
+        "name": "Item",
+        "description": "Element to append (\"list append\")"
+      },
+      "inputs.max_length": {
+        "name": "Max length",
+        "description": "0 means unlimited (\"list append\" only)"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result (available in \"load / load-or-default / increment / list append / compare-update\")"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.length": {
+        "name": "Length",
+        "description": "List length after appending (\"list append\" only)"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "delete_variable": {
+    "label": "Delete player data",
+    "description": "Delete one key from the save",
+    "summary": "Use it to reset a value or clear a cooldown",
+    "tags": [
+      "State",
+      "Save data",
+      "Delete"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "exists_variable": {
+    "label": "Check existence",
+    "description": "Check whether the key exists in the save (does not read the value)",
+    "summary": "Use it for first-time checks such as \"is this a new player\"",
+    "tags": [
+      "State",
+      "Save data",
+      "Check"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.key": {
+        "name": "Variable name",
+        "description": "Variable name"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.failed": {
+        "name": "Condition not met",
+        "description": "Continue from here when the condition is not met (you lost the race); no change was made (\"compare-update / batch update\")"
+      },
+      "outputs.exists": {
+        "name": "Exists",
+        "description": "Whether the variable exists (\"exists\" mode)"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        }
+      }
+    }
+  },
+  "query": {
+    "label": "Batch query",
+    "description": "Batch data query (list all / sort by value / filter / aggregate)",
+    "summary": "Query many records from persistent storage at once. Options: list all / sort by value / filter / aggregate",
+    "tags": [
+      "SQLite",
+      "Database",
+      "Query"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: list all / sort by value / filter / aggregate"
+      },
+      "inputs.key_pattern": {
+        "name": "Key pattern",
+        "description": "Key match pattern (e.g. score:*)"
+      },
+      "inputs.scope": {
+        "name": "Scope",
+        "description": "Options: by user / by group / global / all users (leaderboard)"
+      },
+      "inputs.limit": {
+        "name": "Row limit",
+        "description": "Row limit"
+      },
+      "inputs.filter_expr": {
+        "name": "Filter expression",
+        "description": "Condition for \"filter\", e.g. \"score > 50\" (field operator value)"
+      },
+      "inputs.aggregate_func": {
+        "name": "Aggregate func",
+        "description": "Aggregate function for \"aggregate\": count / sum / avg"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.results": {
+        "name": "Results",
+        "description": "Result list"
+      },
+      "outputs.count": {
+        "name": "Total count",
+        "description": "Total count"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message"
+      }
+    },
+    "options": {
+      "mode": {
+        "list": {
+          "label": "List all"
+        },
+        "sort": {
+          "label": "Sort by value"
+        },
+        "filter": {
+          "label": "Filter"
+        },
+        "aggregate": {
+          "label": "Aggregate"
+        }
+      },
+      "scope": {
+        "user": {
+          "label": "By user"
+        },
+        "group": {
+          "label": "By group"
+        },
+        "global": {
+          "label": "Global"
+        },
+        "all": {
+          "label": "All users (leaderboard)"
+        }
+      },
+      "order": {
+        "asc": {
+          "label": "Ascending"
+        },
+        "desc": {
+          "label": "Descending"
+        }
+      },
+      "sort_by": {
+        "key": {
+          "label": "By key"
+        },
+        "value": {
+          "label": "By value"
+        }
+      }
+    }
+  },
+  "database_write": {
+    "label": "Database op",
+    "description": "Query / insert / update / delete data",
+    "summary": "Four database operations: select (returns a row list) / insert / update / delete",
+    "tags": [
+      "SQLite",
+      "Database",
+      "Write",
+      "Query",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: select / insert / update / delete"
+      },
+      "inputs.table": {
+        "name": "Table name",
+        "description": "Name of the table to operate on"
+      },
+      "inputs.data": {
+        "name": "Data",
+        "description": "Fields to write into the record (\"insert / update\" modes), e.g. {\"name\":\"Alice\",\"level\":1}"
+      },
+      "inputs.condition": {
+        "name": "Condition",
+        "description": "Filter condition (no WHERE keyword), e.g. qq = ?; required for \"update / delete\", optional for \"select\""
+      },
+      "inputs.where_params": {
+        "name": "Where params",
+        "description": "Parameterized query values. Scalars are wrapped into a list automatically (5 → [5]); no manual wrapping needed"
+      },
+      "inputs.order": {
+        "name": "Sort",
+        "description": "\"Select\" mode sort clause (no ORDER BY keyword): column name [ASC|DESC], comma separated. Use RANDOM() for a random row (together with \"Row limit\" = 1)"
+      },
+      "inputs.db_path": {
+        "name": "Database path",
+        "description": "Database file path (defaults to the same set of databases as Data Manager, see data/players/)"
+      },
+      "inputs.result_field": {
+        "name": "Get field",
+        "description": "\"Select\" mode: fill in a field name to output its value on the \"Value\" port directly — no separate \"Expression Eval\" needed"
+      },
+      "inputs.limit": {
+        "name": "Row limit",
+        "description": "Max rows returned in \"Select\" mode (default 1000, max 10000) to avoid full-table scans"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.lastrowid": {
+        "name": "Row ID",
+        "description": "ID of the inserted row (\"insert\" mode)"
+      },
+      "outputs.rows_updated": {
+        "name": "Rows updated",
+        "description": "Number of rows updated (\"update\" mode)"
+      },
+      "outputs.rows_deleted": {
+        "name": "Rows deleted",
+        "description": "Number of rows deleted (\"delete\" mode)"
+      },
+      "outputs.rows": {
+        "name": "Rows",
+        "description": "The list of rows found (\"select\" mode)"
+      },
+      "outputs.rows_count": {
+        "name": "Rows count",
+        "description": "Number of rows found (\"select\" mode)"
+      },
+      "outputs.value": {
+        "name": "Field value",
+        "description": "\"Select\" mode + result field: output the named field from the first row directly"
+      },
+      "outputs.found": {
+        "name": "Found",
+        "description": "\"Select\" mode: whether at least one row was found"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "select": {
+          "label": "Query"
+        },
+        "insert": {
+          "label": "Insert"
+        },
+        "update": {
+          "label": "Update"
+        },
+        "delete": {
+          "label": "Delete"
+        }
+      }
+    }
+  },
+  "random": {
+    "label": "Random",
+    "description": "Generate random values in three modes: random in range, uniform pick, weighted pick",
+    "summary": "Three ways to get randomness: an integer in a range, a random pick from a list, or a weighted pick (higher weight wins more often)",
+    "tags": [
+      "Random",
+      "Probability",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: random in range / uniform pick / weighted pick"
+      },
+      "inputs.min_value": {
+        "name": "Min value",
+        "description": "Min value (inclusive, \"random in range\" mode)"
+      },
+      "inputs.max_value": {
+        "name": "Max value",
+        "description": "Max value (inclusive, \"random in range\" mode)"
+      },
+      "inputs.items": {
+        "name": "Item list",
+        "description": "\"Uniform pick\" takes a candidate list; \"Weighted pick\" takes [{\"value\":x,\"weight\":w}]"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Random result",
+        "description": "The generated random value"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "int": {
+          "label": "Random in range"
+        },
+        "choice": {
+          "label": "Uniform pick"
+        },
+        "weighted": {
+          "label": "Weighted pick"
+        }
+      }
+    }
+  },
+  "time_op": {
+    "label": "Time op",
+    "description": "Unified time node (mode switch): current time / is today / time diff",
+    "summary": "Three time operations: get the current time (timestamp / datetime / weekday), check whether a timestamp is today (daily check-in dedupe), or compute a time difference (cooldowns, duration stats)",
+    "tags": [
+      "Time",
+      "Date",
+      "Current",
+      "Check",
+      "Arithmetic",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: current time / is today / time diff"
+      },
+      "inputs.fmt": {
+        "name": "Format",
+        "description": "strftime format string (\"current time\" mode)"
+      },
+      "inputs.timezone": {
+        "name": "Timezone",
+        "description": "IANA timezone name (\"current time\" only; empty = local timezone)"
+      },
+      "inputs.timestamp": {
+        "name": "Timestamp",
+        "description": "Unix timestamp (\"is today / time diff\" only; empty = current time)"
+      },
+      "inputs.target": {
+        "name": "Target time",
+        "description": "The other time to compare against (\"time diff\" only; empty = current time)"
+      },
+      "inputs.unit": {
+        "name": "Unit",
+        "description": "Unit of the returned value: seconds / minutes / hours / days (\"time diff\", \"current time\", \"timestamp conversion\")"
+      },
+      "inputs.target_fmt": {
+        "name": "Target format",
+        "description": "String format of the target time (\"time diff\" mode)"
+      },
+      "inputs.offset": {
+        "name": "Offset (ms)",
+        "description": "Offset for \"add / subtract\", in **milliseconds** (1 day = 86400000). This used to reuse the \"target time\" port, so filling in a timestamp produced an absurd result without any error"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.timestamp": {
+        "name": "Timestamp",
+        "description": "Unix timestamp (\"current time\" mode)"
+      },
+      "outputs.datetime": {
+        "name": "Datetime",
+        "description": "Formatted date-time string (\"current time\" mode)"
+      },
+      "outputs.date": {
+        "name": "Date",
+        "description": "Date in YYYY-MM-DD format (\"current time\" mode)"
+      },
+      "outputs.time": {
+        "name": "Time",
+        "description": "Time in HH:MM:SS format (\"current time\" mode)"
+      },
+      "outputs.weekday": {
+        "name": "Weekday",
+        "description": "0 = Monday, 6 = Sunday (\"current time\" only)"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result of the selected mode: boolean for \"is today\"; number for \"current time\" / \"timestamp conversion\" / \"time diff\"; string for \"format time\" / \"parse to timestamp\" / \"add\" / \"subtract\". Use it when you only need one value downstream (it is written in every mode)"
+      },
+      "outputs.diff": {
+        "name": "Diff",
+        "description": "Absolute time difference in the chosen unit (\"time diff\" mode)"
+      },
+      "outputs.seconds": {
+        "name": "Seconds",
+        "description": "Absolute time difference in seconds (\"time diff\" mode)"
+      },
+      "outputs.is_past": {
+        "name": "Is past",
+        "description": "Whether the target time is earlier than the source time (\"time diff\" mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "now": {
+          "label": "Current time",
+          "group": "Load"
+        },
+        "timestamp": {
+          "label": "Timestamp conversion",
+          "group": "Load"
+        },
+        "format": {
+          "label": "Format time",
+          "group": "Load"
+        },
+        "parse": {
+          "label": "Parse to timestamp",
+          "group": "Load"
+        },
+        "is_today": {
+          "label": "Is today",
+          "group": "Check"
+        },
+        "date_diff": {
+          "label": "Time diff",
+          "group": "Compute"
+        },
+        "add": {
+          "label": "Add time",
+          "group": "Compute"
+        },
+        "sub": {
+          "label": "Subtract time",
+          "group": "Compute"
+        }
+      },
+      "unit": {
+        "seconds": {
+          "label": "Seconds"
+        },
+        "minutes": {
+          "label": "Minutes"
+        },
+        "hours": {
+          "label": "Hours"
+        },
+        "days": {
+          "label": "Days"
+        }
+      }
+    }
+  },
+  "time_read": {
+    "label": "Read time",
+    "description": "Get the current time / convert a timestamp / format / parse — read-only, no comparison or arithmetic",
+    "summary": "Use it to ask \"what time is it\", turn a timestamp into readable time, or parse one back",
+    "tags": [
+      "Time",
+      "Load"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: current time / timestamp conversion / format time / parse to timestamp"
+      },
+      "inputs.timestamp": {
+        "name": "Timestamp",
+        "description": "Unix timestamp (\"is today / time diff\" only; empty = current time)"
+      },
+      "inputs.fmt": {
+        "name": "Format",
+        "description": "strftime format string (\"current time\" mode)"
+      },
+      "inputs.timezone": {
+        "name": "Timezone",
+        "description": "IANA timezone name (\"current time\" only; empty = local timezone)"
+      },
+      "inputs.unit": {
+        "name": "Unit",
+        "description": "Unit of the returned value: seconds / minutes / hours / days (\"time diff\", \"current time\", \"timestamp conversion\")"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result of the selected mode: boolean for \"is today\"; number for \"current time\" / \"timestamp conversion\" / \"time diff\"; string for \"format time\" / \"parse to timestamp\" / \"add\" / \"subtract\". Use it when you only need one value downstream (it is written in every mode)"
+      },
+      "outputs.timestamp": {
+        "name": "Timestamp",
+        "description": "Unix timestamp (\"current time\" mode)"
+      },
+      "outputs.datetime": {
+        "name": "Datetime",
+        "description": "Formatted date-time string (\"current time\" mode)"
+      },
+      "outputs.date": {
+        "name": "Date",
+        "description": "Date in YYYY-MM-DD format (\"current time\" mode)"
+      },
+      "outputs.time": {
+        "name": "Time",
+        "description": "Time in HH:MM:SS format (\"current time\" mode)"
+      },
+      "outputs.weekday": {
+        "name": "Weekday",
+        "description": "0 = Monday, 6 = Sunday (\"current time\" only)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "now": {
+          "label": "Current time",
+          "group": "Load"
+        },
+        "timestamp": {
+          "label": "Timestamp conversion",
+          "group": "Load"
+        },
+        "format": {
+          "label": "Format time",
+          "group": "Load"
+        },
+        "parse": {
+          "label": "Parse to timestamp",
+          "group": "Load"
+        }
+      },
+      "unit": {
+        "seconds": {
+          "label": "Seconds"
+        },
+        "minutes": {
+          "label": "Minutes"
+        },
+        "hours": {
+          "label": "Hours"
+        },
+        "days": {
+          "label": "Days"
+        }
+      }
+    }
+  },
+  "time_check": {
+    "label": "Check if today",
+    "description": "Check whether a time falls on today (empty values are always false, so \"already done today\" is never assumed)",
+    "summary": "Use it for check-in dedupe or once-per-day checks",
+    "tags": [
+      "Time",
+      "Check"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.timestamp": {
+        "name": "Timestamp",
+        "description": "Unix timestamp (\"is today / time diff\" only; empty = current time)"
+      },
+      "inputs.timezone": {
+        "name": "Timezone",
+        "description": "IANA timezone name (\"current time\" only; empty = local timezone)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result of the selected mode: boolean for \"is today\"; number for \"current time\" / \"timestamp conversion\" / \"time diff\"; string for \"format time\" / \"parse to timestamp\" / \"add\" / \"subtract\". Use it when you only need one value downstream (it is written in every mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "time_calc": {
+    "label": "Compute time",
+    "description": "Time difference / add a span / subtract a span — produces a new time or duration",
+    "summary": "Use it to compute how long a cooldown is left, or what date it is X days from now",
+    "tags": [
+      "Time",
+      "Compute"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: time difference / add time / subtract time"
+      },
+      "inputs.timestamp": {
+        "name": "Timestamp",
+        "description": "Unix timestamp (\"is today / time diff\" only; empty = current time)"
+      },
+      "inputs.target": {
+        "name": "Target time",
+        "description": "The other time to compare against (\"time diff\" only; empty = current time)"
+      },
+      "inputs.unit": {
+        "name": "Unit",
+        "description": "Unit of the returned value: seconds / minutes / hours / days (\"time diff\", \"current time\", \"timestamp conversion\")"
+      },
+      "inputs.offset": {
+        "name": "Offset (ms)",
+        "description": "Offset for \"add / subtract\", in **milliseconds** (1 day = 86400000). This used to reuse the \"target time\" port, so filling in a timestamp produced an absurd result without any error"
+      },
+      "inputs.target_fmt": {
+        "name": "Target format",
+        "description": "String format of the target time (\"time diff\" mode)"
+      },
+      "inputs.fmt": {
+        "name": "Format",
+        "description": "strftime format string (\"current time\" mode)"
+      },
+      "inputs.timezone": {
+        "name": "Timezone",
+        "description": "IANA timezone name (\"current time\" only; empty = local timezone)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Main result of the selected mode: boolean for \"is today\"; number for \"current time\" / \"timestamp conversion\" / \"time diff\"; string for \"format time\" / \"parse to timestamp\" / \"add\" / \"subtract\". Use it when you only need one value downstream (it is written in every mode)"
+      },
+      "outputs.diff": {
+        "name": "Diff",
+        "description": "Absolute time difference in the chosen unit (\"time diff\" mode)"
+      },
+      "outputs.seconds": {
+        "name": "Seconds",
+        "description": "Absolute time difference in seconds (\"time diff\" mode)"
+      },
+      "outputs.is_past": {
+        "name": "Is past",
+        "description": "Whether the target time is earlier than the source time (\"time diff\" mode)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "date_diff": {
+          "label": "Time diff",
+          "group": "Compute"
+        },
+        "add": {
+          "label": "Add time",
+          "group": "Compute"
+        },
+        "sub": {
+          "label": "Subtract time",
+          "group": "Compute"
+        }
+      },
+      "unit": {
+        "seconds": {
+          "label": "Seconds"
+        },
+        "minutes": {
+          "label": "Minutes"
+        },
+        "hours": {
+          "label": "Hours"
+        },
+        "days": {
+          "label": "Days"
+        }
+      }
+    }
+  },
+  "expression_eval": {
+    "label": "Expression eval",
+    "description": "Expression eval (single formula / batch formulas)",
+    "summary": "Two uses: \"single expression\" evaluates one value; \"batch formulas\" evaluates many at once, each formula exposing its own output port",
+    "tags": [
+      "Expression",
+      "Compute",
+      "Formula",
+      "Logic",
+      "String",
+      "Numeric",
+      "Format",
+      "Batch"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.expression": {
+        "name": "Expression",
+        "description": "Expression (Python-style syntax, translated to JS for evaluation at runtime — the same evaluator as \"Conditional Branch\"). Note: variable names cannot be reserved words (such as def/class/import/new/in/true).\n[Available functions] Must be written as functions, not methods: len/int/float/str/bool/abs/min/max/sum/round/clamp/range/list/dict/json/now/time/random/randint/choice/upper/lower/strip/replace/split/join/startswith/endswith/contains/format/sort/reverse/keys/values/items/get/to_json/from_json\nCommon examples:\n  · Damage: clamp(atk * 2 - def * 0.5, 1, 999)\n  · Random: randint(1, 6) / choice([\"rock\",\"paper\",\"scissors\"])\n  · Strings: upper(name) / len(s) / \"prefix\" in s / f\"{v}k\"\n  · Dict field: get(monster, \"hp\", 0)\n  · Ternary: 10 if hp > 0 else 0\n[Not supported] Python method calls must become function calls (write upper(s), not s.upper(); or use native JS s.toUpperCase()); list comprehensions [x for x in lst] (use JS lst.filter(...) / lst.map(...)); f-string format specs (write round(v, 2), not f\"{v:,.2f}\"). The underlying engine is JS, so Math.*, arrow functions and array methods all work; process/require/window/eval are blocked. A failed evaluation writes the error to the \"Error\" port instead of silently returning a falsy value."
+      },
+      "inputs.variables_json": {
+        "name": "Named variables",
+        "description": "A JSON dict or dict object, e.g. {\"atk\":100,\"defense\":50,\"hp\":200}. Can be wired directly from \"Time op\", \"Persistent op\" and similar outputs.\n[Two uses] (1) Single expression: the dict keys become variable names you can write directly (e.g. atk + defense).\n(2) **Shared context for batch formulas** (important): in “batch formulas” mode each formula cannot see the others’ local variables, so any common setup must be computed once and wired here — otherwise every formula has to repeat it (measured on a real project: without this, 54% of all formula code was duplicated preamble; the worst node repeated the same 1,700 characters 4 times).\nHow: wire an expression that returns a dict (e.g. `({st: ..., row: ...})`), then write st / row directly in each formula."
+      },
+      "inputs.v1": {
+        "name": "{var1}",
+        "description": "Reference as v1 in the expression"
+      },
+      "inputs.v2": {
+        "name": "{var2}",
+        "description": "Reference as v2 in the expression"
+      },
+      "inputs.v3": {
+        "name": "{var3}",
+        "description": "Reference as v3 in the expression"
+      },
+      "inputs.v4": {
+        "name": "{var4}",
+        "description": "Reference as v4 in the expression"
+      },
+      "inputs.v5": {
+        "name": "{var5}",
+        "description": "Reference as v5 in the expression"
+      },
+      "inputs.v6": {
+        "name": "{var6}",
+        "description": "Reference as v6 in the expression (often bound to config APIs: realm coefficients)"
+      },
+      "inputs.v7": {
+        "name": "{var7}",
+        "description": "Reference as v7 in the expression (often bound to config APIs: trial bonuses)"
+      },
+      "inputs.v8": {
+        "name": "{var8}",
+        "description": "Reference as v8 in the expression (often bound to config APIs: technique bonus values)"
+      },
+      "inputs.v9": {
+        "name": "{var9}",
+        "description": "Reference as v9 in the expression (often bound to config APIs: technique target attributes)"
+      },
+      "inputs.v10": {
+        "name": "{var10}",
+        "description": "Reference as v10 in the expression (often bound to config APIs: equipment bonuses)"
+      },
+      "inputs.v11": {
+        "name": "{var11}",
+        "description": "Reference as v11 in the expression (often bound to config APIs: social attribute bonuses)"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: single expression / batch formulas"
+      },
+      "inputs.formulas": {
+        "name": "Formula list",
+        "description": "\"Batch formulas\": [{name, expression}, ...] (each formula adds one output port)"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Expression result"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "single": {
+          "label": "Single expression"
+        },
+        "formulas": {
+          "label": "Batch formulas"
+        }
+      }
+    }
+  },
+  "get_context": {
+    "label": "Get context (legacy node, split into separate nodes)",
+    "description": "Unified context node (mode switch): extract QQ number / group number / message text / command args / group members / message parts / nickname / group name",
+    "summary": "Extract context as needed: basic info, command args, group members, message parts, name lookup",
+    "tags": [
+      "QQ",
+      "Context",
+      "QQ number",
+      "Group",
+      "Message",
+      "Command args",
+      "Group members",
+      "Nickname",
+      "composite"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Options: user ID / group ID / message text / bot QQ / operator ID / message ID / raw message / sub type / command args / group members / message parts / user name / group name"
+      },
+      "inputs.index": {
+        "name": "Index",
+        "description": "\"Command args\" takes the argument index; \"Message parts\" takes the part index (0 = first, -1 = last)"
+      },
+      "inputs.group_id": {
+        "name": "Group",
+        "description": "\"Group members / group name / user name\" mode: target group number (empty = current group)"
+      },
+      "inputs.user_id": {
+        "name": "QQ number",
+        "description": "\"User name / member info\" mode: QQ number to look up (empty = the sender who triggered)"
+      },
+      "inputs.cursor": {
+        "name": "Cursor",
+        "description": "\"Group members / group blacklist\" mode: paging cursor (pass the \"next cursor\" from the previous call). Without it you only get the first page"
+      },
+      "inputs.part_mode": {
+        "name": "Part mode",
+        "description": "\"Message parts\" mode: @mention / image / file / reply / voice / video / JSON"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Extracted result (string / list / dict, depending on the mode)"
+      },
+      "outputs.args_list": {
+        "name": "All args",
+        "description": "\"Command args\" mode: full argument list"
+      },
+      "outputs.members": {
+        "name": "Member list",
+        "description": "\"Group members\" mode: member list"
+      },
+      "outputs.part_list": {
+        "name": "Part list",
+        "description": "\"Message parts\" mode: list of all matching parts"
+      },
+      "outputs.part_count": {
+        "name": "Part count",
+        "description": "\"Message parts\" mode: total number of matching parts"
+      },
+      "outputs.card": {
+        "name": "Group card",
+        "description": "\"User name\" mode: group card (group chats only)"
+      },
+      "outputs.nickname": {
+        "name": "Nickname",
+        "description": "\"User name\" mode: user nickname"
+      },
+      "outputs.next_cursor": {
+        "name": "Next cursor",
+        "description": "\"Group members / group blacklist\" mode: wire this back into the \"Cursor\" port to fetch the next page (empty = last page)"
+      },
+      "outputs.role": {
+        "name": "Role in group",
+        "description": "\"Member info / bot state in group\" mode: member / admin / owner"
+      },
+      "outputs.is_admin": {
+        "name": "Is admin",
+        "description": "\"Bot state in group\" mode: whether the bot has admin rights or above"
+      },
+      "outputs.recv_msg_setting": {
+        "name": "Receive mode",
+        "description": "\"Bot state in group\" mode: all messages / mention only / mention and context"
+      },
+      "outputs.mute_mode": {
+        "name": "Mute mode",
+        "description": "\"Group mute state\" mode: none (off) / always (always muted) / schedule (scheduled)"
+      },
+      "outputs.mute_rules": {
+        "name": "Mute rules",
+        "description": "\"Group mute state\" mode: raw official global_rule (including schedule and recurring rules)"
+      },
+      "outputs.muted_members": {
+        "name": "Muted members",
+        "description": "\"Group mute state\" mode: members currently muted (each with its unmute time)"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "\"Group members\" mode: whether it succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "user_id": {
+          "label": "User ID",
+          "group": "Identity"
+        },
+        "group_id": {
+          "label": "Group ID",
+          "group": "Identity"
+        },
+        "self_id": {
+          "label": "Bot QQ",
+          "group": "Identity"
+        },
+        "operator_id": {
+          "label": "Operator ID",
+          "group": "Identity"
+        },
+        "user_name": {
+          "label": "User name",
+          "group": "Identity"
+        },
+        "group_name": {
+          "label": "Group name",
+          "group": "Identity"
+        },
+        "message_text": {
+          "label": "Message text",
+          "group": "Message content"
+        },
+        "message_id": {
+          "label": "Message ID",
+          "group": "Message content"
+        },
+        "raw_message": {
+          "label": "Raw message",
+          "group": "Message content"
+        },
+        "message_part": {
+          "label": "Message parts",
+          "group": "Message content"
+        },
+        "message_ref": {
+          "label": "Reference ID",
+          "group": "Message content"
+        },
+        "sub_type": {
+          "label": "Sub type",
+          "group": "Message content"
+        },
+        "command_args": {
+          "label": "Command args",
+          "group": "Message content"
+        },
+        "group_members": {
+          "label": "Group members",
+          "group": "Group info"
+        },
+        "member_info": {
+          "label": "Member info (QQ official)",
+          "group": "Group info"
+        },
+        "bot_state": {
+          "label": "Bot state in group (QQ official)",
+          "group": "Group info"
+        },
+        "join_requests": {
+          "label": "Join requests (needs group admin)",
+          "group": "Group info"
+        },
+        "blacklist_list": {
+          "label": "Group blacklist (QQ official)",
+          "group": "Group info"
+        },
+        "group_mute_state": {
+          "label": "Group mute state (QQ official)",
+          "group": "Group info"
+        }
+      },
+      "part_mode": {
+        "at": {
+          "label": "@mention"
+        },
+        "image": {
+          "label": "Image"
+        },
+        "file": {
+          "label": "File"
+        },
+        "reply": {
+          "label": "Reply"
+        },
+        "record": {
+          "label": "Voice"
+        },
+        "video": {
+          "label": "Video"
+        },
+        "json": {
+          "label": "JSON"
+        }
+      }
+    }
+  },
+  "get_ids": {
+    "label": "Get IDs",
+    "description": "Read the various IDs of the current event (zero cost, no API call)",
+    "summary": "Use it for QQ numbers, group IDs, the bot ID or the operator ID — it only reads fields carried by the event, so it is the fastest option",
+    "tags": [
+      "QQ",
+      "Context",
+      "QQ number",
+      "Group",
+      "ID"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Which ID to read"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "The ID read (empty string when the message does not carry it)"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "user_id": {
+          "label": "User ID",
+          "group": "Identity"
+        },
+        "group_id": {
+          "label": "Group ID",
+          "group": "Identity"
+        },
+        "self_id": {
+          "label": "Bot QQ",
+          "group": "Identity"
+        },
+        "operator_id": {
+          "label": "Operator ID",
+          "group": "Identity"
+        }
+      }
+    }
+  },
+  "get_message": {
+    "label": "Get message content",
+    "description": "Read the current message: text / raw text / ID / quoted message / segments / subtype / command args",
+    "summary": "Use it to process \"what the user said\": command args, message segments and quoted replies all live here",
+    "tags": [
+      "QQ",
+      "Context",
+      "Message",
+      "Command args",
+      "Segments"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "Which part of the message to read"
+      },
+      "inputs.index": {
+        "name": "Index",
+        "description": "For \"command args\": which argument; for \"message segments\": which segment (0 = first, -1 = last)"
+      },
+      "inputs.part_mode": {
+        "name": "Part mode",
+        "description": "For \"message segments\": which segment type to extract"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Text / ID / quoted object / segments"
+      },
+      "outputs.args_list": {
+        "name": "All args",
+        "description": "\"Command args\" mode: full argument list"
+      },
+      "outputs.part_list": {
+        "name": "Part list",
+        "description": "In \"message segments\" mode: all matching segments"
+      },
+      "outputs.part_count": {
+        "name": "Part count",
+        "description": "\"Message parts\" mode: total number of matching parts"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the operation succeeded"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "message_text": {
+          "label": "Message text",
+          "group": "Message content"
+        },
+        "raw_message": {
+          "label": "Raw message",
+          "group": "Message content"
+        },
+        "message_id": {
+          "label": "Message ID",
+          "group": "Message content"
+        },
+        "message_ref": {
+          "label": "Reference ID",
+          "group": "Message content"
+        },
+        "message_part": {
+          "label": "Message parts",
+          "group": "Message content"
+        },
+        "sub_type": {
+          "label": "Sub type",
+          "group": "Message content"
+        },
+        "command_args": {
+          "label": "Command args",
+          "group": "Message content"
+        }
+      },
+      "part_mode": {
+        "at": {
+          "label": "@mention"
+        },
+        "image": {
+          "label": "Image"
+        },
+        "file": {
+          "label": "File"
+        },
+        "reply": {
+          "label": "Reply"
+        },
+        "record": {
+          "label": "Voice"
+        },
+        "video": {
+          "label": "Video"
+        },
+        "json": {
+          "label": "JSON"
+        }
+      }
+    }
+  },
+  "get_profile": {
+    "label": "Look up info (API call)",
+    "description": "Look up member profiles / group info / group lists / the bot's own status — these need API calls and may fail",
+    "summary": "Use it for nicknames, group names, member lists, join requests, the blacklist or bot permissions (slower than reading IDs, and may fail on permissions)",
+    "tags": [
+      "QQ",
+      "Context",
+      "Member",
+      "Group",
+      "Nickname",
+      "Permission",
+      "Needs an API call"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.mode": {
+        "name": "Mode",
+        "description": "What to look up: member profiles / group info / group lists / bot status (grouped under \"Group info\" and \"Member\")"
+      },
+      "inputs.group_id": {
+        "name": "Group",
+        "description": "Target group ID (leave empty for the current group)"
+      },
+      "inputs.user_id": {
+        "name": "QQ number",
+        "description": "QQ number to look up (leave empty for the sender)"
+      },
+      "inputs.cursor": {
+        "name": "Cursor",
+        "description": "The \"next page cursor\" returned by the previous call for \"member list / join requests / blacklist\"; leave empty for the first page"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "The result (object or list, depending on the selected mode)"
+      },
+      "outputs.nickname": {
+        "name": "Nickname",
+        "description": "\"User name\" mode: user nickname"
+      },
+      "outputs.card": {
+        "name": "Group card",
+        "description": "\"User name\" mode: group card (group chats only)"
+      },
+      "outputs.members": {
+        "name": "Member list",
+        "description": "\"Group members\" mode: member list"
+      },
+      "outputs.next_cursor": {
+        "name": "Next cursor",
+        "description": "Next page cursor for \"member list / join requests / blacklist\" (empty = no more pages)"
+      },
+      "outputs.role": {
+        "name": "Role in group",
+        "description": "owner / admin / member"
+      },
+      "outputs.is_admin": {
+        "name": "Is admin",
+        "description": "Whether the user is an admin or the group owner"
+      },
+      "outputs.recv_msg_setting": {
+        "name": "Receive mode",
+        "description": "In \"bot group status\" mode: the message-receiving setting (for example only_mention)"
+      },
+      "outputs.mute_mode": {
+        "name": "Mute mode",
+        "description": "\"Group mute state\" mode: none (off) / always (always muted) / schedule (scheduled)"
+      },
+      "outputs.mute_rules": {
+        "name": "Mute rules",
+        "description": "In \"group mute status\" mode: the raw official mute rules, passed through unchanged"
+      },
+      "outputs.muted_members": {
+        "name": "Muted members",
+        "description": "In \"group mute status\" mode: the list of individually muted members"
+      },
+      "outputs.success": {
+        "name": "Success",
+        "description": "Whether the call succeeded (API-backed modes may fail)"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    },
+    "options": {
+      "mode": {
+        "user_name": {
+          "label": "User name",
+          "group": "Identity"
+        },
+        "member_info": {
+          "label": "Member info (QQ official)",
+          "group": "Group info"
+        },
+        "group_name": {
+          "label": "Group name",
+          "group": "Identity"
+        },
+        "group_members": {
+          "label": "Group members",
+          "group": "Group info"
+        },
+        "group_mute_state": {
+          "label": "Group mute state (QQ official)",
+          "group": "Group info"
+        },
+        "join_requests": {
+          "label": "Join requests (needs group admin)",
+          "group": "Group info"
+        },
+        "blacklist_list": {
+          "label": "Group blacklist (QQ official)",
+          "group": "Group info"
+        },
+        "bot_state": {
+          "label": "Bot state in group (QQ official)",
+          "group": "Group info"
+        }
+      }
+    }
+  },
+  "format_text": {
+    "label": "Text template",
+    "description": "Build text with named placeholders; supports variables_json plus var1~var8",
+    "summary": "Build a text template from named variables via variables_json; var1~var8 remain supported for backward compatibility",
+    "tags": [
+      "Text",
+      "Template",
+      "Concat"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.template": {
+        "name": "Template",
+        "description": "Template, e.g. \"{player} hits {enemy} for {damage}\""
+      },
+      "inputs.variables_json": {
+        "name": "Named variables",
+        "description": "A JSON dict or dict object. Can be wired directly from \"Time op\", \"Expression eval\" and similar outputs"
+      },
+      "inputs.var1": {
+        "name": "{var1} (legacy)",
+        "description": "Replaces the {var1} placeholder"
+      },
+      "inputs.var2": {
+        "name": "{var2} (legacy)",
+        "description": "Replaces the {var2} placeholder"
+      },
+      "inputs.var3": {
+        "name": "{var3} (legacy)",
+        "description": "Replaces the {var3} placeholder"
+      },
+      "inputs.var4": {
+        "name": "{var4} (legacy)",
+        "description": "Replaces the {var4} placeholder"
+      },
+      "inputs.var5": {
+        "name": "{var5} (legacy)",
+        "description": "Replaces the {var5} placeholder"
+      },
+      "inputs.var6": {
+        "name": "{var6} (legacy)",
+        "description": "Replaces the {var6} placeholder"
+      },
+      "inputs.var7": {
+        "name": "{var7} (legacy)",
+        "description": "Replaces the {var7} placeholder"
+      },
+      "inputs.var8": {
+        "name": "{var8} (legacy)",
+        "description": "Replaces the {var8} placeholder"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "The substituted text"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  },
+  "regex_extract": {
+    "label": "Regex extract",
+    "description": "Extract the parts of a text that match a regular expression",
+    "summary": "Extract matches from text with a regular expression; supports capture groups and an all-matches list",
+    "tags": [
+      "Regex",
+      "Extract",
+      "Text",
+      "Data processing"
+    ],
+    "ports": {
+      "inputs.in": {
+        "name": "Entrance"
+      },
+      "inputs.text": {
+        "name": "Text",
+        "description": "Text to match against"
+      },
+      "inputs.pattern": {
+        "name": "Regular expression",
+        "description": "Regular expression"
+      },
+      "inputs.group": {
+        "name": "Capture group",
+        "description": "0 returns the whole match; 1 and above select the Nth capture group"
+      },
+      "inputs.as_list": {
+        "name": "Return list",
+        "description": "True returns a list of all matches; False returns only the first"
+      },
+      "outputs.out": {
+        "name": "Exit"
+      },
+      "outputs.result": {
+        "name": "Result",
+        "description": "Match result (string or list)"
+      },
+      "outputs.matched": {
+        "name": "Matched",
+        "description": "Whether anything matched"
+      },
+      "outputs.error": {
+        "name": "Error",
+        "description": "Error message (empty = success)"
+      }
+    }
+  }
+};

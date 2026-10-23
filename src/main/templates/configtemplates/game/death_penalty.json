@@ -1,0 +1,17 @@
+{
+  "tableName": "death_penalty",
+  "displayName": "死亡惩罚",
+  "fields": [
+    { "name": "class", "label": "类别", "type": "enum", "enumValues": ["base", "armor", "sword", "magic", "body", "alchemy"], "description": "职业或基础类别（base=基础/armor=防具/sword=剑修/magic=法修/body=体修/alchemy=丹修）", "notNull": true },
+    { "name": "reduction", "label": "减免值", "type": "integer", "description": "死亡惩罚减免值", "notNull": true },
+    { "name": "description", "label": "描述", "type": "text", "description": "配置项说明" }
+  ],
+  "seedRows": [
+    { "class": "base", "reduction": 0, "description": "基础惩罚（无减免）" },
+    { "class": "armor", "reduction": 10, "description": "穿防具减免10%死亡惩罚" },
+    { "class": "sword", "reduction": 5, "description": "剑修职业减免5%死亡惩罚" },
+    { "class": "magic", "reduction": 5, "description": "法修职业减免5%死亡惩罚" },
+    { "class": "body", "reduction": 20, "description": "体修职业减免20%死亡惩罚（高体质优势）" },
+    { "class": "alchemy", "reduction": 15, "description": "丹修职业减免15%死亡惩罚" }
+  ]
+}

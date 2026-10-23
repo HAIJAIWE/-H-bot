@@ -1,0 +1,23 @@
+{
+  "tableName": "technique_bonus",
+  "displayName": "功法加成表",
+  "fields": [
+    { "name": "id", "label": "编号", "type": "integer", "description": "功法编号", "notNull": true },
+    { "name": "name", "label": "功法名称", "type": "text", "description": "功法名称（如 降龙十八掌、九阳神功）", "notNull": true },
+    { "name": "grade", "label": "功法品阶", "type": "enum", "description": "功法品阶，决定每级加成比例", "enumValues": ["黄阶下品", "黄阶上品", "玄阶下品", "玄阶上品", "地阶下品", "地阶上品", "天阶"], "notNull": true },
+    { "name": "target_attr", "label": "加成属性", "type": "enum", "description": "该功法提升的四维属性", "enumValues": ["con", "wis", "agi", "str"], "notNull": true },
+    { "name": "bonus_per_level", "label": "每级加成比例", "type": "real", "description": "每级功法对目标属性的加成比例（如0.20=每级+20%），实际加成=此值×功法等级", "notNull": true },
+    { "name": "max_level", "label": "最大等级", "type": "integer", "description": "该功法可修炼的最高等级", "notNull": true },
+    { "name": "description", "label": "功法说明", "type": "text", "description": "功法效果说明" }
+  ],
+  "seedRows": [
+    { "id": 1, "name": "基础拳法", "grade": "黄阶下品", "target_attr": "str", "bonus_per_level": 0.05, "max_level": 10, "description": "黄阶下品外功，每级+5%力量" },
+    { "id": 2, "name": "吐纳术", "grade": "黄阶上品", "target_attr": "wis", "bonus_per_level": 0.08, "max_level": 10, "description": "黄阶上品内功心法，每级+8%悟性" },
+    { "id": 3, "name": "铁布衫", "grade": "玄阶下品", "target_attr": "con", "bonus_per_level": 0.10, "max_level": 15, "description": "玄阶下品硬功，每级+10%体质" },
+    { "id": 4, "name": "轻功草上飞", "grade": "玄阶下品", "target_attr": "agi", "bonus_per_level": 0.10, "max_level": 15, "description": "玄阶下品轻功，每级+10%敏捷" },
+    { "id": 5, "name": "降龙十八掌", "grade": "地阶上品", "target_attr": "str", "bonus_per_level": 0.25, "max_level": 20, "description": "地阶上品至刚掌法，每级+25%力量" },
+    { "id": 6, "name": "九阳神功", "grade": "天阶", "target_attr": "con", "bonus_per_level": 0.30, "max_level": 30, "description": "天阶至阳内功，每级+30%体质" },
+    { "id": 7, "name": "独孤九剑", "grade": "天阶", "target_attr": "agi", "bonus_per_level": 0.30, "max_level": 30, "description": "天阶剑法，每级+30%敏捷" },
+    { "id": 8, "name": "九阴真经", "grade": "天阶", "target_attr": "wis", "bonus_per_level": 0.30, "max_level": 30, "description": "天阶至阴内功，每级+30%悟性" }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "tableName": "game_defaults",
+  "displayName": "游戏默认值",
+  "fields": [
+    { "name": "key", "label": "键名", "type": "text", "description": "配置键名（如 monster_exp_default）", "notNull": true },
+    { "name": "value", "label": "数值", "type": "real", "description": "配置值", "notNull": true },
+    { "name": "description", "label": "描述", "type": "text", "description": "配置项说明" }
+  ],
+  "seedRows": [
+    { "key": "initial_hp", "value": 100, "description": "角色初始气血" },
+    { "key": "initial_mp", "value": 50, "description": "角色初始真气" },
+    { "key": "initial_stone", "value": 100, "description": "角色初始灵石" },
+    { "key": "initial_exp", "value": 0, "description": "角色初始修为" },
+    { "key": "initial_level", "value": 1, "description": "角色初始等级" },
+    { "key": "exp_base", "value": 100, "description": "升级基础修为（升级所需=exp_base×level×exp_growth）" },
+    { "key": "exp_growth", "value": 1.5, "description": "升级修为成长系数" },
+    { "key": "monster_exp_default", "value": 50, "description": "怪物默认修为奖励（未在 monsters 表配置时）" },
+    { "key": "monster_stone_default", "value": 30, "description": "怪物默认灵石掉落（未在 monsters 表配置时）" },
+    { "key": "death_penalty_exp", "value": 0.1, "description": "死亡修为惩罚比例（0.1=损失10%修为）" },
+    { "key": "death_penalty_stone", "value": 0.05, "description": "死亡灵石惩罚比例（0.05=损失5%灵石）" },
+    { "key": "sign_in_stone_base", "value": 100, "description": "签到基础灵石奖励" },
+    { "key": "sign_in_exp_base", "value": 50, "description": "签到基础修为奖励" },
+    { "key": "combat_win_exp_rate", "value": 1.0, "description": "战斗胜利修为获取系数" },
+    { "key": "combat_win_stone_rate", "value": 1.0, "description": "战斗胜利灵石获取系数" }
+  ]
+}

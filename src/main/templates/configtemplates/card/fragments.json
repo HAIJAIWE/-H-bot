@@ -1,0 +1,117 @@
+{
+  "tableName": "fragments",
+  "displayName": "碎片合成表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "碎片配置编号",
+      "notNull": true
+    },
+    {
+      "name": "card_id",
+      "label": "目标卡牌",
+      "type": "integer",
+      "description": "合成目标卡牌编号（对应 cards.id）",
+      "notNull": true
+    },
+    {
+      "name": "fragment_name",
+      "label": "碎片名称",
+      "type": "text",
+      "description": "碎片中文名称",
+      "notNull": true
+    },
+    {
+      "name": "fragments_needed",
+      "label": "所需碎片数",
+      "type": "integer",
+      "description": "合成所需碎片数量",
+      "notNull": true
+    },
+    {
+      "name": "fragment_source",
+      "label": "碎片来源",
+      "type": "enum",
+      "enumValues": [
+        "商店",
+        "活动",
+        "副本",
+        "分解",
+        "签到"
+      ],
+      "description": "碎片主要获取途径",
+      "notNull": true
+    },
+    {
+      "name": "fragment_price",
+      "label": "单价",
+      "type": "integer",
+      "description": "商店购买单价（0=不可购买）",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "碎片合成说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "card_id": 1,
+      "fragment_name": "赤焰龙鳞",
+      "fragments_needed": 50,
+      "fragment_source": "副本",
+      "fragment_price": 0,
+      "description": "赤焰龙鳞 - 合成1号卡牌，需50个，来源：副本（不可购买）"
+    },
+    {
+      "id": 2,
+      "card_id": 2,
+      "fragment_name": "冰羽凤翎",
+      "fragments_needed": 80,
+      "fragment_source": "活动",
+      "fragment_price": 0,
+      "description": "冰羽凤翎 - 合成2号卡牌，需80个，来源：活动（不可购买）"
+    },
+    {
+      "id": 3,
+      "card_id": 3,
+      "fragment_name": "雷霆神纹",
+      "fragments_needed": 60,
+      "fragment_source": "商店",
+      "fragment_price": 200,
+      "description": "雷霆神纹 - 合成3号卡牌，需60个，来源：商店，单价200金币"
+    },
+    {
+      "id": 4,
+      "card_id": 4,
+      "fragment_name": "风行印记",
+      "fragments_needed": 30,
+      "fragment_source": "分解",
+      "fragment_price": 0,
+      "description": "风行印记 - 合成4号卡牌，需30个，来源：分解（不可购买）"
+    },
+    {
+      "id": 5,
+      "card_id": 5,
+      "fragment_name": "圣光碎晶",
+      "fragments_needed": 35,
+      "fragment_source": "签到",
+      "fragment_price": 0,
+      "description": "圣光碎晶 - 合成5号卡牌，需35个，来源：签到（不可购买）"
+    },
+    {
+      "id": 6,
+      "card_id": 6,
+      "fragment_name": "暗影残片",
+      "fragments_needed": 40,
+      "fragment_source": "商店",
+      "fragment_price": 150,
+      "description": "暗影残片 - 合成6号卡牌，需40个，来源：商店，单价150金币"
+    }
+  ]
+}

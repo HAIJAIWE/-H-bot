@@ -1,0 +1,188 @@
+{
+  "generatedAt": "2026-10-23T17:39:46.947Z",
+  "baseline": {
+    "kind": "packaged-client",
+    "bundle": "E:\\qqbat-restored\\_baseline\\out-bundle",
+    "jsFiles": 25,
+    "bytes": 5833371,
+    "regions": 594
+  },
+  "tree": {
+    "files": 846
+  },
+  "missing": {
+    "total": 6,
+    "unregistered": 0,
+    "items": [
+      {
+        "region": "src/shared/nodes/groups/dataConfig.ts",
+        "resolution": "内容是 renderer propertyDrawerConstants 的重复副本，且 shared 里反向 import renderer；全树 0 引用，已删除"
+      },
+      {
+        "region": "src/main/services/ops/metricsExport.ts",
+        "resolution": "扁平 src/main/services/metricsExport.ts 才是真源；嵌套这份是 10/18 移植副本，无任何 importer，已删除"
+      },
+      {
+        "region": "src/main/services/project/backupService.ts",
+        "resolution": "扁平 src/main/services/backupService.ts 才是真源（launchBackup 导入它）；嵌套副本无 importer，已删除"
+      },
+      {
+        "region": "src/main/services/project/dataTransferService.ts",
+        "resolution": "扁平 src/main/services/dataTransferService.ts 才是真源（ipc/launchTransfer 导入它）；嵌套副本无 importer，已删除"
+      },
+      {
+        "region": "src/renderer/src/components/blocks/useEditorActions.tsx",
+        "resolution": "真身是 useEditorActions.ts（纯 hook、无 JSX，不需要 .tsx 扩展名）"
+      },
+      {
+        "region": "src/renderer/src/assets/node-authoring.md",
+        "resolution": "?raw 伪模块；真身 src/renderer/src/assets/node-authoring.md 已从同一产物提取并写回"
+      }
+    ]
+  },
+  "sizeOutliers": [
+    {
+      "file": "src/shared/nodes/catalog/build.ts",
+      "regionChars": 168655,
+      "treeChars": 5677,
+      "ratio": 0.03
+    },
+    {
+      "file": "src/main/services/runner/runtimeEvents.ts",
+      "regionChars": 2093,
+      "treeChars": 662,
+      "ratio": 0.32
+    },
+    {
+      "file": "src/main/ipc/runtime.ts",
+      "regionChars": 7652,
+      "treeChars": 2621,
+      "ratio": 0.34
+    },
+    {
+      "file": "src/renderer/src/stores/panelDriftStore.ts",
+      "regionChars": 2971,
+      "treeChars": 1681,
+      "ratio": 0.57
+    }
+  ],
+  "delta": {
+    "total": 240,
+    "symbolHit": 96,
+    "unshipped": 112,
+    "unshippedFiles": [
+      "src/main/ipc/aiAgentCore.ts",
+      "src/main/ipc/aiAllowRules.ts",
+      "src/main/ipc/aiInstruction.ts",
+      "src/main/mcp/targets.ts",
+      "src/main/nodes/aiToolCall.ts",
+      "src/main/nodes/compat.ts",
+      "src/main/schemas/launchAi.ts",
+      "src/main/schemas/linter.ts",
+      "src/main/schemas/napcat.ts",
+      "src/main/schemas/napcatDownload.ts",
+      "src/main/schemas/python.ts",
+      "src/main/schemas/templates.ts",
+      "src/main/services/agent-core/adapters.ts",
+      "src/main/services/agent-core/computerUse.ts",
+      "src/main/services/agent-core/legacyTools.ts",
+      "src/main/services/agent-core/modelAdapter.ts",
+      "src/main/services/agent-core/prompt.ts",
+      "src/main/services/agent-core/runTurn.ts",
+      "src/main/services/agent-core/sandbox.ts",
+      "src/main/services/agent-core/scheduler.ts",
+      "src/main/services/agent-core/sessionLog.ts",
+      "src/main/services/agent-core/terminal.ts",
+      "src/main/services/ai/allowRules.ts",
+      "src/main/services/ai/codeSnippet.ts",
+      "src/main/services/ai/contextDigest.ts",
+      "src/main/services/ai/inboxStore.ts",
+      "src/main/services/ai/instructionBridge.ts",
+      "src/main/services/ai/lanes.ts",
+      "src/main/services/ai/legacyToolAdapter.ts",
+      "src/main/services/ai/planner.ts",
+      "src/main/services/ai/presets.ts",
+      "src/main/services/ai/readOnlyRoute.ts",
+      "src/main/services/ai/scout.ts",
+      "src/main/services/ai/summaryLlm.ts",
+      "src/main/services/benchmark.ts",
+      "src/main/services/configTemplateService.ts",
+      "src/main/services/flow/turnProjection.ts",
+      "src/main/services/messageQueue.ts",
+      "src/main/services/napcat.ts",
+      "src/main/services/napcatDownloader.ts",
+      "src/main/services/plugins/aiPluginLoader.ts",
+      "src/main/services/plugins/builtinHostPlugins.ts",
+      "src/main/services/plugins/defaults.ts",
+      "src/main/services/plugins/host.ts",
+      "src/main/services/plugins/layers.ts",
+      "src/main/services/plugins/market.ts",
+      "src/main/services/plugins/marketBundledIndex.ts",
+      "src/main/services/plugins/patchFile.ts",
+      "src/main/services/plugins/pluginNamingContract.ts",
+      "src/main/services/plugins/sandboxPluginActivator.ts",
+      "src/main/services/plugins/sandboxPluginBridge.ts",
+      "src/main/services/plugins/scoping.ts",
+      "src/main/services/segmentTranslator.ts",
+      "src/main/templates/builtinTemplates.ts",
+      "src/main/templates/buttonPanelTemplates.ts",
+      "src/main/templates/combatTemplates.ts",
+      "src/main/templates/gameplaySystemsTemplates.ts",
+      "src/main/templates/gameplayTemplates.ts",
+      "src/main/templates/gameplayTemplatesExtra.ts",
+      "src/main/templates/index.ts",
+      "src/main/templates/rpgButtonPanelExtension.ts",
+      "src/renderer/src/components/ai/AgentTranscript.tsx",
+      "src/renderer/src/components/ai/ChatEmptyState.tsx",
+      "src/renderer/src/components/ai/ExternalPluginsSection.tsx",
+      "src/renderer/src/components/ai/InlineEditBox.tsx",
+      "src/renderer/src/components/ai/InstalledPluginsList.tsx",
+      "src/renderer/src/components/ai/MessageActions.tsx",
+      "src/renderer/src/components/ai/PresetEditor.tsx",
+      "src/renderer/src/components/ai/PresetSelect.tsx",
+      "src/renderer/src/components/ai/ThinkingIndicator.tsx",
+      "src/renderer/src/components/ai/TrajectoryPanel.tsx",
+      "src/renderer/src/components/ai/TurnChangesCard.tsx",
+      "src/renderer/src/components/ai/TurnFoldHeader.tsx",
+      "src/renderer/src/components/blocks/AiActionEditor.tsx",
+      "src/renderer/src/components/blocks/ChainView.tsx",
+      "src/renderer/src/components/blocks/HttpActionEditor.tsx",
+      "src/renderer/src/components/canvas/CanvasToolbar.tsx",
+      "src/renderer/src/components/canvas/ConnectionSuggestions.tsx",
+      "src/renderer/src/components/canvas/StepListPanel.tsx",
+      "src/renderer/src/components/canvas/TemplateMarketDialog.tsx",
+      "src/renderer/src/components/canvas/TimeMachinePanel.tsx",
+      "src/renderer/src/components/debugger/DebuggerPanel.tsx",
+      "src/renderer/src/components/editor/MetricsPanel.tsx",
+      "src/renderer/src/components/editor/pythonCompletions.ts",
+      "src/renderer/src/components/launch/characterFields.ts",
+      "src/renderer/src/components/launch/NapCatConfigDialog.tsx",
+      "src/renderer/src/components/project/ProjectCard.tsx",
+      "src/renderer/src/components/settings/PluginMarket.tsx",
+      "src/renderer/src/components/settings/ResourceLimits.tsx",
+      "src/renderer/src/components/settings/TemplateMarket.tsx",
+      "src/renderer/src/components/ui/codeHighlight.tsx",
+      "src/renderer/src/components/ui/ZoomableImage.tsx",
+      "src/renderer/src/lib/ai/toolPresenters.tsx",
+      "src/renderer/src/lib/ai/turnGrouping.ts",
+      "src/renderer/src/lib/ai/uiSlots.tsx",
+      "src/renderer/src/lib/infra/monacoSetup.ts",
+      "src/renderer/src/lib/mockRunner.ts",
+      "src/renderer/src/lib/monacoSetup.ts",
+      "src/renderer/src/lib/plugins/external.ts",
+      "src/renderer/src/pages/ProjectSelector.tsx",
+      "src/renderer/src/stores/metricsStore.ts",
+      "src/renderer/src/stores/resourceStore.ts",
+      "src/renderer/src/stores/sourceDebugStore.ts",
+      "src/renderer/src/stores/terminalStore.ts",
+      "src/shared/agent/policy.ts",
+      "src/shared/ai/toolFailure.ts",
+      "src/shared/ai/toolLabels.ts",
+      "src/shared/nodes/i18n/catalog.en-US.ts",
+      "src/shared/plugins/kind.ts",
+      "src/shared/plugins/manifest.ts",
+      "src/shared/plugins/version.ts",
+      "src/shared/protocol/instruction.ts"
+    ]
+  }
+}

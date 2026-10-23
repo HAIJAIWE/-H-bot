@@ -1,0 +1,120 @@
+{
+  "tableName": "rarity_config",
+  "displayName": "稀有度配置表",
+  "fields": [
+    {
+      "name": "rarity",
+      "label": "稀有度",
+      "type": "enum",
+      "enumValues": [
+        "N",
+        "R",
+        "SR",
+        "SSR",
+        "UR"
+      ],
+      "description": "稀有度标识（N/R/SR/SSR/UR）",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "稀有度名称",
+      "type": "text",
+      "description": "稀有度中文名称",
+      "notNull": true
+    },
+    {
+      "name": "color",
+      "label": "显示颜色",
+      "type": "text",
+      "description": "稀有度显示颜色（十六进制，如 #FFFFFF）",
+      "notNull": true
+    },
+    {
+      "name": "base_rate",
+      "label": "基础概率",
+      "type": "real",
+      "description": "该稀有度的基础掉落概率（0.0~1.0）",
+      "notNull": true
+    },
+    {
+      "name": "attr_multiplier",
+      "label": "属性倍率",
+      "type": "real",
+      "description": "该稀有度卡牌的属性倍率（N=1.0, SSR=5.0...）",
+      "notNull": true
+    },
+    {
+      "name": "max_level",
+      "label": "最大等级",
+      "type": "integer",
+      "description": "该稀有度卡牌可升级到的最大等级",
+      "notNull": true
+    },
+    {
+      "name": "dup_reward",
+      "label": "重复奖励",
+      "type": "integer",
+      "description": "重复获得该稀有度卡牌时返还的代币数量",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "稀有度配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "rarity": "N",
+      "name": "普通",
+      "color": "#999999",
+      "base_rate": 0.6,
+      "attr_multiplier": 1.0,
+      "max_level": 30,
+      "dup_reward": 1,
+      "description": "普通(N) - 基础概率60.0%，属性倍率×1.0，最大等级30，重复奖励1代币"
+    },
+    {
+      "rarity": "R",
+      "name": "稀有",
+      "color": "#3399FF",
+      "base_rate": 0.28,
+      "attr_multiplier": 2.0,
+      "max_level": 50,
+      "dup_reward": 5,
+      "description": "稀有(R) - 基础概率28.0%，属性倍率×2.0，最大等级50，重复奖励5代币"
+    },
+    {
+      "rarity": "SR",
+      "name": "超稀有",
+      "color": "#CC66FF",
+      "base_rate": 0.09,
+      "attr_multiplier": 3.5,
+      "max_level": 70,
+      "dup_reward": 20,
+      "description": "超稀有(SR) - 基础概率9.0%，属性倍率×3.5，最大等级70，重复奖励20代币"
+    },
+    {
+      "rarity": "SSR",
+      "name": "传说",
+      "color": "#FF9900",
+      "base_rate": 0.025,
+      "attr_multiplier": 5.0,
+      "max_level": 90,
+      "dup_reward": 50,
+      "description": "传说(SSR) - 基础概率2.5%，属性倍率×5.0，最大等级90，重复奖励50代币"
+    },
+    {
+      "rarity": "UR",
+      "name": "究极",
+      "color": "#FF0000",
+      "base_rate": 0.005,
+      "attr_multiplier": 8.0,
+      "max_level": 100,
+      "dup_reward": 100,
+      "description": "究极(UR) - 基础概率0.5%，属性倍率×8.0，最大等级100，重复奖励100代币"
+    }
+  ]
+}

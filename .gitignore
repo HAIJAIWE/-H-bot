@@ -1,0 +1,31 @@
+# 依赖与构建产物（可重建，不入库）
+node_modules/
+out/
+release/
+dist/
+coverage/
+*.tsbuildinfo
+node_modules/.vite/
+node_modules/.cache/
+
+# 恢复期取证材料（体积大，留在本机；出处见 docs/restore/）
+_recovery/
+_baseline/
+
+# 用户数据 / 本地项目（含 QQ 凭证与聊天数据）
+projects/
+.qqbat/
+backups/
+logs/
+crashes/
+crash-reports/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 杂项
+*.log
+.DS_Store
+Thumbs.db

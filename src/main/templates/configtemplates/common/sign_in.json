@@ -1,0 +1,22 @@
+{
+  "tableName": "sign_in",
+  "displayName": "签到奖励表",
+  "fields": [
+    { "name": "day", "label": "签到天数", "type": "integer", "description": "连续签到天数", "notNull": true },
+    { "name": "stone_reward", "label": "灵石奖励", "type": "integer", "description": "签到获得的灵石", "notNull": true },
+    { "name": "exp_reward", "label": "修为奖励", "type": "integer", "description": "签到获得的修为", "notNull": true },
+    { "name": "item_type", "label": "物品类型", "type": "enum", "enumValues": ["none", "stone", "pill", "equipment", "card", "fragment", "resource"], "description": "签到奖励物品类型（none=无物品/stone=灵石/pill=丹药/equipment=装备/card=卡牌/fragment=碎片/resource=资源）", "notNull": true },
+    { "name": "item_id", "label": "物品编号", "type": "integer", "description": "签到奖励物品编号", "notNull": true },
+    { "name": "item_qty", "label": "物品数量", "type": "integer", "description": "签到奖励物品数量", "notNull": true },
+    { "name": "description", "label": "描述", "type": "text", "description": "签到奖励描述" }
+  ],
+  "seedRows": [
+    { "day": 1, "stone_reward": 100, "exp_reward": 50, "item_type": "none", "item_id": 0, "item_qty": 0, "description": "第1天签到：100灵石+50修为" },
+    { "day": 2, "stone_reward": 120, "exp_reward": 60, "item_type": "none", "item_id": 0, "item_qty": 0, "description": "第2天签到：120灵石+60修为" },
+    { "day": 3, "stone_reward": 150, "exp_reward": 75, "item_type": "none", "item_id": 0, "item_qty": 0, "description": "第3天签到：150灵石+75修为" },
+    { "day": 4, "stone_reward": 180, "exp_reward": 90, "item_type": "none", "item_id": 0, "item_qty": 0, "description": "第4天签到：180灵石+90修为" },
+    { "day": 5, "stone_reward": 220, "exp_reward": 110, "item_type": "none", "item_id": 0, "item_qty": 0, "description": "第5天签到：220灵石+110修为" },
+    { "day": 6, "stone_reward": 280, "exp_reward": 140, "item_type": "none", "item_id": 0, "item_qty": 0, "description": "第6天签到：280灵石+140修为" },
+    { "day": 7, "stone_reward": 500, "exp_reward": 300, "item_type": "none", "item_id": 0, "item_qty": 0, "description": "第7天签到（满周）：500灵石+300修为" }
+  ]
+}

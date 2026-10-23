@@ -1,0 +1,160 @@
+{
+  "tableName": "market",
+  "displayName": "市场配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "商品编号",
+      "notNull": true
+    },
+    {
+      "name": "item_name",
+      "label": "商品名称",
+      "type": "text",
+      "description": "商品中文名称",
+      "notNull": true
+    },
+    {
+      "name": "item_type",
+      "label": "商品类型",
+      "type": "enum",
+      "enumValues": [
+        "资源",
+        "道具",
+        "装备",
+        "碎片",
+        "礼包"
+      ],
+      "description": "商品类型",
+      "notNull": true
+    },
+    {
+      "name": "buy_price",
+      "label": "购买单价",
+      "type": "integer",
+      "description": "购买所需金币（0=不可购买）",
+      "notNull": true
+    },
+    {
+      "name": "sell_price",
+      "label": "出售单价",
+      "type": "integer",
+      "description": "出售获得金币（0=不可出售）",
+      "notNull": true
+    },
+    {
+      "name": "stock",
+      "label": "库存",
+      "type": "integer",
+      "description": "当前库存（-1=无限）",
+      "notNull": true
+    },
+    {
+      "name": "refresh_interval",
+      "label": "刷新间隔",
+      "type": "integer",
+      "description": "库存刷新间隔秒数（0=不刷新）",
+      "notNull": true
+    },
+    {
+      "name": "demand",
+      "label": "需求度",
+      "type": "enum",
+      "enumValues": [
+        "低",
+        "中",
+        "高",
+        "极高"
+      ],
+      "description": "市场需求度（影响价格波动）",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "市场商品说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "item_name": "木材包(100)",
+      "item_type": "资源",
+      "buy_price": 150,
+      "sell_price": 80,
+      "stock": -1,
+      "refresh_interval": 0,
+      "demand": "中",
+      "description": "木材包(100) - 资源类商品，买150卖80金币，库存无限，需求中"
+    },
+    {
+      "id": 2,
+      "item_name": "石材包(100)",
+      "item_type": "资源",
+      "buy_price": 180,
+      "sell_price": 100,
+      "stock": -1,
+      "refresh_interval": 0,
+      "demand": "中",
+      "description": "石材包(100) - 资源类商品，买180卖100金币，库存无限，需求中"
+    },
+    {
+      "id": 3,
+      "item_name": "食物包(100)",
+      "item_type": "资源",
+      "buy_price": 120,
+      "sell_price": 60,
+      "stock": -1,
+      "refresh_interval": 0,
+      "demand": "高",
+      "description": "食物包(100) - 资源类商品，买120卖60金币，库存无限，需求高"
+    },
+    {
+      "id": 4,
+      "item_name": "加速卷轴",
+      "item_type": "道具",
+      "buy_price": 50,
+      "sell_price": 0,
+      "stock": 100,
+      "refresh_interval": 3600,
+      "demand": "高",
+      "description": "加速卷轴 - 道具类商品，买50卖0金币，库存100，每3600秒刷新，需求高"
+    },
+    {
+      "id": 5,
+      "item_name": "魔法水晶",
+      "item_type": "资源",
+      "buy_price": 500,
+      "sell_price": 300,
+      "stock": 50,
+      "refresh_interval": 7200,
+      "demand": "极高",
+      "description": "魔法水晶 - 资源类商品，买500卖300金币，库存50，每7200秒刷新，需求极高"
+    },
+    {
+      "id": 6,
+      "item_name": "新手礼包",
+      "item_type": "礼包",
+      "buy_price": 200,
+      "sell_price": 0,
+      "stock": 1,
+      "refresh_interval": 0,
+      "demand": "低",
+      "description": "新手礼包 - 礼包类商品，买200卖0金币，库存1，需求低"
+    },
+    {
+      "id": 7,
+      "item_name": "稀有碎片",
+      "item_type": "碎片",
+      "buy_price": 800,
+      "sell_price": 400,
+      "stock": 20,
+      "refresh_interval": 86400,
+      "demand": "高",
+      "description": "稀有碎片 - 碎片类商品，买800卖400金币，库存20，每86400秒刷新，需求高"
+    }
+  ]
+}

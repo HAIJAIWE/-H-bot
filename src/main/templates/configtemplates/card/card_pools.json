@@ -1,0 +1,156 @@
+{
+  "tableName": "card_pools",
+  "displayName": "卡池配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "卡池编号",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "卡池名称",
+      "type": "text",
+      "description": "卡池中文名称",
+      "notNull": true
+    },
+    {
+      "name": "pool_type",
+      "label": "卡池类型",
+      "type": "enum",
+      "enumValues": [
+        "常驻",
+        "限定",
+        "新手",
+        "活动"
+      ],
+      "description": "卡池类型（常驻/限定/新手/活动）",
+      "notNull": true
+    },
+    {
+      "name": "cost_currency",
+      "label": "抽卡货币",
+      "type": "enum",
+      "enumValues": [
+        "钻",
+        "金币",
+        "友情点",
+        "活动票"
+      ],
+      "description": "抽卡消耗的货币类型（钻=高级货币/金币=基础货币/友情点=友情池专用/活动票=活动池专用）",
+      "notNull": true
+    },
+    {
+      "name": "cost_per_draw",
+      "label": "单抽消耗",
+      "type": "integer",
+      "description": "单次抽卡消耗数量",
+      "notNull": true
+    },
+    {
+      "name": "ten_draw_discount",
+      "label": "十连消耗",
+      "type": "integer",
+      "description": "十连抽卡消耗数量（通常为单抽×9或×10）",
+      "notNull": true
+    },
+    {
+      "name": "pity_threshold",
+      "label": "保底次数",
+      "type": "integer",
+      "description": "触发保底所需的抽卡次数",
+      "notNull": true
+    },
+    {
+      "name": "pity_guarantee_rarity",
+      "label": "保底稀有度",
+      "type": "enum",
+      "enumValues": [
+        "N",
+        "R",
+        "SR",
+        "SSR",
+        "UR"
+      ],
+      "description": "保底获得的卡牌稀有度（与 cards.rarity/rarity_config.rarity 一致）",
+      "notNull": true
+    },
+    {
+      "name": "daily_limit",
+      "label": "每日上限",
+      "type": "integer",
+      "description": "每日抽卡次数上限（0=无限制）",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "卡池配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "name": "新手祈愿池",
+      "pool_type": "新手",
+      "cost_currency": "钻",
+      "cost_per_draw": 100,
+      "ten_draw_discount": 900,
+      "pity_threshold": 20,
+      "pity_guarantee_rarity": "SR",
+      "daily_limit": 0,
+      "description": "新手祈愿池 - 新手池，单抽100钻，保底20抽保SR"
+    },
+    {
+      "id": 2,
+      "name": "常驻祈愿池",
+      "pool_type": "常驻",
+      "cost_currency": "钻",
+      "cost_per_draw": 150,
+      "ten_draw_discount": 1350,
+      "pity_threshold": 90,
+      "pity_guarantee_rarity": "SSR",
+      "daily_limit": 0,
+      "description": "常驻祈愿池 - 常驻池，单抽150钻，保底90抽保SSR"
+    },
+    {
+      "id": 3,
+      "name": "限定祈愿池",
+      "pool_type": "限定",
+      "cost_currency": "钻",
+      "cost_per_draw": 150,
+      "ten_draw_discount": 1350,
+      "pity_threshold": 90,
+      "pity_guarantee_rarity": "SSR",
+      "daily_limit": 0,
+      "description": "限定祈愿池 - 限定池，单抽150钻，保底90抽保SSR"
+    },
+    {
+      "id": 4,
+      "name": "友情祈愿池",
+      "pool_type": "常驻",
+      "cost_currency": "友情点",
+      "cost_per_draw": 100,
+      "ten_draw_discount": 1000,
+      "pity_threshold": 0,
+      "pity_guarantee_rarity": "R",
+      "daily_limit": 10,
+      "description": "友情祈愿池 - 常驻池，单抽100友情点，保底0抽保R，每日上限10抽"
+    },
+    {
+      "id": 5,
+      "name": "活动限定池",
+      "pool_type": "活动",
+      "cost_currency": "活动票",
+      "cost_per_draw": 200,
+      "ten_draw_discount": 1800,
+      "pity_threshold": 60,
+      "pity_guarantee_rarity": "SSR",
+      "daily_limit": 0,
+      "description": "活动限定池 - 活动池，单抽200活动票，保底60抽保SSR"
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+{
+  "tableName": "monsters",
+  "displayName": "怪物配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "怪物编号",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "怪物名称",
+      "type": "text",
+      "description": "怪物名称",
+      "notNull": true
+    },
+    {
+      "name": "hp",
+      "label": "气血",
+      "type": "integer",
+      "description": "怪物气血值",
+      "notNull": true
+    },
+    {
+      "name": "atk",
+      "label": "攻击",
+      "type": "integer",
+      "description": "怪物攻击力",
+      "notNull": true
+    },
+    {
+      "name": "def",
+      "label": "防御",
+      "type": "integer",
+      "description": "怪物防御力",
+      "notNull": true
+    },
+    {
+      "name": "exp",
+      "label": "经验",
+      "type": "integer",
+      "description": "击杀获得修为",
+      "notNull": true
+    },
+    {
+      "name": "stone",
+      "label": "灵石",
+      "type": "integer",
+      "description": "击杀掉落灵石",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "怪物配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "name": "野狼",
+      "hp": 80,
+      "atk": 15,
+      "def": 5,
+      "exp": 30,
+      "stone": 20,
+      "description": "野狼 - 气血80 攻击15 防御5，击杀得30修为20灵石"
+    },
+    {
+      "id": 2,
+      "name": "山贼",
+      "hp": 150,
+      "atk": 25,
+      "def": 10,
+      "exp": 60,
+      "stone": 40,
+      "description": "山贼 - 气血150 攻击25 防御10，击杀得60修为40灵石"
+    },
+    {
+      "id": 3,
+      "name": "巨蟒",
+      "hp": 280,
+      "atk": 40,
+      "def": 15,
+      "exp": 120,
+      "stone": 80,
+      "description": "巨蟒 - 气血280 攻击40 防御15，击杀得120修为80灵石"
+    },
+    {
+      "id": 4,
+      "name": "石魔",
+      "hp": 500,
+      "atk": 60,
+      "def": 30,
+      "exp": 250,
+      "stone": 150,
+      "description": "石魔 - 气血500 攻击60 防御30，击杀得250修为150灵石"
+    },
+    {
+      "id": 5,
+      "name": "妖狐",
+      "hp": 800,
+      "atk": 100,
+      "def": 40,
+      "exp": 500,
+      "stone": 300,
+      "description": "妖狐 - 气血800 攻击100 防御40，击杀得500修为300灵石"
+    },
+    {
+      "id": 6,
+      "name": "蛟龙",
+      "hp": 1500,
+      "atk": 180,
+      "def": 60,
+      "exp": 1000,
+      "stone": 600,
+      "description": "蛟龙 - 气血1500 攻击180 防御60，击杀得1000修为600灵石"
+    }
+  ]
+}

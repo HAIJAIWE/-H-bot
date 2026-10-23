@@ -1,0 +1,196 @@
+{
+  "tableName": "cards",
+  "displayName": "卡牌库",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "卡牌编号",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "卡牌名称",
+      "type": "text",
+      "description": "卡牌中文名称",
+      "notNull": true
+    },
+    {
+      "name": "rarity",
+      "label": "稀有度",
+      "type": "enum",
+      "enumValues": [
+        "N",
+        "R",
+        "SR",
+        "SSR",
+        "UR"
+      ],
+      "description": "卡牌稀有度（N/R/SR/SSR/UR）",
+      "notNull": true
+    },
+    {
+      "name": "element",
+      "label": "属性",
+      "type": "enum",
+      "enumValues": [
+        "火",
+        "水",
+        "风",
+        "雷",
+        "光",
+        "暗",
+        "无"
+      ],
+      "description": "卡牌属性（火/水/风/雷/光/暗/无）",
+      "notNull": true
+    },
+    {
+      "name": "atk",
+      "label": "攻击力",
+      "type": "integer",
+      "description": "卡牌基础攻击力",
+      "notNull": true
+    },
+    {
+      "name": "hp",
+      "label": "生命值",
+      "type": "integer",
+      "description": "卡牌基础生命值",
+      "notNull": true
+    },
+    {
+      "name": "faction",
+      "label": "阵营",
+      "type": "enum",
+      "enumValues": [
+        "龙族",
+        "凤族",
+        "神族",
+        "人族",
+        "魔族"
+      ],
+      "description": "卡牌所属阵营（龙族/凤族/神族/人族/魔族）",
+      "notNull": true
+    },
+    {
+      "name": "skill_id",
+      "label": "技能编号",
+      "type": "integer",
+      "description": "关联的卡牌技能编号（0=无技能）",
+      "notNull": true
+    },
+    {
+      "name": "is_limited",
+      "label": "是否限定",
+      "type": "boolean",
+      "description": "是否为限定卡牌（仅限定池可获得）",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "卡牌配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "name": "炎龙·赤焰",
+      "rarity": "SSR",
+      "element": "火",
+      "atk": 850,
+      "hp": 1500,
+      "faction": "龙族",
+      "skill_id": 1,
+      "is_limited": false,
+      "description": "炎龙·赤焰 - SSR级火属性龙族，攻击850 生命1500，技能1"
+    },
+    {
+      "id": 2,
+      "name": "霜凤·冰羽",
+      "rarity": "SSR",
+      "element": "水",
+      "atk": 780,
+      "hp": 1800,
+      "faction": "凤族",
+      "skill_id": 2,
+      "is_limited": true,
+      "description": "霜凤·冰羽 - SSR级水属性凤族（限定），攻击780 生命1800，技能2"
+    },
+    {
+      "id": 3,
+      "name": "雷霆战神",
+      "rarity": "SSR",
+      "element": "雷",
+      "atk": 920,
+      "hp": 1400,
+      "faction": "神族",
+      "skill_id": 3,
+      "is_limited": false,
+      "description": "雷霆战神 - SSR级雷属性神族，攻击920 生命1400，技能3"
+    },
+    {
+      "id": 4,
+      "name": "风行刺客",
+      "rarity": "SR",
+      "element": "风",
+      "atk": 620,
+      "hp": 980,
+      "faction": "人族",
+      "skill_id": 4,
+      "is_limited": false,
+      "description": "风行刺客 - SR级风属性人族，攻击620 生命980，技能4"
+    },
+    {
+      "id": 5,
+      "name": "圣光守护者",
+      "rarity": "SR",
+      "element": "光",
+      "atk": 480,
+      "hp": 1600,
+      "faction": "神族",
+      "skill_id": 5,
+      "is_limited": false,
+      "description": "圣光守护者 - SR级光属性神族，攻击480 生命1600，技能5"
+    },
+    {
+      "id": 6,
+      "name": "暗影法师",
+      "rarity": "SR",
+      "element": "暗",
+      "atk": 700,
+      "hp": 850,
+      "faction": "魔族",
+      "skill_id": 6,
+      "is_limited": false,
+      "description": "暗影法师 - SR级暗属性魔族，攻击700 生命850，技能6"
+    },
+    {
+      "id": 7,
+      "name": "新手战士",
+      "rarity": "R",
+      "element": "无",
+      "atk": 320,
+      "hp": 600,
+      "faction": "人族",
+      "skill_id": 0,
+      "is_limited": false,
+      "description": "新手战士 - R级无属性人族，攻击320 生命600"
+    },
+    {
+      "id": 8,
+      "name": "见习弓手",
+      "rarity": "R",
+      "element": "风",
+      "atk": 380,
+      "hp": 480,
+      "faction": "人族",
+      "skill_id": 0,
+      "is_limited": false,
+      "description": "见习弓手 - R级风属性人族，攻击380 生命480"
+    }
+  ]
+}

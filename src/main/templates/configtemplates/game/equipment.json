@@ -1,0 +1,196 @@
+{
+  "tableName": "equipment",
+  "displayName": "装备配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "装备编号",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "装备名称",
+      "type": "text",
+      "description": "装备名称",
+      "notNull": true
+    },
+    {
+      "name": "slot",
+      "label": "装备部位",
+      "type": "enum",
+      "enumValues": [
+        "weapon",
+        "armor",
+        "helmet",
+        "ring",
+        "boots"
+      ],
+      "description": "装备穿戴部位（weapon=武器/armor=护甲/helmet=头盔/ring=戒指/boots=靴子）",
+      "notNull": true
+    },
+    {
+      "name": "str_bonus",
+      "label": "力量加成",
+      "type": "integer",
+      "description": "装备提供的力量加成",
+      "notNull": true
+    },
+    {
+      "name": "agi_bonus",
+      "label": "敏捷加成",
+      "type": "integer",
+      "description": "装备提供的敏捷加成",
+      "notNull": true
+    },
+    {
+      "name": "con_bonus",
+      "label": "体质加成",
+      "type": "integer",
+      "description": "装备提供的体质加成",
+      "notNull": true
+    },
+    {
+      "name": "wis_bonus",
+      "label": "悟性加成",
+      "type": "integer",
+      "description": "装备提供的悟性加成",
+      "notNull": true
+    },
+    {
+      "name": "hp_bonus",
+      "label": "气血加成",
+      "type": "integer",
+      "description": "装备提供的气血加成",
+      "notNull": true
+    },
+    {
+      "name": "mp_bonus",
+      "label": "真气加成",
+      "type": "integer",
+      "description": "装备提供的真气加成",
+      "notNull": true
+    },
+    {
+      "name": "price",
+      "label": "价格",
+      "type": "integer",
+      "description": "装备售价（灵石）",
+      "notNull": true
+    },
+    {
+      "name": "min_level",
+      "label": "所需境界",
+      "type": "integer",
+      "description": "穿戴所需最低境界等级",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "装备配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "name": "新手木剑",
+      "slot": "weapon",
+      "str_bonus": 3,
+      "agi_bonus": 0,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "hp_bonus": 0,
+      "mp_bonus": 0,
+      "price": 100,
+      "min_level": 1,
+      "description": "新手木剑 - 武器部位，STR+3，售价100灵石"
+    },
+    {
+      "id": 2,
+      "name": "新手布衣",
+      "slot": "armor",
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 3,
+      "wis_bonus": 0,
+      "hp_bonus": 50,
+      "mp_bonus": 0,
+      "price": 100,
+      "min_level": 1,
+      "description": "新手布衣 - 护甲部位，CON+3 气血+50，售价100灵石"
+    },
+    {
+      "id": 3,
+      "name": "精铁剑",
+      "slot": "weapon",
+      "str_bonus": 8,
+      "agi_bonus": 2,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "hp_bonus": 0,
+      "mp_bonus": 0,
+      "price": 500,
+      "min_level": 2,
+      "description": "精铁剑 - 武器部位，STR+8 AGI+2，售价500灵石"
+    },
+    {
+      "id": 4,
+      "name": "玄铁甲",
+      "slot": "armor",
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 8,
+      "wis_bonus": 0,
+      "hp_bonus": 150,
+      "mp_bonus": 0,
+      "price": 500,
+      "min_level": 2,
+      "description": "玄铁甲 - 护甲部位，CON+8 气血+150，售价500灵石"
+    },
+    {
+      "id": 5,
+      "name": "灵纹戒",
+      "slot": "ring",
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 0,
+      "wis_bonus": 5,
+      "hp_bonus": 0,
+      "mp_bonus": 80,
+      "price": 800,
+      "min_level": 3,
+      "description": "灵纹戒 - 戒指部位，WIS+5 真气+80，售价800灵石"
+    },
+    {
+      "id": 6,
+      "name": "疾风靴",
+      "slot": "boots",
+      "str_bonus": 0,
+      "agi_bonus": 6,
+      "con_bonus": 0,
+      "wis_bonus": 0,
+      "hp_bonus": 0,
+      "mp_bonus": 0,
+      "price": 600,
+      "min_level": 3,
+      "description": "疾风靴 - 靴子部位，AGI+6，售价600灵石"
+    },
+    {
+      "id": 7,
+      "name": "金丹护符",
+      "slot": "helmet",
+      "str_bonus": 0,
+      "agi_bonus": 0,
+      "con_bonus": 5,
+      "wis_bonus": 5,
+      "hp_bonus": 100,
+      "mp_bonus": 100,
+      "price": 1500,
+      "min_level": 4,
+      "description": "金丹护符 - 头盔部位，CON+5 WIS+5 气血+100 真气+100，售价1500灵石"
+    }
+  ]
+}

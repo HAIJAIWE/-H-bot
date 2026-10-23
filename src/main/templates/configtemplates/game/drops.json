@@ -1,0 +1,218 @@
+{
+  "tableName": "drops",
+  "displayName": "掉落配置表",
+  "fields": [
+    {
+      "name": "id",
+      "label": "编号",
+      "type": "integer",
+      "description": "掉落配置编号",
+      "notNull": true
+    },
+    {
+      "name": "monster_id",
+      "label": "怪物编号",
+      "type": "integer",
+      "description": "对应怪物编号",
+      "notNull": true
+    },
+    {
+      "name": "item_type",
+      "label": "物品类型",
+      "type": "enum",
+      "enumValues": [
+        "stone",
+        "pill",
+        "equipment"
+      ],
+      "description": "掉落物品类型（stone=灵石/pill=丹药/equipment=装备）",
+      "notNull": true
+    },
+    {
+      "name": "item_id",
+      "label": "物品编号",
+      "type": "integer",
+      "description": "掉落物品编号",
+      "notNull": true
+    },
+    {
+      "name": "drop_chance",
+      "label": "掉落概率",
+      "type": "real",
+      "description": "物品掉落概率（0.0~1.0）",
+      "notNull": true
+    },
+    {
+      "name": "min_qty",
+      "label": "最小数量",
+      "type": "integer",
+      "description": "掉落最小数量",
+      "notNull": true
+    },
+    {
+      "name": "max_qty",
+      "label": "最大数量",
+      "type": "integer",
+      "description": "掉落最大数量",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "掉落配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "id": 1,
+      "monster_id": 1,
+      "item_type": "stone",
+      "item_id": 0,
+      "drop_chance": 1.0,
+      "min_qty": 5,
+      "max_qty": 15,
+      "description": "怪物1掉落灵石，概率100%，数量5-15"
+    },
+    {
+      "id": 2,
+      "monster_id": 1,
+      "item_type": "pill",
+      "item_id": 1,
+      "drop_chance": 0.2,
+      "min_qty": 1,
+      "max_qty": 1,
+      "description": "怪物1掉落丹药(id=1)，概率20%，数量1-1"
+    },
+    {
+      "id": 3,
+      "monster_id": 2,
+      "item_type": "stone",
+      "item_id": 0,
+      "drop_chance": 1.0,
+      "min_qty": 10,
+      "max_qty": 25,
+      "description": "怪物2掉落灵石，概率100%，数量10-25"
+    },
+    {
+      "id": 4,
+      "monster_id": 2,
+      "item_type": "equipment",
+      "item_id": 1,
+      "drop_chance": 0.1,
+      "min_qty": 1,
+      "max_qty": 1,
+      "description": "怪物2掉落装备(id=1)，概率10%，数量1-1"
+    },
+    {
+      "id": 5,
+      "monster_id": 3,
+      "item_type": "stone",
+      "item_id": 0,
+      "drop_chance": 1.0,
+      "min_qty": 20,
+      "max_qty": 50,
+      "description": "怪物3掉落灵石，概率100%，数量20-50"
+    },
+    {
+      "id": 6,
+      "monster_id": 3,
+      "item_type": "pill",
+      "item_id": 2,
+      "drop_chance": 0.3,
+      "min_qty": 1,
+      "max_qty": 2,
+      "description": "怪物3掉落丹药(id=2)，概率30%，数量1-2"
+    },
+    {
+      "id": 7,
+      "monster_id": 3,
+      "item_type": "equipment",
+      "item_id": 2,
+      "drop_chance": 0.15,
+      "min_qty": 1,
+      "max_qty": 1,
+      "description": "怪物3掉落装备(id=2)，概率15%，数量1-1"
+    },
+    {
+      "id": 8,
+      "monster_id": 4,
+      "item_type": "stone",
+      "item_id": 0,
+      "drop_chance": 1.0,
+      "min_qty": 30,
+      "max_qty": 80,
+      "description": "怪物4掉落灵石，概率100%，数量30-80"
+    },
+    {
+      "id": 9,
+      "monster_id": 4,
+      "item_type": "equipment",
+      "item_id": 3,
+      "drop_chance": 0.12,
+      "min_qty": 1,
+      "max_qty": 1,
+      "description": "怪物4掉落装备(id=3)，概率12%，数量1-1"
+    },
+    {
+      "id": 10,
+      "monster_id": 5,
+      "item_type": "stone",
+      "item_id": 0,
+      "drop_chance": 1.0,
+      "min_qty": 60,
+      "max_qty": 150,
+      "description": "怪物5掉落灵石，概率100%，数量60-150"
+    },
+    {
+      "id": 11,
+      "monster_id": 5,
+      "item_type": "pill",
+      "item_id": 3,
+      "drop_chance": 0.25,
+      "min_qty": 1,
+      "max_qty": 2,
+      "description": "怪物5掉落丹药(id=3)，概率25%，数量1-2"
+    },
+    {
+      "id": 12,
+      "monster_id": 5,
+      "item_type": "equipment",
+      "item_id": 5,
+      "drop_chance": 0.15,
+      "min_qty": 1,
+      "max_qty": 1,
+      "description": "怪物5掉落装备(id=5)，概率15%，数量1-1"
+    },
+    {
+      "id": 13,
+      "monster_id": 6,
+      "item_type": "stone",
+      "item_id": 0,
+      "drop_chance": 1.0,
+      "min_qty": 100,
+      "max_qty": 300,
+      "description": "怪物6掉落灵石，概率100%，数量100-300"
+    },
+    {
+      "id": 14,
+      "monster_id": 6,
+      "item_type": "pill",
+      "item_id": 8,
+      "drop_chance": 0.3,
+      "min_qty": 1,
+      "max_qty": 1,
+      "description": "怪物6掉落丹药(id=8)，概率30%，数量1-1"
+    },
+    {
+      "id": 15,
+      "monster_id": 6,
+      "item_type": "equipment",
+      "item_id": 7,
+      "drop_chance": 0.2,
+      "min_qty": 1,
+      "max_qty": 1,
+      "description": "怪物6掉落装备(id=7)，概率20%，数量1-1"
+    }
+  ]
+}

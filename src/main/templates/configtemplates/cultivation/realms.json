@@ -1,0 +1,153 @@
+{
+  "tableName": "realms",
+  "displayName": "修仙境界表",
+  "fields": [
+    {
+      "name": "level",
+      "label": "境界序号",
+      "type": "integer",
+      "description": "境界序号（1=炼气, 2=筑基...），用于基础公式计算",
+      "notNull": true
+    },
+    {
+      "name": "name",
+      "label": "境界名称",
+      "type": "text",
+      "description": "境界中文名称",
+      "notNull": true
+    },
+    {
+      "name": "min_exp",
+      "label": "所需修为",
+      "type": "integer",
+      "description": "突破到该境界所需最低修为",
+      "notNull": true
+    },
+    {
+      "name": "breakthrough_rate",
+      "label": "突破概率",
+      "type": "real",
+      "description": "突破成功率（0.0~1.0）",
+      "notNull": true
+    },
+    {
+      "name": "realm_multiplier",
+      "label": "境界加成倍率",
+      "type": "real",
+      "description": "该境界对所有战斗属性的乘算倍率（如炼气×1.0, 筑基×1.5, 金丹×2.0...）",
+      "notNull": true
+    },
+    {
+      "name": "attr_bonus",
+      "label": "突破属性点",
+      "type": "integer",
+      "description": "突破成功后获得的自由属性点数",
+      "notNull": true
+    },
+    {
+      "name": "trial_bonus",
+      "label": "试炼加成",
+      "type": "real",
+      "description": "该境界试炼通关后的属性乘算加成（如0.03=+3%）",
+      "notNull": true
+    },
+    {
+      "name": "description",
+      "label": "描述",
+      "type": "text",
+      "description": "境界配置说明"
+    }
+  ],
+  "seedRows": [
+    {
+      "level": 1,
+      "name": "炼气期",
+      "min_exp": 0,
+      "breakthrough_rate": 1.0,
+      "realm_multiplier": 1.0,
+      "attr_bonus": 0,
+      "trial_bonus": 0.0,
+      "description": "炼气期 - 第1境界，需0修为，突破率100%，属性倍率×1.0"
+    },
+    {
+      "level": 2,
+      "name": "筑基期",
+      "min_exp": 500,
+      "breakthrough_rate": 0.9,
+      "realm_multiplier": 1.5,
+      "attr_bonus": 5,
+      "trial_bonus": 0.03,
+      "description": "筑基期 - 第2境界，需500修为，突破率90%，属性倍率×1.5"
+    },
+    {
+      "level": 3,
+      "name": "金丹期",
+      "min_exp": 2000,
+      "breakthrough_rate": 0.8,
+      "realm_multiplier": 2.0,
+      "attr_bonus": 10,
+      "trial_bonus": 0.05,
+      "description": "金丹期 - 第3境界，需2000修为，突破率80%，属性倍率×2.0"
+    },
+    {
+      "level": 4,
+      "name": "元婴期",
+      "min_exp": 8000,
+      "breakthrough_rate": 0.7,
+      "realm_multiplier": 3.0,
+      "attr_bonus": 15,
+      "trial_bonus": 0.08,
+      "description": "元婴期 - 第4境界，需8000修为，突破率70%，属性倍率×3.0"
+    },
+    {
+      "level": 5,
+      "name": "化神期",
+      "min_exp": 30000,
+      "breakthrough_rate": 0.6,
+      "realm_multiplier": 4.5,
+      "attr_bonus": 20,
+      "trial_bonus": 0.1,
+      "description": "化神期 - 第5境界，需30000修为，突破率60%，属性倍率×4.5"
+    },
+    {
+      "level": 6,
+      "name": "炼虚期",
+      "min_exp": 100000,
+      "breakthrough_rate": 0.5,
+      "realm_multiplier": 6.5,
+      "attr_bonus": 25,
+      "trial_bonus": 0.12,
+      "description": "炼虚期 - 第6境界，需100000修为，突破率50%，属性倍率×6.5"
+    },
+    {
+      "level": 7,
+      "name": "合体期",
+      "min_exp": 300000,
+      "breakthrough_rate": 0.4,
+      "realm_multiplier": 9.0,
+      "attr_bonus": 30,
+      "trial_bonus": 0.15,
+      "description": "合体期 - 第7境界，需300000修为，突破率40%，属性倍率×9.0"
+    },
+    {
+      "level": 8,
+      "name": "大乘期",
+      "min_exp": 1000000,
+      "breakthrough_rate": 0.3,
+      "realm_multiplier": 13.0,
+      "attr_bonus": 40,
+      "trial_bonus": 0.18,
+      "description": "大乘期 - 第8境界，需1000000修为，突破率30%，属性倍率×13.0"
+    },
+    {
+      "level": 9,
+      "name": "渡劫期",
+      "min_exp": 5000000,
+      "breakthrough_rate": 0.2,
+      "realm_multiplier": 18.0,
+      "attr_bonus": 50,
+      "trial_bonus": 0.2,
+      "description": "渡劫期 - 第9境界，需5000000修为，突破率20%，属性倍率×18.0"
+    }
+  ]
+}
