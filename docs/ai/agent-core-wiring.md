@@ -645,7 +645,8 @@ splice 语义），所以有完整历史、能回放、能校验"同一 id 不�
 `agent-presets.json`：它按页面角色 + 调用方传的 `allowedTools` 跑。这个差异是**有意的** ——
 但界面上预设下拉在两条链路都显示，所以用户切了预设却发现助手那条没反应是可能的。
 哪天要合，得先给 `ai:chat` 载荷加 `preset` 字段（那是 IPC 契约变更，要同步 preload / 渲染层 / 契约测试）。
-  **只在提示层**，不是权限边界 —— 边界看 `allowedTools` / `plugins` / 角色写域三道闸。
+
+`prompt` **只在提示层**，不是权限边界 —— 边界看 `allowedTools` / `plugins` / 角色写域三道闸。
 
 测试：`tests/shared/ai/roleDomains.test.ts`（路径归类表 + 四角色矩阵 + 越界说明）、
 `tests/main/ipc/aiAgentCore-ipc.test.ts`（builder 写 `src/` 被拒且不弹窗、coder 写流程被拒、
@@ -653,3 +654,40 @@ roleNote 透传与预设覆盖）、`tests/main/services/ai/presets.test.ts`（r
 
 **还没做**：`roleNote` 只进系统提示，界面上没有"当前角色已生效"的痕迹 —— 用户切了角色，
 唯一能感知的地方是他自己读提示词。要补得先在 `agentCoreEventContract` 登记新事件。
+
+## 25. 循环入口的两个「传了没读」开关（2026-10-25）
+
+`schema` 收着 `planFirst` / `fullAccess` / `images` / `activeFilePath` 四个字段（注释就写着
+「少收一个字段就等于静默丢功能」），而 `aiAgentCore.ts` 的 handler **一个都没读过** ——
+界面按下去没反应，主进程照旧跑。这一节记补上的两个；`images`（要动 provider 消息格式）与
+`activeFilePath`（代码上下文）仍待办。
+
+| 开关 | 落点 | 语义 |
+|---|---|---|
+| `planFirst` | `runTurn` 的 `planOnly` | 提示追加 `PLAN_ONLY_NOTE`，**且**工具表只留 `category === 'query'` |
+| `fullAccess` | `approval` 回调里、角色闸**之后** | 跳过「问人」，不跳过角色写域，也不写 `allowRules` |
+
+### 为什么完全权限排在角色闸后面
+
+顺序反过来就等于「点一下完全权限，角色边界消失」。写域闸是**角色的**边界，不是审批策略；
+用户开关的是"要不要每次都问我"，不是"要不要受角色约束"。同理它也不落 `allowRules`：
+界面文案就是「完全权限（本次运行）」，一次开关不该永久改变别的轮次的审批行为。
+
+### 预设的工具表以前算完就丢
+
+`turnTools`（注册表全量 → 插件集 → 白名单）在 handler 里算了很久，却从没交给 `runAgentTurn`：
+选了预设照样拿全量工具，「权限配置」只在界面上好看。现在接通了，并且**系统提示里的可用工具
+也换成同一份**——提示按注册表全量广告、模型照着调过去却是「未知工具」，一轮就白烧。
+
+`runTurn` 因此把工具表**先算一次**（`effectiveTools`），提示与 `runAgentLoop` 共用；
+`buildSystemPrompt(workspace, extraTools, { tools })` 的第三个参数传了就不再并注册表全量。
+
+### 测试
+
+- `tests/main/ipc/aiAgentCore-ipc.test.ts`：`planFirst` → `planOnly === true`（没开则不带键）；
+  `fullAccess` 下 command / 界面域写盘直接放行且不弹窗、但 builder 写 `src/` 仍被拒；
+  `allowedTools: ['read_file']` → 交出去的工具表只有这一项，没裁则不带 `tools` 键。
+- `tests/main/services/agent-core/runTurn.test.ts`：工具表被裁后提示只广告裁过的那些、
+  越界工具得到「未知工具」且文件没被写；`planOnly` 的提示里不再出现 `write_file`。
+
+**还没做**：`images`、`activeFilePath`；界面上仍然看不出「完全权限已生效」与「预设裁掉了哪些工具」。

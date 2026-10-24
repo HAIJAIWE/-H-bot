@@ -133,6 +133,15 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
     ...(input.onTextChunk ? { onChunk: input.onTextChunk } : {}),
     ...(input.onReasoningChunk ? { onReasoning: input.onReasoningChunk } : {}),
   });
+  /**
+   * **实际交给循环的工具表**：先算一次，系统提示与调用表共用同一份。
+   *
+   * 分开算吃过亏：提示里按注册表全量广告，模型照着调过去却是「未知工具」，
+   * 一轮就白烧。预设白名单（input.tools）与先计划（只留 query 类）都在这里收敛。
+   */
+  const effectiveTools = input.planOnly
+    ? (input.tools ?? listTools()).filter((t) => t.category === 'query')
+    : input.tools;
   const result = await runAgentLoop({
     workspace: input.projectPath,
     /**
@@ -144,7 +153,11 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
       {
         role: 'system',
         content:
-          buildSystemPrompt(input.projectPath) +
+          buildSystemPrompt(
+            input.projectPath,
+            [],
+            effectiveTools ? { tools: effectiveTools.map((t) => t.name) } : {},
+          ) +
           (input.planOnly ? '\n\n' + PLAN_ONLY_NOTE : '') +
           (input.roleNote ? '\n\n' + input.roleNote : '') +
           (input.historyNote ? '\n\n' + input.historyNote : ''),
@@ -153,15 +166,8 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
       { role: 'user', content: input.requirement },
     ],
     model,
-    /**
-     * 计划阶段只放 **query 类**工具（写/命令直接不在列表里，模型调到就是"未知工具"）。
-     * 用 category 而不是名字白名单：加工具的人只要标了类别，这里自动生效。
-     */
-    ...(input.planOnly
-      ? { tools: (input.tools ?? listTools()).filter((t) => t.category === 'query') }
-      : input.tools
-        ? { tools: input.tools }
-        : {}),
+    // 不传 = 注册表全量（脚本/测试的默认）；传了就**只有**这些进调用表
+    ...(effectiveTools ? { tools: effectiveTools } : {}),
     services,
     ...(input.onStep ? { onStep: input.onStep } : {}),
     ...(input.onToolStart ? { onToolStart: input.onToolStart } : {}),

@@ -387,6 +387,10 @@ const api = {
         plugins?: string[];
         permissionMode?: 'ask' | 'full';
         description?: string;
+        /** 角色（builder / coder / duo / creator）：同时决定提示与写域 */
+        role?: string;
+        /** 这一轮额外的要求（拼在角色说明之后；≤2000 字，超了截断） */
+        prompt?: string;
       }>,
     ) => ipcRenderer.invoke('ai:savePresets', { projectPath, presets }),
     /**

@@ -77,6 +77,8 @@ export function PresetEditor({
           plugins?: string[];
           permissionMode?: 'ask' | 'full';
           description?: string;
+          role?: string;
+          prompt?: string;
         }>,
       );
       if (!res.ok) {

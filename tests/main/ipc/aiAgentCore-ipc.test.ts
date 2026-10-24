@@ -154,6 +154,44 @@ describe('ai:agentCoreRun 接线', () => {
     });
   });
 
+  it('★ 先计划：planFirst 变成循环的 planOnly（只读工具由 runTurn 那层物理裁掉）', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '先出计划', planFirst: true });
+    const passed = h.runAgentTurn.mock.calls[0][0] as Record<string, unknown>;
+    expect(passed.planOnly).toBe(true);
+
+    h.runAgentTurn.mockClear();
+    await invoke({ projectPath: 'D:/p', requirement: '直接做' });
+    // 没开就是没开：不该塞一个 false 进去（循环按缺省处理）
+    expect('planOnly' in (h.runAgentTurn.mock.calls[0][0] as Record<string, unknown>)).toBe(false);
+  });
+
+  it('★ 完全权限：不再弹窗，但角色的写域闸仍然拦得住（开关不是免死金牌）', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '放开做', fullAccess: true }); // 缺省 builder
+    const approval = (h.runAgentTurn.mock.calls[0][0] as {
+      approval: (req: unknown) => Promise<boolean>;
+    }).approval;
+
+    // 界面域：直接放行，而且连规则表都没碰（本次运行有效，不落盘）
+    await expect(approval({ kind: 'command', summary: 'pnpm test' })).resolves.toBe(true);
+    await expect(approval({ kind: 'write', summary: 'D:/p/.qqbat/flow.json' })).resolves.toBe(true);
+    expect(h.requestApproval).not.toHaveBeenCalled();
+
+    // 越界写照样拒：完全权限只跳过"问人"，不跳过角色的作用域
+    await expect(approval({ kind: 'write', summary: 'D:/p/src/a.ts' })).rejects.toThrow(/不能写它/);
+    expect(h.requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('★ 预设/白名单裁过的工具表真的交给循环（以前 turnTools 算完就丢）', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '只看', allowedTools: ['read_file'] });
+    const tools = (h.runAgentTurn.mock.calls[0][0] as { tools?: Array<{ name: string }> }).tools;
+    expect(tools?.map((t) => t.name)).toEqual(['read_file']);
+
+    h.runAgentTurn.mockClear();
+    // 不裁就不带这个键（循环按注册表全量走）
+    await invoke({ projectPath: 'D:/p', requirement: '随便' });
+    expect('tools' in (h.runAgentTurn.mock.calls[0][0] as Record<string, unknown>)).toBe(false);
+  });
+
   it('★ 角色的写域闸：builder 写 src/ 直接拒，连弹窗都不弹（点"允许"不能绕过角色边界）', async () => {
     await invoke({ projectPath: 'D:/p', requirement: '改源码' }); // 缺省 = builder
     const approval = (h.runAgentTurn.mock.calls[0][0] as {

@@ -99,8 +99,18 @@ export const PLAN_ONLY_NOTE = [
  * @param workspace 工作区绝对路径
  * @param extraTools 额外工具名（不传就用注册表里的）
  */
-export function buildSystemPrompt(workspace: string, extraTools: readonly string[] = []): string {
-  const toolNames = [...new Set([...listTools().map((t) => t.name), ...extraTools])];
+export function buildSystemPrompt(
+  workspace: string,
+  extraTools: readonly string[] = [],
+  /**
+   * **实际可用的工具名**（预设白名单 / 先计划裁过之后）。传了就**只**列这些，
+   * 不再并上注册表全量 —— 提示里广告了模型却调不到，是它最容易白白烧轮次的一种坑。
+   */
+  opts: { tools?: readonly string[] } = {},
+): string {
+  const toolNames = opts.tools
+    ? [...opts.tools]
+    : [...new Set([...listTools().map((t) => t.name), ...extraTools])];
   const ctx: PromptContext = { workspace, toolNames };
   return listPromptSections()
     .map((s) => s.render(ctx).trim())

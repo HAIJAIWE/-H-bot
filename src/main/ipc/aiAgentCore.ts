@@ -141,6 +141,15 @@ export function registerAiAgentCoreIpc(): void {
     }
     const { projectPath, requirement, maxRounds } = parsed.data;
     /**
+     * 两个以前「传了但没读」的开关（2026-10-25 补接）：
+     *   · planFirst —— 先计划：只给查询类工具，写/命令物理上不在表里；
+     *   · fullAccess —— 完全权限：不再逐个问人（**不**越过角色的写域闸）。
+     *
+     * schema 一直收着它们，注释还写着「少收一个字段就等于静默丢功能」，
+     * 而 handler 从来没读过 —— 界面按了没反应，是最难被当成 bug 报的那种静默。
+     */
+    const { planFirst, fullAccess } = parsed.data;
+    /**
      * 线程：与助手共用同一个选择器 —— 传了就这条线程的记忆，不传 = 默认那份。
      * `threadFile` 负责把 id 收敛成安全路径（`../../etc/passwd` 只会得到无害文件名），
      * 并在 `default` 时指回老文件（升级前的历史不能丢）。
@@ -372,6 +381,11 @@ export function registerAiAgentCoreIpc(): void {
               throw new Error(message);
             }
           }
+          /**
+           * **完全权限**：跳过「问人」，但**不**跳过角色的写域闸（上面那段在它之前），
+           * 也不写 allowRules —— 它只对这一次运行有效（界面文案就是「本次运行」）。
+           */
+          if (fullAccess) return true;
           const match = matchOf(req);
           const ruleKind = ruleKindOf(req.kind);
           // ① 本轮内说过"别再问" ② 以前点过"以后别再问" → 都直接放行（不再弹窗）
@@ -415,6 +429,13 @@ export function registerAiAgentCoreIpc(): void {
         // 写盘前记 before（turnJournal 在没有进行中的轮次时会静默跳过）
         onBeforeWrite: (relPath) => recordFileBefore(projectPath, relPath),
         history,
+        /**
+         * 预设（allowedTools / plugins）与「先计划」裁过的工具表。
+         * 以前 `turnTools` 算完就丢 —— 界面上选了预设，循环里照样拿全量工具，
+         * 「权限配置」其实不生效；先计划也只改了提示词，写工具仍然调得到。
+         */
+        ...(turnTools ? { tools: turnTools } : {}),
+        ...(planFirst ? { planOnly: true } : {}),
         ...(roleNote ? { roleNote } : {}),
         ...(historyNote ? { historyNote } : {}),
         ...(maxRounds ? { maxRounds } : {}),

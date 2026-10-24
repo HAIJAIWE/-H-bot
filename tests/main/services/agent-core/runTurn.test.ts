@@ -4,6 +4,7 @@ import { mkdtemp, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runAgentTurn } from '@main/services/agent-core/runTurn';
+import { listTools } from '@main/services/agent-core/core';
 
 const config = { provider: 'glm', apiKey: 'k', model: 'm' } as never;
 
@@ -106,6 +107,32 @@ describe('★ 总入口：模型 → 工具 → 落盘（默认拒绝写）', ()
     });
     expect(r.toolResults[0].output).toContain('未知工具');
     expect(first[0].content).toContain('计划阶段');
+    // 提示里的「可用工具」也只剩 query 类 —— 广告了却调不到，模型会白白烧一轮
+    expect(first[0].content).not.toContain('write_file');
+    await expect(readFile(join(ws, 'x.txt'), 'utf-8')).rejects.toThrow();
+  });
+
+  it('★ 工具表被裁（预设白名单）：提示只广告裁过的那些，调用表里也没有别的', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'));
+    const readOnly = listTools().filter((t) => t.name === 'read_file');
+    expect(readOnly).toHaveLength(1);
+    let first: any[] = [];
+    const call = (async (_c: unknown, m: any, _t: unknown, cb: any) => {
+      first = m;
+      cb.onToolCalls([{ id: 'c1', name: 'write_file', args: { path: 'x.txt', content: 'hi' } }]);
+      cb.onComplete('');
+    }) as never;
+    const r = await runAgentTurn({
+      projectPath: ws,
+      requirement: '只读一遍',
+      config,
+      call,
+      maxRounds: 1,
+      tools: readOnly,
+    });
+    expect(first[0].content).toContain('read_file');
+    expect(first[0].content).not.toContain('write_file');
+    expect(r.toolResults[0].output).toContain('未知工具');
     await expect(readFile(join(ws, 'x.txt'), 'utf-8')).rejects.toThrow();
   });
 
