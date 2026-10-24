@@ -1,11 +1,15 @@
 // @ts-nocheck
 // 由 10/18 打包产物还原（chunk: index.js）；见 _recovery/README-recovery.md
 import * as electron from "electron";
-import { _sentry_electron_main } from "@sentry/electron/main";
+// 打包产物里的 `_sentry_electron_main` 只是打包器的命名空间变量，运行时根本不存在
+// （没有 DSN 时不会暴露，配了 DSN 会在 init 处直接 TypeError）。这里改成真实具名导出。
+import { init, flush, close, captureMessage, getDefaultIntegrations } from "@sentry/electron/main";
 import { init_paths, userDataPathOrThrow } from "../infra/paths";
 import { init_logger, logger } from "../infra/logger";
 
 var initialized = false;
+/** Sentry 是否真的完成 init（没有 DSN 时只启用本地收集，退出时不该去 flush） */
+var sentryStarted = false;
 var currentUserId = null;
 var currentProjectPath = null;
 /** 初始化 Sentry（需在 app.whenReady() 之后调用） */
@@ -23,7 +27,7 @@ function initErrorMonitoring(config = {}) {
 		initialized = true;
 		return;
 	}
-	_sentry_electron_main.init({
+	init({
 		dsn,
 		environment,
 		release,
@@ -46,15 +50,16 @@ function initErrorMonitoring(config = {}) {
 			if (currentProjectPath) event.tags.project_path = currentProjectPath;
 			return event;
 		},
-		integrations: _sentry_electron_main.getDefaultIntegrations({})
+		integrations: getDefaultIntegrations({})
 	});
 	logger.setRemoteReporter((level, message, _meta) => {
 		if (level === "error" || level === "warn") {
 			const sentryLevel = level === "warn" ? "warning" : "error";
-			_sentry_electron_main.captureMessage(message, sentryLevel);
+			captureMessage(message, sentryLevel);
 		}
 	});
 	initialized = true;
+	sentryStarted = true;
 	logger.info("[errorMonitoring] Sentry 初始化完成", {
 		environment,
 		release
@@ -93,10 +98,14 @@ function saveErrorToLocal(type, error) {
 }
 /** 刷新并关闭（应用退出时调用） */
 async function flushAndClose(timeoutMs = 2e3) {
-	if (initialized) {
-		await _sentry_electron_main.flush(timeoutMs);
-		_sentry_electron_main.close();
+	// 只有真的 init 过才 flush/close：没有 DSN 时 Sentry 客户端根本不存在，
+	// 以前这里会抛 "Cannot read properties of undefined (reading 'flush')"，
+	// 让每次正常退出都打一条吓人的 warn（2026-10-24 退出日志实撞）。
+	if (sentryStarted) {
+		await flush(timeoutMs);
+		close();
 	}
+	sentryStarted = false;
 	initialized = false;
 }
 
