@@ -105,7 +105,13 @@ export function AgentPresetMenu({
         <span className="min-w-0 truncate text-zinc-300">{currentLabel}</span>
         <span className="shrink-0 text-zinc-600">▾</span>
       </summary>
-      <div className="absolute bottom-full left-0 z-20 mb-1 w-64 space-y-0.5 rounded-lg border border-zinc-700 bg-zinc-900 p-1.5 text-xs shadow-xl">
+      {/*
+        宽度按**栏宽**收，不按视口：右栏是 @container，菜单挂着绝对定位但被祖先
+        `overflow-hidden` 的列容器裁剪（696 档实测：left-0 + 256px 会戳出栏外 121px，
+        而 absolute 不撑大 scrollWidth —— 不是"出现滚动条"那种看得见的破版，是右边直接没了）。
+        100cqw = 最近容器（aside 右栏）的宽度，180px 栏下收到 164px，行内靠 truncate 收尾。
+      */}
+      <div className="absolute bottom-full left-0 z-20 mb-1 w-[min(16rem,calc(100cqw-1rem))] space-y-0.5 rounded-lg border border-zinc-700 bg-zinc-900 p-1.5 text-xs shadow-xl">
         {/* 跟随页面：相当于"没有预设、角色跟着页签走" */}
         <button
           type="button"
@@ -120,7 +126,10 @@ export function AgentPresetMenu({
         >
           {!override && !preset ? mark : <span className="w-3 shrink-0" />}
           <span className="min-w-0 flex-1 truncate">{t('ai.mode.followPage')}</span>
-          <span className="shrink-0 text-[10px] text-zinc-600">{t('ai.preset.pageHint')}</span>
+          {/* 180px 栏下这行只剩个"按页签"的碎影，索性让位 —— 和会话头插件计数同一个手法。 */}
+          <span className="hidden shrink-0 text-[10px] text-zinc-600 @min-[220px]:inline">
+            {t('ai.preset.pageHint')}
+          </span>
         </button>
         <div className="px-1 pt-1 text-[10px] text-zinc-500">{t('ai.preset.groupRole')}</div>
         {AI_MODE_BUTTONS.map(({ mode, icon, labelKey, hintKey }) => {

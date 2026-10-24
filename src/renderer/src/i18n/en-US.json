@@ -683,7 +683,7 @@
       "menu": "This turn",
       "plan": "Plan first",
       "planTitle": "Plan first: read-only tools only this turn; produce a plan (no writes, no commands)",
-      "presetEdit": "Presets…",
+      "presetEdit": "Edit presets…",
       "presetEditTitle": "Edit session presets",
       "presetEditHint": "A preset is this turn's permission boundary: pick a tool allowlist (none = unlimited), pin a role (none = follow the page), decide whether to approve every action. The extra requirement only goes into the system prompt — it is not a boundary. Saved to .qqbat/agent-presets.json; unknown tools and unloaded plugins only warn. plugins can only be edited in JSON mode for now.",
       "presetInvalidJson": "Invalid JSON: {message}",

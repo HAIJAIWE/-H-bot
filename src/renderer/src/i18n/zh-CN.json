@@ -683,7 +683,7 @@
       "menu": "本轮",
       "plan": "先计划",
       "planTitle": "先计划：这一轮只用只读工具，先给出计划（不写盘、不跑命令）",
-      "presetEdit": "预设…",
+      "presetEdit": "编辑预设…",
       "presetEditTitle": "编辑会话预设",
       "presetEditHint": "预设 = 这一轮的权限边界：勾工具白名单（不勾 = 不限制）、固定角色（不选 = 跟着页面走）、决定要不要逐次审批。附加要求只进系统提示，不是边界。保存写到 .qqbat/agent-presets.json；未知工具与未装载插件只给警告，不拒绝。plugins（插件集）暂时只能在 JSON 模式里改。",
       "presetInvalidJson": "JSON 解析失败：{message}",
