@@ -75,16 +75,15 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: STORAGE_KEYS.ui,
-      version: 1,
+      version: 2,
       /**
-       * 主页面（home）是后加的启动页：老存档里存的 launchTab 是 'dashboard'，
-       * 不迁移的话现有用户永远看不到主页面。仪表盘仍在页签里，一点就到。
+       * v1：主页面（home）成为默认落点。旧存档里存的是 'dashboard' 或用户最后停的页签，
+       * 不迁移的话升级后根本看不到新主页面 —— 所以 v0/v1 → v2 一次性强制落到 home，
+       * 之后按用户自己的选择记住（再进仪表盘也不会被改回来）。
        */
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as Partial<UiState>;
-        if (version < 1 && (state.launchTab === undefined || state.launchTab === 'dashboard')) {
-          return { ...state, launchTab: 'home' } as UiState;
-        }
+        if (version < 2) return { ...state, launchTab: 'home' } as UiState;
         return state as UiState;
       },
       // 仅持久化布局偏好，不持久化临时状态（terminalOpen、bottomTab）
