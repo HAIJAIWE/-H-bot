@@ -119,17 +119,22 @@ export function BlockToolbar(props: BlockToolbarProps): ReactNode {
 
   return (
     <>
-      {/* 工具栏
+      {/* 工具栏（三级结构：标题/统计 → 左组"改东西" → 右组"看画布 + 落盘"）
           `flex-wrap` + 子项不收缩：工具栏的自然宽度（约 1300px）早就超过了窄窗口的可用宽度，
           而原来是 nowrap —— 于是 flex 把每一项都压扁，"新建指令"这类按钮被压成竖排单字、
           "20 个指令 · 77 个节点 · 94 条连线"被压成十几行（工具栏因此高达 240px）。
-          改成整项换行后：宽窗口仍是一行，窄窗口变成两行整齐的按钮，高度反而比挤压时更小。 */}
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-zinc-800 shrink-0 [&>*]:shrink-0 [&>*]:whitespace-nowrap">
-        <span className="text-sm text-zinc-300 flex items-center gap-1.5">
+          2026-10-24 再收一次：只用一层 flex-wrap 时，换行点落在哪个按钮纯看宽度，
+          869px 下「生成代码」被单独挤到最后一行（一个按钮占一行、看着像掉队）。
+          试过把按钮分成左右两组各自换行 —— 中栏只有 344px 时两组分别 wrap，工具栏
+          反而从 ~150px 涨到 205px（更挤）。所以保持**单层贪婪换行**，只把
+          "测试 + 生成代码"这对落盘动作套一层小分组：它们永远在同一行，
+          其余按钮按宽度自然填满每一行。 */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2 border-b border-zinc-800 shrink-0 [&>*]:shrink-0 [&>*]:whitespace-nowrap">
+        <span className="text-sm text-zinc-300 flex items-center gap-1.5 shrink-0 whitespace-nowrap">
           <Puzzle className="w-4 h-4" />
           {t('blocks.editor.lowCode')}
         </span>
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-zinc-500 shrink-0 whitespace-nowrap">
           {t('blocks.editor.stats', {
             chains: chains.length,
             nodes: nodes.length,
@@ -199,7 +204,6 @@ export function BlockToolbar(props: BlockToolbarProps): ReactNode {
           onClick={() => setShowConfigQueryWizard(true)}
           title={t('blocks.editor.tip.newLookup')}
         />
-        <div className="flex-1" />
         <Button
           variant="secondary"
           size="sm"
@@ -344,6 +348,8 @@ export function BlockToolbar(props: BlockToolbarProps): ReactNode {
               将来重做时：组件与文案键都已删干净（原文案键被语言包孤儿键闸门逼着删掉了，见 0d7a779）。
               从 git 取回旧版当起点：git show 0d7a779^:src/renderer/src/components/blocks/TutorialModal.tsx */}
         <FlowIssuesButton />
+        {/* 这两个是"落盘动作"，永远成对出现 —— 单独再包一层，窄栏下不会被拆开 */}
+        <div className="flex items-center gap-2 [&>*]:shrink-0 [&>*]:whitespace-nowrap">
         <Button
           variant="success"
           size="sm"
@@ -364,6 +370,7 @@ export function BlockToolbar(props: BlockToolbarProps): ReactNode {
         >
           {generating ? t('ai.generating') : t('ai.quick.generate')}
         </Button>
+        </div>
       </div>
 
       {loadErrorBanner}

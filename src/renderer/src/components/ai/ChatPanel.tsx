@@ -37,32 +37,12 @@ import { compactTokens, formatRunStats } from './runStats';
 import { useLocaleSubscription } from '../../stores/i18nStore';
 import { AI_TURN_NOTE_PREFIX } from '@shared/types/ai';
 import { MAX_IMAGES, clipboardImageToDataUrl, imagesFromClipboard } from './clipboardImage';
-import { MODE_OF_ROLE, type AgentMode } from '@shared/ai/roleDomains';
+import { MODE_OF_ROLE } from '@shared/ai/roleDomains';
+import { RoleChips } from './RoleChips';
 import { creatorWorkspaceStatus, useFrameworkDevStore } from '../../stores/frameworkDevStore';
 
-/* ── 助手模式表（模式枚举的**渲染层那一处**）───────────────── */
-
-/**
- * 四个模式：图标 / 名字 / 悬停说明。
- *
- * ⚠️ 这张表**必须穷尽 `AgentMode`** —— 2026-10-15 加 `duo` 时漏改主进程 schema，
- * 结果双向模式发送被 zod 静默拒绝（界面一直转圈、日志里一条请求都没有）。
- * 那是"三处不一致"，所以这里做成 **Record<AgentMode, …>**：
- * 以后往共享类型里加一档却忘了加按钮，**tsc 直接红**（不用等真机才发现）。
- */
-const AI_MODE_COVERAGE: Record<AgentMode, { icon: string; labelKey: string; hintKey: string }> = {
-  blocks: { icon: '🧩', labelKey: 'ai.mode.builder', hintKey: 'ai.mode.builderHint' },
-  code: { icon: '📝', labelKey: 'ai.mode.coder', hintKey: 'ai.mode.coderHint' },
-  duo: { icon: '🔀', labelKey: 'ai.mode.duo', hintKey: 'ai.mode.duoHint' },
-  // 创作模式：顺序放在最后（它是最"重"的一档，要先进框架工作区）
-  creator: { icon: '✨', labelKey: 'ai.mode.creator', hintKey: 'ai.mode.creatorHint' },
-};
-
-/** 按钮表（顺序 = 声明顺序）；测试直接断言它对每一档都有条目 */
-export const AI_MODE_BUTTONS = (Object.keys(AI_MODE_COVERAGE) as AgentMode[]).map((mode) => ({
-  mode,
-  ...AI_MODE_COVERAGE[mode],
-}));
+/* 角色按钮表已抽到 ./agentModes（渲染层唯一那处枚举）+ ./RoleChips（纯组件）——
+   这样测「四档都在、点了回调收到哪个」不用把整个 ChatPanel 连 store 一起 mock。 */
 
 /**
  * 「已记住的自动批准」里每一类动作的名字。
@@ -1094,42 +1074,25 @@ export const ChatPanel = React.memo(function ChatPanel() {
             </div>
           </div>
         )}
-        <div className="flex items-center gap-1.5 mb-2 text-[11px] flex-wrap">
-          <span className="text-zinc-500 shrink-0">{t('ai.mode.label')}</span>
-          <div className="flex rounded overflow-hidden border border-zinc-700">
-            {AI_MODE_BUTTONS.map(({ mode: m, icon, labelKey, hintKey }) => (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={effectiveAgentMode === m}
-                title={t(hintKey)}
-                onClick={() => {
-                  setAgentModeOverride(m);
-                  // 选角色 = 回到"只有角色"的权限边界，别让上一份收窄的预设继续压着它
-                  setPreset(null);
-                }}
-                className={`px-1.5 py-0.5 transition-colors ${
-                  effectiveAgentMode === m
-                    ? 'bg-blue-500/20 text-blue-300'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                {`${icon} ${t(labelKey)}`}
-              </button>
-            ))}
-          </div>
-          {agentModeOverride && (
-            <button
-              type="button"
-              onClick={() => {
-                setAgentModeOverride(null);
-                setPreset(null);
-              }}
-              className="text-zinc-500 hover:text-zinc-300 underline"
-            >
-              {t('ai.mode.followPage')}
-            </button>
-          )}
+        {/* items-start：窄栏 chips 换成两行时，标签留在第一行而不是被垂直居中 */}
+        <div className="flex items-start gap-1.5 mb-2 text-[11px]">
+          <span className="text-zinc-500 shrink-0 pt-0.5">{t('ai.mode.label')}</span>
+          <RoleChips
+            value={effectiveAgentMode}
+            onChange={(m) => {
+              setAgentModeOverride(m);
+              // 选角色 = 回到"只有角色"的权限边界，别让上一份收窄的预设继续压着它
+              setPreset(null);
+            }}
+            onReset={
+              agentModeOverride
+                ? () => {
+                    setAgentModeOverride(null);
+                    setPreset(null);
+                  }
+                : undefined
+            }
+          />
         </div>
         {/* 待发送的图：贴进来先看得见，能逐张撤掉 */}
         {images.length > 0 && (
