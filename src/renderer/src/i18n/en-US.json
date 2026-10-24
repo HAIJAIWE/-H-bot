@@ -2573,6 +2573,12 @@
       "title": "Panel rendering crashed",
       "retry": "Retry"
     },
+    "collapse": {
+      "left": "Collapse left panel (node library / bots)",
+      "expandLeft": "Expand left panel",
+      "right": "Collapse right panel (AI agent / variables / debugger)",
+      "expandRight": "Expand right panel"
+    },
     "variable": {
       "title": "Variable panel",
       "heading": "Named variables",

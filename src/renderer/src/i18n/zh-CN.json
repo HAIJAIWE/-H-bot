@@ -2573,6 +2573,12 @@
       "title": "面板渲染崩溃",
       "retry": "重试"
     },
+    "collapse": {
+      "left": "收起左栏（节点库 / Bot 管理）",
+      "expandLeft": "展开左栏",
+      "right": "收起右栏（AI 智能体 / 变量 / 调试器）",
+      "expandRight": "展开右栏"
+    },
     "variable": {
       "title": "变量管理面板",
       "heading": "命名变量",
