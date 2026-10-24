@@ -740,7 +740,28 @@
       "groupMine": "我的预设",
       "empty": "这个项目还没有预设",
       "roleFixed": "角色：{role}（预设固定）",
-      "roleFollow": "角色跟页面走"
+      "roleFollow": "角色跟页面走",
+      "impact": {
+        "title": "这一轮会放开什么",
+        "fullBadge": "完全放行",
+        "write": "能改",
+        "writeFollow": "跟着页签：低代码页 = 界面，代码页 = 代码",
+        "domainUi": "界面（流程 / 面板 / 模板）",
+        "domainCode": "代码（src/、plugins/、*.ts）",
+        "yes": "能写",
+        "no": "不能写",
+        "tools": "工具",
+        "toolsAll": "全部 {n} 个",
+        "toolsScoped": "只留 {n} 个",
+        "toolsBreakdown": "改 {mutation} · 查 {query}",
+        "toolsUnknown": "白名单里 {n} 个不认识：{list}",
+        "approval": "审批",
+        "approvalAsk": "逐次问",
+        "approvalFull": "完全放行（不问，直接做）",
+        "plugins": "插件",
+        "pluginsValue": "只留 {list}",
+        "note": "白名单只收窄工具；能写哪一类由角色决定 —— 路径边界在弹审批之前就生效，完全放行也绕不过去。"
+      }
     }
   },
   "settings": {

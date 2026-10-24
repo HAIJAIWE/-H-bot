@@ -740,7 +740,28 @@
       "groupMine": "My presets",
       "empty": "No presets in this project yet",
       "roleFixed": "Role: {role} (fixed by preset)",
-      "roleFollow": "Role follows the page"
+      "roleFollow": "Role follows the page",
+      "impact": {
+        "title": "What this turn unlocks",
+        "fullBadge": "Fully allowed",
+        "write": "Writes",
+        "writeFollow": "Follows the tab: low-code = UI, code = code",
+        "domainUi": "UI (flow / panels / templates)",
+        "domainCode": "code (src/, plugins/, *.ts)",
+        "yes": "allowed",
+        "no": "blocked",
+        "tools": "Tools",
+        "toolsAll": "all {n}",
+        "toolsScoped": "only {n}",
+        "toolsBreakdown": "{mutation} write · {query} read",
+        "toolsUnknown": "{n} unknown in the allowlist: {list}",
+        "approval": "Approval",
+        "approvalAsk": "ask every action",
+        "approvalFull": "fully allowed (no prompts)",
+        "plugins": "Plugins",
+        "pluginsValue": "only {list}",
+        "note": "The allowlist only narrows tools; which category you can write is decided by the role — the path boundary applies before approval, so fully-allowed cannot cross it."
+      }
     }
   },
   "settings": {

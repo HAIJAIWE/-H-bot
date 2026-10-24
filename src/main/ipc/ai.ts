@@ -14,7 +14,7 @@ import { beginBatch, cancelAiChat, commitBatch, getAiConfig, handleRollbackBatch
 import { clearThread, listThreads, threadFile } from "../services/ai/threads";
 import { appendHistoryEntries, loadHistory, readHistoryForUi, truncateHistoryAt } from "../services/ai/historyStore";
 import { AI_TURN_NOTE_PREFIX } from "../../shared/types/ai";
-import { ALL_TOOL_DEFINITIONS } from "../services/ai/tools/defs";
+import { listTools } from "../services/agent-core/core";
 import { listTurns, readTurn, rollbackTurn, turnsFromMessage } from "../services/flow/turnJournal";
 import { loadProjectPlugins } from "../services/plugins/pluginLoader";
 import { readAppAiConfig, readProjectBotAiConfig, resolveAuthorAiConfig, writeAppAiConfig, writeAppAiFallbacks, writeProjectBotAiConfig } from "../services/ai/appAiConfig";
@@ -139,8 +139,21 @@ function registerAiIpc(projectService) {
 			}]);
 		});
 	});
+	/**
+	* ai:tools —— **循环注册表**里的工具（预设白名单过滤的就是这一张）。
+	*
+	* 以前返回的是助手链路那 27 个领域定义（ALL_TOOL_DEFINITIONS），但预设白名单真正
+	* 过滤的是 agent-core 的 listTools()（CORE_TOOLS + 插件注册的工具）—— 于是界面上
+	* 勾了 add_node 拦不住任何东西，而循环里**真能用**的 read_file 反倒被标成「不认识」。
+	* 工具表只广告真正能执行的：这条对界面同样成立。
+	*/
 	electron.ipcMain.handle("ai:tools", async () => {
-		return tryIpc(() => ALL_TOOL_DEFINITIONS);
+		return tryIpc(() => listTools().map((tool) => ({
+			name: tool.name,
+			description: tool.description,
+			category: tool.category ?? "mutation",
+			parameters: tool.parameters ?? {}
+		})));
 	});
 	electron.ipcMain.handle("ai:setConfig", async (_event, args) => {
 		const parsed = aiConfigSchema.safeParse(args);

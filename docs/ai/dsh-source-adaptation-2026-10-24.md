@@ -295,3 +295,4 @@ src/main/vendor/dsh/
 | 2026-10-25（三次） | **预设表单化**：`PresetEditor` 从整文件 JSON 文本框改为列表 + 表单（未知字段原样回写），`PresetSelect` 的键从 `id` 改回 `name`（修「写了 id 的预设选中后静默失效」）—— 对照见 `agent-core-wiring.md` §28；没有 `projectPath` 时明说「先打开一个项目」并禁用保存（旧写法是点了没反应）                  |
 | 2026-10-25（四次） | **本轮边界一行**：`TurnBoundary` 把主进程真正生效的角色来源 / 工具与插件收窄数 / 审批口径 / 先计划摆在输入框上方（默认态不渲染）—— 对照见 `agent-core-wiring.md` §29                                                                                                                                   |
 | 2026-10-25（五次） | **角色/预设合成一个菜单**：删掉 `RoleChips` + `PresetSelect`（同一件事两处选、还多一条「跟页面」），按 DSH `ui-agent-preset` 的形状改成 `AgentPresetMenu`（跟随页面 / 角色 / 我的预设三组互斥、当前项 `aria-pressed`、编辑另开入口）；`TurnBoundary` 不再复述角色 —— 对照见 `agent-core-wiring.md` §30 |
+| 2026-10-25（六次） | **预设「会放开什么」预览**：PresetImpact 复用主进程的 mayRoleWritePath 翻译角色边界、工具量与审批口径；顺带发现 ai:tools 给的是助手链路 27 个定义而预设过滤的是循环注册表（6 个），改成说真话 —— 对照见 agent-core-wiring.md §31 |

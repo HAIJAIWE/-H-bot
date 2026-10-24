@@ -78,9 +78,14 @@ vi.mock('@main/services/ai', () => ({
   isAiChatRunning: mocks.isAiChatRunning,
 }));
 
-// ipc/ai.ts:16 从 `../services/ai/tools/defs` 取表（不是 `tools.ts` 里那份旧的静态表），
-// mock 必须打在真源上，否则拿到的是同一个进程里另一份 31 条的定义。
-vi.mock('@main/services/ai/tools/defs', () => ({ ALL_TOOL_DEFINITIONS: [{ name: 'list_nodes' }] }));
+// ipc/ai.ts 的 `ai:tools` 现在给的是**循环注册表**（agent-core 的 listTools()，
+// 也就是预设白名单真正过滤的那张表）；mock 打在真源上。
+vi.mock('@main/services/agent-core/core', () => ({
+  listTools: () => [
+    { name: 'read_file', description: '读一个文件', category: 'query', parameters: { type: 'object' } },
+    { name: 'write_file', description: '写一个文件', category: 'mutation' },
+  ],
+}));
 
 vi.mock('@main/services/ai/budgetSettings', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -151,10 +156,13 @@ describe('注册面', () => {
 });
 
 describe('接线', () => {
-  it('ai:tools 直接返回工具清单', async () => {
+  it('ai:tools 返回的是循环注册表（预设白名单过滤的那张），字段补全成工具定义', async () => {
     const res = await call('ai:tools', {});
     expect(res.ok).toBe(true);
-    expect(res.data).toEqual([{ name: 'list_nodes' }]);
+    expect(res.data).toEqual([
+      { name: 'read_file', description: '读一个文件', category: 'query', parameters: { type: 'object' } },
+      { name: 'write_file', description: '写一个文件', category: 'mutation', parameters: {} },
+    ]);
   });
 
   it('ai:cancelChat 把 projectPath 交给 cancelAiChat，并回执是否真取消了', async () => {

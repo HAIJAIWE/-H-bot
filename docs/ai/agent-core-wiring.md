@@ -1034,3 +1034,68 @@ emit('ai:compact', { projectPath, dropped, tokensBefore, tokensAfter })
 - 菜单里没有「查看配置（只读）」—— DSH 那边是把预设当 YAML 展示。我们的预设就在 `.qqbat/agent-presets.json` 里，
   点「编辑预设…」能直接看，暂不另做只读视图。
 - 选择结果没有 `applied/staged/unchanged/refused` 四态：我们的预设一选就生效（下一轮），没有"暂存"这一步。
+
+## 31. 预设「这一轮会放开什么」+ 工具表改成说真话（2026-10-25）
+
+### 为什么加预览
+
+预设里那几个字段（角色 / 白名单 / 审批 / 插件）**每一个都影响权限**，但界面上它们只是控件：
+勾一个 `add_node` 到底换来什么、「代码助手」能不能改流程，用户只能靠猜。DSH 那边预设是 YAML 直读，
+我们这套是表单，更需要一句话翻译。
+
+新组件 `src/renderer/src/components/ai/PresetImpact.tsx`，props 只收真源字段（`role` / `allowedTools` /
+`tools` / `permissionMode` / `plugins`），渲染在预设编辑器「角色 / 审批」两列之后、工具白名单之前。
+
+**它不做判断，只做翻译：**
+
+- 「能改什么」调 `mayRoleWritePath`（`@shared/ai/roleDomains`）—— 与主进程弹审批前那道闸**同一个函数**。
+  两份规则一定会漂：一边加了路径、另一边忘了，界面就会显示「能写」而实际被拒。
+- 只判两个代表路径：`.qqbat/flow.json`（界面域）与 `src/main/services/agent-core/runTurn.ts`（代码域）。
+  不列全表 —— 列全表既看不出重点，也会随目录变动过时。
+- 工具统计：`全部 N 个` / `只留 N 个`，再按 `category` 拆 `改 m · 查 q`；白名单里**注册表不认识**的名字
+  单独点名（那说明预设写错了，或者工具随插件被卸了）。
+- 审批两档（逐次问 / 完全放行）；`plugins` 非空时单独一行。
+- 常驻一句：「白名单只收窄工具…路径边界在弹审批之前就生效，完全放行也绕不过去」—— 这本来就是两道闸，
+  用户最容易当成同一道。
+
+i18n `ai.preset.impact.*` 共 20 键（中英各一份，两文件 3216 键对齐）。
+
+### 预览立刻暴露的真问题：它在说另一张表
+
+第一次真机打开预览，看到「白名单里 1 个不认识：list_dir」—— 而 `list_dir` 是循环里**确实有**的工具。
+查下去是两处口径不同：
+
+| 地方 | 给的什么 |
+| ---- | -------- |
+| `src/main/ipc/ai.ts` 的 `ai:tools`（旧） | `ALL_TOOL_DEFINITIONS`：助手链路 27 个领域定义（`add_node` / `read_flow` / …） |
+| `src/main/ipc/aiAgentCore.ts:345` 预设白名单过滤的 | `scopeToolsByPlugins(listTools(), …)` —— **循环注册表** |
+
+循环注册表只有 6 个：`read_file` / `write_file` / `run_command` / `validate_flow` / `list_dir` / `search_text`
+（`src/main/services/agent-core/core.ts:231-369`，`CORE_TOOLS` 在 `:449` 注册），另外是插件市场装进来的工具。于是：
+
+- 界面上勾 `add_node` 这种**从来没在循环里存在过**的工具 → 拦不住任何东西（它本来也不会被调用），用户却以为收紧了；
+- 循环里真能用的 `list_dir` 反倒被标成「不认识」。
+
+本轮修法：`ai:tools` 改为返回 `listTools()` 映射出来的工具定义（缺 `category` 按 `mutation`、缺 `parameters` 补 `{}`）。
+**工具表只广告真正能执行的** —— 这条对界面同样成立。测试跟着改：`tests/main/ipc/ai-ipc.test.ts` 与
+`tests/main/ipc/remaining-ipc-1.test.ts` 的 mock 从 `@main/services/ai/tools/defs` 换成 `@main/services/agent-core/core`。
+
+### 这件事背后的更大一笔：旧 27 个工具根本没进循环
+
+`src/main/services/agent-core/legacyTools.ts:102` 的 `adaptLegacyTools` 是「合并双引擎第 2 步」的产物
+（把旧 27 个定义包成循环的 `Tool`：query 走 `executeTool` + 渲染层回执，mutation 转提案攒进 `pendingOperations`），
+**全仓零调用点**。所以今天循环里的模型看不见 `add_node` / `read_flow`，只能读写文件、跑命令、校验流程。
+
+本轮没有顺手接它：接它要同时提供 `dispatch`（渲染层指令通道）、`pendingOperations`（轮末发提案）与 `context`
+（预览图），也就是「单循环统一双引擎」的正身。本轮只把**界面说的话改成真的**（老实列 6 个），账记在这里：
+真接上之后 `ai:tools` 应该返回合并表，预设白名单才有 27 个可勾。
+
+### 测试
+
+- `tests/renderer/components/ai/PresetImpact.test.tsx`（9 例）：builder 能改界面不能写代码、coder 反过来、
+  duo 两边都能、`role: null` 说「跟着页签」、工具全量/收窄统计、未知工具点名、完全放行徽标、plugins 分行、常驻提醒。
+- `tests/main/ipc/ai-ipc.test.ts` / `tests/main/ipc/remaining-ipc-1.test.ts`：`ai:tools` 的 mock 换成循环注册表，
+  断言字段被补全（`category` 缺省 mutation、`parameters` 缺省 `{}`）。
+- 真机：`_recovery/cdp-preset-verify.mjs` 打开「编辑预设…」，impact 块 w=538 h=114；文本
+  「能改：界面…不能写 · 代码…能写 / 工具 只留 2 个 · 改 0 · 查 1 · 白名单里 1 个不认识：list_dir / 审批 逐次问」，
+  改完 `ai:tools` 后那句「不认识」消失。

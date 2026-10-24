@@ -19,8 +19,8 @@ const {
   beginBatchMock,
   commitBatchMock,
   handleRollbackBatchMock,
-  // ai tools
-  allToolDefinitions,
+  // ai tools（循环注册表）
+  loopToolsMock,
   // ai provider registry
   providerRegistryMock,
   // codegen service（实例方法 mock）
@@ -47,7 +47,10 @@ const {
   beginBatchMock: vi.fn(),
   commitBatchMock: vi.fn(),
   handleRollbackBatchMock: vi.fn(),
-  allToolDefinitions: [{ name: 'list_nodes' }, { name: 'read_file' }],
+  loopToolsMock: vi.fn(() => [
+    { name: 'list_dir', description: '列目录', category: 'query', parameters: { type: 'object' } },
+    { name: 'write_file', description: '写文件', category: 'mutation' }
+  ]),
   providerRegistryMock: {
     list: vi.fn(() => ['glm', 'openai']),
     getCurrent: vi.fn(() => 'glm'),
@@ -95,8 +98,10 @@ vi.mock('@main/services/ai', () => ({
   handleRollbackBatch: handleRollbackBatchMock
 }))
 
-vi.mock('@main/services/ai/tools/defs', () => ({
-  ALL_TOOL_DEFINITIONS: allToolDefinitions
+// ipc/ai.ts 的 ai:tools 现在给的是**循环注册表**（预设白名单过滤的那张），
+// 不是助手链路那 27 个定义 —— mock 打在真源上。
+vi.mock('@main/services/agent-core/core', () => ({
+  listTools: loopToolsMock
 }))
 
 vi.mock('@shared/types/ai-provider', () => ({
@@ -306,10 +311,13 @@ describe('ai IPC', () => {
   })
 
   describe('ai:tools', () => {
-    it('正常路径：返回 ALL_TOOL_DEFINITIONS', async () => {
+    it('正常路径：返回循环注册表，缺 category 的按 mutation 补、缺 parameters 的补空对象', async () => {
       const res = (await getHandler('ai:tools')()) as IpcResult
       expect(res.ok).toBe(true)
-      expect(res.data).toEqual(allToolDefinitions)
+      expect(res.data).toEqual([
+        { name: 'list_dir', description: '列目录', category: 'query', parameters: { type: 'object' } },
+        { name: 'write_file', description: '写文件', category: 'mutation', parameters: {} }
+      ])
     })
   })
 

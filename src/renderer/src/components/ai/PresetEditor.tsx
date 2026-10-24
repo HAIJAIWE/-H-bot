@@ -16,6 +16,7 @@ import { useLocaleSubscription } from '../../stores/i18nStore'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { AI_MODE_BUTTONS } from './agentModes'
+import { PresetImpact } from './PresetImpact'
 import { MODE_OF_ROLE, type AgentRole } from '@shared/ai/roleDomains'
 import type { AiToolDefinition } from '@shared/types/ai'
 
@@ -121,6 +122,9 @@ export function PresetEditor({
   const current = rows[selected]
   const currentTools = current ? asList(current.allowedTools) : []
   const currentPlugins = current ? asList(current.plugins) : []
+  /** 预览用的角色：只认四个已知值（不认识的值当没写，与主进程 normalizeRole 一致） */
+  const previewRole = ROLES.find(role => role === asText(current?.role)) ?? null
+  const previewApproval = asText(current?.permissionMode) === 'full' ? 'full' : 'ask'
 
   const toggleTool = (name: string): void => {
     const next = currentTools.includes(name)
@@ -393,6 +397,13 @@ export function PresetEditor({
                     </select>
                   </label>
                 </div>
+                <PresetImpact
+                  role={previewRole}
+                  allowedTools={currentTools}
+                  tools={tools}
+                  permissionMode={previewApproval}
+                  plugins={currentPlugins}
+                />
                 <div>
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <span className="text-xs text-zinc-400">
