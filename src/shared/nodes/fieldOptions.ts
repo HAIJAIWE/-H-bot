@@ -19,6 +19,7 @@
 //   2. `label` 是给用户看的文案，可以改；
 //   3. `group` 只影响下拉框的分组显示。
 import type { FieldOption } from '../types/nodeV2';
+import { CHANNEL_REST_MODE_OPTIONS } from './channelRestModes';
 
 // ===== 触发器（无输入端口，面板直接引用）=====
 
@@ -746,6 +747,9 @@ export const CHANNEL_OP_MODE_OPTIONS = [
   { value: 'reaction_add', label: '发表表情表态', group: '表情表态' },
   { value: 'reaction_remove', label: '删除表情表态', group: '表情表态' },
   { value: 'reaction_users', label: '表态用户列表', group: '表情表态' },
+  // 身份组 / 成员 / 禁言 / 子频道权限 / 私信 / 日程 / 论坛 / 消息这一族在 ./channelRestModes.ts
+  // （34 条，单独成文件是为了不让本文件越过 fileGrowth 的 800 行硬线）
+  ...CHANNEL_REST_MODE_OPTIONS,
 ] as const satisfies readonly FieldOption[];
 
 /** channel_op:type —— 子频道类型（官方整数枚举的界面名） */

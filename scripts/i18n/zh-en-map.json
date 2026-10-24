@@ -1273,8 +1273,8 @@
     },
     "channel_op": {
       "label": "Channel operations",
-      "description": "QQ channel sub-channels, announcements, pins and reactions",
-      "summary": "Manages a QQ channel: sub-channels, announcements, pinned messages and emoji reactions. The bot must be in the channel with the required permissions; creating/editing/deleting sub-channels needs admin rights.",
+      "description": "QQ channel sub-channels, announcements, pins, roles, members, permissions, schedules and threads",
+      "summary": "Manages a QQ channel: sub-channels, announcements, pinned messages, roles, members, mute, sub-channel permissions, channel DMs, schedules and forum threads. Most write operations need bot admin rights; schedules and member listing also have quota and private-domain limits.",
       "tags": [
         "QQ",
         "Channel",
@@ -1282,6 +1282,11 @@
         "Announcement",
         "Pin",
         "Reaction",
+        "Role",
+        "Member",
+        "Mute",
+        "Schedule",
+        "Thread",
         "Action"
       ],
       "ports": {
@@ -1339,6 +1344,26 @@
         "inputs.emoji_id": {
           "name": "Emoji ID",
           "description": "System emoji id (e.g. 4 delighted, 76 like) or an emoji code point"
+        },
+        "inputs.user_id": {
+          "name": "User ID",
+          "description": "User ID of the target member"
+        },
+        "inputs.role_id": {
+          "name": "Role ID",
+          "description": "Target role ID; the channel admin role is always 5"
+        },
+        "inputs.thread_id": {
+          "name": "Thread ID",
+          "description": "Target thread ID; take it from the List threads result"
+        },
+        "inputs.schedule_id": {
+          "name": "Schedule ID",
+          "description": "Target schedule ID; take it from the List schedules result"
+        },
+        "inputs.body": {
+          "name": "Request body",
+          "description": "JSON object. Creation and editing fields, paging cursors (before, after, limit, start_index) and the schedule since parameter all go here; query modes append them to the URL, write modes send them as the request body"
         },
         "outputs.out": {
           "name": "Exit"
@@ -1409,6 +1434,142 @@
           "reaction_users": {
             "label": "Reaction users",
             "group": "Reactions"
+          },
+          "guild_get": {
+            "label": "Guild detail",
+            "group": "Channel info"
+          },
+          "guild_me": {
+            "label": "Bot profile",
+            "group": "Channel info"
+          },
+          "guild_my_list": {
+            "label": "Joined guilds",
+            "group": "Channel info"
+          },
+          "guild_permission": {
+            "label": "API permissions",
+            "group": "Channel info"
+          },
+          "guild_permission_demand": {
+            "label": "Request API permission",
+            "group": "Channel info"
+          },
+          "role_list": {
+            "label": "List roles",
+            "group": "Roles"
+          },
+          "role_create": {
+            "label": "Create role",
+            "group": "Roles"
+          },
+          "role_update": {
+            "label": "Edit role",
+            "group": "Roles"
+          },
+          "role_delete": {
+            "label": "Delete role",
+            "group": "Roles"
+          },
+          "role_member_add": {
+            "label": "Add role member",
+            "group": "Roles"
+          },
+          "role_member_remove": {
+            "label": "Remove role member",
+            "group": "Roles"
+          },
+          "role_members": {
+            "label": "List role members",
+            "group": "Roles"
+          },
+          "member_list": {
+            "label": "List members",
+            "group": "Members"
+          },
+          "member_get": {
+            "label": "Member detail",
+            "group": "Members"
+          },
+          "member_remove": {
+            "label": "Remove member",
+            "group": "Members"
+          },
+          "mute_guild": {
+            "label": "Mute everyone",
+            "group": "Mute"
+          },
+          "mute_member": {
+            "label": "Mute member",
+            "group": "Mute"
+          },
+          "mute_multi": {
+            "label": "Mute several members",
+            "group": "Mute"
+          },
+          "member_perm_get": {
+            "label": "Member permissions",
+            "group": "Sub-channel permissions"
+          },
+          "member_perm_put": {
+            "label": "Edit member permissions",
+            "group": "Sub-channel permissions"
+          },
+          "role_perm_get": {
+            "label": "Role permissions",
+            "group": "Sub-channel permissions"
+          },
+          "role_perm_put": {
+            "label": "Edit role permissions",
+            "group": "Sub-channel permissions"
+          },
+          "dm_create": {
+            "label": "Create DM session",
+            "group": "Channel DM"
+          },
+          "dm_send": {
+            "label": "Send DM message",
+            "group": "Channel DM"
+          },
+          "schedule_list": {
+            "label": "List schedules",
+            "group": "Schedule"
+          },
+          "schedule_get": {
+            "label": "Schedule detail",
+            "group": "Schedule"
+          },
+          "schedule_create": {
+            "label": "Create schedule",
+            "group": "Schedule"
+          },
+          "schedule_update": {
+            "label": "Edit schedule",
+            "group": "Schedule"
+          },
+          "schedule_delete": {
+            "label": "Delete schedule",
+            "group": "Schedule"
+          },
+          "thread_list": {
+            "label": "List threads",
+            "group": "Threads"
+          },
+          "thread_get": {
+            "label": "Thread detail",
+            "group": "Threads"
+          },
+          "thread_create": {
+            "label": "Create thread",
+            "group": "Threads"
+          },
+          "thread_delete": {
+            "label": "Delete thread",
+            "group": "Threads"
+          },
+          "message_get": {
+            "label": "Message detail",
+            "group": "Messages"
           }
         },
         "type": {

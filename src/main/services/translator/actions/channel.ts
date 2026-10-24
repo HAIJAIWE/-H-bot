@@ -2,6 +2,20 @@
 // 由 10/18 打包产物还原（chunk: FlowRuntime-LedUoDmO.js）；见 _recovery/README-recovery.md
 import { emitSystemLog } from "../../runner/runtimeEvents";
 import { sendOfficialMessage } from "../../official/messages";
+import { announceCreateBody, channelCreateBody, channelUpdateBody, readJsonBody } from "./channelRest";
+
+/**
+ * body 端口收的是 json 字符串（画布传的就是字符串），也收对象（插件直调）。
+ * 解析失败就地失败 —— 别把带引号的 JSON 原样发给官方换一个 400。
+ */
+var resolveBody = (params, fallback, responder, echo) => {
+	try {
+		return readJsonBody(params.body) ?? fallback(params);
+	} catch (e) {
+		responder.fail(echo, e instanceof Error ? e.message : String(e));
+		return null;
+	}
+};
 
 var sendChannelMsg = async (host, { params, echo, responder }) => {
 	const cid = String(params.channel_id ?? "").trim();
@@ -63,7 +77,9 @@ var channelCreate = async (host, { params, echo, responder }) => {
 		responder.fail(echo, "guild_id 不能为空");
 		return;
 	}
-	const r = await host.callOfficialApi("POST", `/guilds/${gid}/channels`, params.body);
+	const body = resolveBody(params, channelCreateBody, responder, echo);
+	if (!body) return;
+	const r = await host.callOfficialApi("POST", `/guilds/${gid}/channels`, body);
 	if (r.ok) responder.respond(echo, r.data);
 	else responder.fail(echo, r.error);
 };
@@ -73,7 +89,9 @@ var channelUpdate = async (host, { params, echo, responder }) => {
 		responder.fail(echo, "channel_id 不能为空");
 		return;
 	}
-	const r = await host.callOfficialApi("PATCH", `/channels/${cid}`, params.body);
+	const body = resolveBody(params, channelUpdateBody, responder, echo);
+	if (!body) return;
+	const r = await host.callOfficialApi("PATCH", `/channels/${cid}`, body);
 	if (r.ok) responder.respond(echo, r.data);
 	else responder.fail(echo, r.error);
 };
@@ -93,7 +111,9 @@ var announceCreate = async (host, { params, echo, responder }) => {
 		responder.fail(echo, "guild_id 不能为空");
 		return;
 	}
-	const r = await host.callOfficialApi("POST", `/guilds/${gid}/announces`, params.body);
+	const body = resolveBody(params, announceCreateBody, responder, echo);
+	if (!body) return;
+	const r = await host.callOfficialApi("POST", `/guilds/${gid}/announces`, body);
 	if (r.ok) responder.respond(echo, r.data);
 	else responder.fail(echo, r.error);
 };

@@ -42,6 +42,16 @@ const CLAIMS: { row: string; anchors: string[] }[] = [
   { row: '群成员 · 入群申请 · 消息审核事件', anchors: ['GROUP_MEMBER_ADD', 'GROUP_JOIN_REQUEST'] },
   { row: '自定义菜单 / 指令面板', anchors: ['/v2/menu', '/v2/panels'] },
   { row: 'QQ 频道', anchors: ['send_channel_message', 'AT_MESSAGE_CREATE'] },
+  // ── 覆盖表（§"2.4 频道私域 REST 家族"）：并入 channel_op 的 34 个模式，规格表与动作表同源 ──
+  { row: '频道信息 · 机器人身份 · 接口权限', anchors: ['CHANNEL_REST_SPECS', 'api_permission/demand'] },
+  { row: '身份组', anchors: ['/roles/', 'role_members'] },
+  { row: '成员', anchors: ['member_list', 'member_remove'] },
+  { row: '禁言（频道 / 成员 / 批量）', anchors: ['mute_seconds', 'mute_multi'] },
+  { row: '子频道权限', anchors: ['member_perm_put', 'role_perm_put'] },
+  { row: '频道私信', anchors: ['/users/@me/dms'] },
+  { row: '日程', anchors: ['schedule_create', 'schedule_id'] },
+  { row: '论坛帖子', anchors: ['thread_create', 'thread_id'] },
+  { row: '消息详情', anchors: ['message_get'] },
   // ── 台账：事件层 ──
   { row: '✅ 已翻译', anchors: ['C2C_MESSAGE_CREATE', 'GROUP_AT_MESSAGE_CREATE'] },
   // 互动事件从「只翻一半」到端到端接通（10/24）：订阅位、翻译、回执 id 三处都要在

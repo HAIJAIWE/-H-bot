@@ -60,6 +60,32 @@
 - 收到频道消息：`AT_MESSAGE_CREATE`（@机器人，intent `1<<30` 默认有权限）；
   频道**全量**消息 `MESSAGE_CREATE` 需要私域机器人权限（intent `1<<9`），普通机器人收不到
 
+### 2.4 频道私域 REST 家族（并入 `channel_op`，不新增节点）
+
+身份组、成员、禁言、子频道权限、频道私信、日程、论坛、消息详情这八族，和已有的频道操作是**同一种东西**：
+一次带鉴权的 REST 调用（method + path + body）。所以它们不各开一个节点，而是作为 `channel_op` 的模式
+（共 47 个模式：原有 13 个 + 这 34 个），规格表在 `src/main/services/translator/actions/channelRest.ts`，
+动作表由它的键派生 —— 节点上有的模式，网关一定认识。
+
+| 能力 | 状态 | 端点 / 说明 | 代码锚点 |
+| --- | --- | --- | --- |
+| 频道信息 · 机器人身份 · 接口权限 | ✅ | `GET /guilds/{guild_id}`、`GET /users/@me`、`GET /users/@me/guilds`、`GET /guilds/{guild_id}/api_permission`；权限申请 `POST …/api_permission/demand`（body 必带 `api_identify`） | CHANNEL_REST_SPECS / api_permission/demand |
+| 身份组 | ✅ | `GET|POST /guilds/{guild_id}/roles`、`PATCH|DELETE …/roles/{role_id}`；成员加减组 `PUT|DELETE …/members/{user_id}/roles/{role_id}`（子频道管理员要给 `channel`）；成员列表 `GET …/roles/{role_id}/members?start_index&limit` | /roles/ / role_members |
+| 成员 | ✅ | `GET /guilds/{guild_id}/members?after&limit`、`GET …/members/{user_id}`、`DELETE …/members/{user_id}`（可带 `add_blacklist` / `delete_history_msg_days`） | member_list / member_remove |
+| 禁言（频道 / 成员 / 批量） | ✅ | `PATCH /guilds/{guild_id}/mute`、`PATCH …/members/{user_id}/mute`；`mute_seconds` 与 `mute_end_timestamp` 二选一，填 0 = 解除；批量要 `user_ids` | mute_seconds / mute_multi |
+| 子频道权限 | ✅ | `GET|PUT /channels/{channel_id}/members/{user_id}/permissions`、`GET|PUT …/roles/{role_id}/permissions`；body 至少要给 `add` 或 `remove`（权限位字符串） | member_perm_put / role_perm_put |
+| 频道私信 | ✅ | `POST /users/@me/dms`（`recipient_id` + `source_guild_id`）、`POST /dms/{guild_id}/messages` | /users/@me/dms |
+| 日程 | ✅ | `GET|POST /channels/{channel_id}/schedules`（列表可带 `since`）、`GET|PATCH|DELETE …/schedules/{schedule_id}`；创建/更新官方要求套一层 `schedule`，本地容忍直接给内层字段并自动包装 | schedule_create / schedule_id |
+| 论坛帖子 | ✅ | `GET|PUT /channels/{channel_id}/threads`（发帖必带 `title`）、`GET|DELETE …/threads/{thread_id}` | thread_create / thread_id |
+| 消息详情 | ✅ | `GET /channels/{channel_id}/messages/{message_id}`（单条拉取，用于引用 / 撤回前的确认） | message_get |
+
+- 路径段缺了就**在本地抛中文错**（`guild_id 不能为空`），不带空 id 去换官方 400：
+  官方只会回「参数错误」，用户看不出是自己漏填。
+- `body` 端口收 JSON 字符串（画布传的是字符串），也收对象（插件直调）；坏 JSON 直接失败并指出是哪一段。
+- 查询参数（`before`/`after`/`limit`/`since`/`start_index`）从同一个 `body` 对象里挑出来拼到网址上，
+  GET 一律不带请求体（undici 会拒）。
+- 这八族里日程、成员列表、频道私信在官方那边都受**私域权限**与频次限制；报 403 / 429 时先看权限，不是代码没接。
+
 ## 3. 已接入的 8 个接口 + 互动回调
 
 | 能力 | 状态 | 端点 / 说明 | 代码锚点 |

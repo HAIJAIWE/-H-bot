@@ -1,5 +1,6 @@
 // @ts-nocheck
 // 由 10/18 打包产物还原（chunk: registration-B3DiGKnT.js）；见 _recovery/README-recovery.md
+import { CHANNEL_REST_MODES } from "../translator/actions/channelRest";
 
 /** 与目录里 `CHANNEL_OP_MODE_OPTIONS` 的取值一一对应 */
 var CHANNEL_MODES = [
@@ -15,7 +16,9 @@ var CHANNEL_MODES = [
 	"pin_remove",
 	"reaction_add",
 	"reaction_remove",
-	"reaction_users"
+	"reaction_users",
+	// 频道「私域 REST 家族」（身份组/成员/禁言/子频道权限/私信/日程/论坛/消息）：与动作表同源，别在这里手抄
+	...CHANNEL_REST_MODES
 ];
 async function channelOp(bot, _event = null, options = {}) {
 	const mode = String(options.mode ?? "channel_list");

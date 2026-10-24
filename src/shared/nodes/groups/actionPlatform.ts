@@ -17,6 +17,11 @@ import {
   JOIN_APPROVAL_MODE_OPTIONS,
   JOIN_APPROVAL_WHITELIST_OP_OPTIONS,
 } from '../fieldOptions';
+import {
+  CHANNEL_REST_BODY_MODES,
+  CHANNEL_REST_ROLE_MODES,
+  CHANNEL_REST_USER_MODES,
+} from '../channelRestModes';
 import type { NodeSpecV2 } from '../../types/nodeV2';
 
 export const actionPlatformNodes: NodeSpecV2[] = [
@@ -425,19 +430,21 @@ export const actionPlatformNodes: NodeSpecV2[] = [
     execution: 'handler',
     // 操作对象（防重复闸门：同 resource 下模式集合必须不相交）
     resource: 'channel',
-    // 13 个模式为什么还留在一个节点里：它们是**同一条透传路径**
-    // （channelOp 就是 `bot.callApi(mode, options)`）—— 接线方式相同，拆开只会让用户先在 4 个节点里找。
+    // 47 个模式为什么还留在一个节点里：它们是**同一条透传路径**
+    // （channelOp 就是 `bot.callApi(mode, options)`）—— 接线方式相同，拆开只会让用户先在十几个节点里找。
+    // 后者（身份组/成员/禁言/子频道权限/私信/日程/论坛/消息）的规格表在
+    // `src/main/services/translator/actions/channelRest.ts`，模式集合与动作表同源。
     // 真正该做的是**按模式收起端口**（见下面各端口的 showWhen），已做。
     modeRationale:
-      '13 个动作共用同一条透传路径（callApi(mode, options)），接线方式相同；已按模式收起端口',
+      '47 个动作共用同一条透传路径（callApi(mode, options)），接线方式相同；已按模式收起端口',
     label: '频道操作',
     group: '动作',
     icon: '📺',
-    description: 'QQ 频道子频道、公告、精华消息与表情表态',
+    description: 'QQ 频道子频道、公告、精华消息、身份组、成员、权限、日程与论坛',
     summary:
-      '管理 QQ 频道：子频道、公告、精华消息、表情表态。机器人需在频道内且有相应权限；创建/修改/删除子频道需要管理员权限。',
+      '管理 QQ 频道：子频道、公告、精华、表态、身份组、成员与禁言、子频道权限、频道私信、日程、论坛帖子。多数写操作要求机器人有管理员权限；日程与成员列表还有频次、私域限制。',
     sideEffects: ['call_api'],
-    tags: ['QQ', '频道', '子频道', '公告', '精华', '表态', '动作'],
+    tags: ['QQ', '频道', '子频道', '公告', '精华', '表态', '身份组', '成员', '禁言', '日程', '论坛', '动作'],
     platform: 'qq',
     handler: { source: 'builtin', module: 'channel_op' },
     exposedAsTool: true,
@@ -456,6 +463,11 @@ export const actionPlatformNodes: NodeSpecV2[] = [
       'recommend_channels',
       'emoji_type',
       'emoji_id',
+      'user_id',
+      'role_id',
+      'thread_id',
+      'schedule_id',
+      'body',
     ],
     defaultConfig: {
       mode: 'channel_list',
@@ -471,6 +483,11 @@ export const actionPlatformNodes: NodeSpecV2[] = [
       recommend_channels: '',
       emoji_type: 'system',
       emoji_id: '',
+      user_id: '',
+      role_id: '',
+      thread_id: '',
+      schedule_id: '',
+      body: '',
     },
     inputs: [
       {
@@ -598,6 +615,48 @@ export const actionPlatformNodes: NodeSpecV2[] = [
         description: '系统表情 id（如 4 得意、76 赞）或 emoji 码点',
         showWhen: (c) =>
           c.mode === 'reaction_add' || c.mode === 'reaction_remove' || c.mode === 'reaction_users',
+      },
+      // ── 频道「私域 REST 家族」的四个标识 + 一个请求体（按模式收起） ──
+      {
+        id: 'user_id',
+        name: '用户 ID',
+        kind: 'data',
+        dataType: 'string',
+        description: '目标用户 ID（身份组加减成员、成员详情/移除、子频道成员权限、频道私信收件人）',
+        showWhen: inModes(...CHANNEL_REST_USER_MODES),
+      },
+      {
+        id: 'role_id',
+        name: '身份组 ID',
+        kind: 'data',
+        dataType: 'string',
+        description: '目标身份组 ID（身份组增改删、成员加减组、身份组成员列表、子频道身份组权限）',
+        showWhen: inModes(...CHANNEL_REST_ROLE_MODES),
+      },
+      {
+        id: 'thread_id',
+        name: '帖子 ID',
+        kind: 'data',
+        dataType: 'string',
+        description: '论坛帖子 ID（查看/删除帖子必填；发帖不需要）',
+        showWhen: inModes('thread_get', 'thread_delete'),
+      },
+      {
+        id: 'schedule_id',
+        name: '日程 ID',
+        kind: 'data',
+        dataType: 'string',
+        description: '日程 ID（日程详情/修改/删除必填；列表与创建不需要）',
+        showWhen: inModes('schedule_get', 'schedule_update', 'schedule_delete'),
+      },
+      {
+        id: 'body',
+        name: '请求体',
+        kind: 'data',
+        dataType: 'json',
+        description:
+          '写操作的请求体（JSON 对象）。查询类看着像参数的东西（before/after/limit/since/start_index）也从这里挑出来拼到网址上；GET 一律不带请求体',
+        showWhen: inModes(...CHANNEL_REST_BODY_MODES),
       },
     ],
     outputs: [
