@@ -278,17 +278,17 @@ export const BotManagerPanel = React.memo(function BotManagerPanel() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* 标题行 */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800 shrink-0">
-        <h3 className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
+      {/* 标题行：窄栏（~220px）下标题与两个按钮挤一行会把文字折成竖排 → 允许换行，按钮整组下沉 */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 border-b border-zinc-800 shrink-0">
+        <h3 className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5 whitespace-nowrap">
           <Bot className="w-4 h-4" />
           {t('launch.bots.manage')}
         </h3>
-        <div className="flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-1.5 [&_button]:whitespace-nowrap">
           <Button
             variant="ghost"
             size="sm"
-            className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${
+            className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 whitespace-nowrap ${
               botRunning
                 ? 'bg-green-700 hover:bg-green-600 text-white'
                 : 'bg-blue-600/30 hover:bg-blue-600/50 text-blue-200'
@@ -299,7 +299,12 @@ export const BotManagerPanel = React.memo(function BotManagerPanel() {
           >
             {t('launch.bots.mockTest')}
           </Button>
-          <Button variant="primary" size="sm" onClick={() => setNewDialogOpen(true)}>
+          <Button
+            variant="primary"
+            size="sm"
+            className="whitespace-nowrap"
+            onClick={() => setNewDialogOpen(true)}
+          >
             {t('launch.bots.newBot')}
           </Button>
         </div>

@@ -1382,7 +1382,7 @@ export const ChatPanel = React.memo(function ChatPanel() {
             )}
           </div>
 
-          <div className="mt-1 flex items-center gap-1.5 pb-0.5">
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 pb-0.5">
             <button
               type="button"
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base leading-none text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40"
@@ -1401,11 +1401,12 @@ export const ChatPanel = React.memo(function ChatPanel() {
               className="hidden"
               onChange={(e) => void handleAttach(e)}
             />
-            <details className="relative">
-              <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 [&::-webkit-details-marker]:hidden">
+            <details className="relative shrink-0">
+              <summary className="cursor-pointer list-none whitespace-nowrap rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 [&::-webkit-details-marker]:hidden">
                 {fullAccess ? t('ai.agentCore.fullAccessOn') : t('ai.agentCore.menu')} ▾
               </summary>
-              <div className="absolute bottom-full left-0 z-20 mb-1 w-60 space-y-1 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-xs shadow-xl">
+              {/* 菜单右缘贴住 summary：窄栏下 left-0 会让 240px 的菜单越过视口右边缘 */}
+              <div className="absolute bottom-full right-0 z-20 mb-1 w-60 space-y-1 rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-xs shadow-xl">
                 <MenuToggle
                   label={t('ai.agentCore.plan')}
                   title={t('ai.agentCore.planTitle')}
@@ -1476,7 +1477,7 @@ export const ChatPanel = React.memo(function ChatPanel() {
             </details>
             {presetMeta?.permissionMode === 'full' && !fullAccess && (
               <span
-                className="text-[11px] text-amber-300"
+                className="shrink-0 whitespace-nowrap text-[11px] text-amber-300"
                 title={t('ai.agentCore.fullAccessFromPresetTitle')}
               >
                 {t('ai.agentCore.fullAccessFromPreset')}
@@ -1486,9 +1487,9 @@ export const ChatPanel = React.memo(function ChatPanel() {
              * **模型真下拉**：候选来自 llm-presets（唯一真相层），选中即写回 AI 配置；
              * 当前模型不在候选里（手填/已下线）也照样列在第一位，不假装它不存在。
              */}
-            <details className="relative ml-auto">
+            <details className="relative ml-auto min-w-0 max-w-full">
               <summary
-                className="flex min-w-0 cursor-pointer list-none items-center gap-1 rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 [&::-webkit-details-marker]:hidden"
+                className="flex min-w-0 cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 [&::-webkit-details-marker]:hidden"
                 title={t('ai.chat.modelTitle')}
               >
                 <span className="truncate">{aiConfig?.model ?? t('ai.chat.modelUnset')}</span>

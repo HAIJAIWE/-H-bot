@@ -23,7 +23,12 @@ registerPlugin(
         id: 'hint',
         slot: 'composer.hint',
         order: 10,
-        render: () => <p className="text-xs text-zinc-500 mt-1 px-1">{t('ai.chat.enterHint')}</p>,
+        // 窄栏（~220px）下这句提示会折成两三行：单行截断，全文留在 title 里
+        render: () => (
+          <p className="mt-1 truncate px-1 text-xs text-zinc-500" title={t('ai.chat.enterHint')}>
+            {t('ai.chat.enterHint')}
+          </p>
+        ),
       });
     },
   }),

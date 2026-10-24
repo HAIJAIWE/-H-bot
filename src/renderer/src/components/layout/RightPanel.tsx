@@ -87,12 +87,13 @@ export function RightPanel() {
       aria-label={t('panel.right.title')}
     >
       {/* Tab 栏 */}
-      <div className="flex items-center border-b border-zinc-800 bg-zinc-900/50 shrink-0">
+      {/* 窄栏（右栏被压到 180px）下三个页签会被挤成竖排单字：改成横向滚动，标签不折行 */}
+      <div className="flex items-center border-b border-zinc-800 bg-zinc-900/50 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {RIGHT_TABS.map((t) => (
           <button
             key={t.id}
             type="button"
-            className={`px-3 py-2 text-xs font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium transition-colors ${
               rightTab === t.id
                 ? 'text-zinc-100 border-b-2 border-blue-500 bg-zinc-950'
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
