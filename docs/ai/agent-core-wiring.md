@@ -1193,3 +1193,73 @@ emit('ai:proposal', { projectPath, proposal })
   mutation 只攒提案、**只发 `ai:proposal` 不发 `ai:response`**；组装失败退回正文；白名单收窄到只剩勾中的那个。
 - `tests/main/ipc/ai-ipc.test.ts` / `remaining-ipc-1.test.ts`：`ai:tools` 的断言从前两条精确相等改成
   「前两条是循环版 + 表里有旧定义 + 同名只出现一次」。
+
+## 33. 开始搬 DSH 源码：token-meter + tool-result-pruner（2026-10-25）
+
+§32 之前所有「对齐 DSH」都只借了**语义**。用户 2026-10-25 明确解除「别照搬」约束后，
+`src/main/vendor/dsh/` 下开始放**真正的上游代码**（MIT：许可全文 + 逐文件来源头 + MANIFEST 哈希 +
+`THIRD_PARTY_NOTICES.md`）。第一批挑的是两块「算法密集、与运行时无关」的：
+
+| 上游                                                                            | 我们这里                                                | 改了什么                                                                   |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `packages/llm/token-meter/src/estimate.ts`                                      | `vendor/dsh/token-meter/estimate.ts`                    | 类型换本地垫片、字符计量改 `./measure`、导出常量、删 `estimateToolsTokens` |
+| `packages/compaction/compaction-tool-result-pruner/src/{config,types,index}.ts` | `vendor/dsh/tool-result-pruner/{config,types,prune}.ts` | 去掉 Cordis Service 外壳，两个方法提成纯函数；`deepFreeze` 换本地实现      |
+
+为什么挑这两块：它们**不 import 任何上游服务**（连 Cordis 都不需要），搬过来是纯函数，
+接上就能用；而 `compaction-basic`（22 个内部 import、`region.ts` 601 行绑 `SessionSeq`）
+照搬等于把上游运行时一起搬进来 —— 那件事没做，理由写在 `dsh-source-adaptation-2026-10-24.md` §5。
+
+### 33.1 先剪工具结果，再考虑压回合
+
+循环的上下文闸门原来是「超预算 → 把中段回合压成一条注记」。现在多了一步，顺序是：
+
+```
+planCompaction()  ──判定哪段可压（保 index 0 系统提示 + 紧跟的 user + 尾部 keep 条）
+      ↓
+pruneToolTurns() ──把这段里 role=tool 的结果按 4096/1024 保头保尾，中间插标记
+      ↓
+retry = planCompaction() ──剪完可能就够了
+      ↓   还不够才摘要压缩（老路径）
+```
+
+- **为什么先剪**：工具结果的中间段几乎从不再被引用（模型要的是「文件里有什么」而不是
+  「第 5000 个字符是什么」），剪掉它比丢掉整个回合便宜得多；剪完不超预算就不摘要、
+  也不加「上下文已压缩」注记 —— 用户看到那条注记意味着真的丢了回合。
+- **`pruned` 与 `dropped` 分开计**：`CompactionOutcome` 现在有 `pruned: number`，
+  `applyCompaction` 只有真的丢了回合才 `dropped > 0`。`aiAgentCore` 的 `onCompact` 因此加了一句
+  `if (info.dropped <= 0) return` —— 只剪未压时**不发 `ai:compact`**，否则界面会写「省略 0 条」。
+- **`pruneToolResults: false`** 可以关掉这一步（测试用，也让将来「只压缩不剪」有入口）。
+- **就地改**：`pruneToolTurns` 直接改传进去的 `messages` 数组（与 `applyCompaction` 同一约定），
+  测试用 `expect(messages).toBe(before)` 钉住这件事。
+
+### 33.2 token 口径：上游密度 × 中文校正
+
+上游是 `text.length / 4`（英文字符密度）。中文照这个算会低估约 4 倍，所以字符计量走
+`vendor/dsh/token-meter/measure.ts`：**ASCII 记 1，其余 code point 记 4**。于是
+「4 个 ASCII = 1 token」「1 个汉字 = 1 token」—— 与本仓库旧 `estimateTokens` 完全等值，
+换的只是「谁定义块开销与角色框」。
+
+块价：文本/推理 `ceil(chars/4) + 4`、工具调用 `ceil(name/4) + ceil(args/4) + 4`、
+图片按结构 JSON；每条回合再加 `ROLE_OVERHEAD = 4`（system 回合例外，走 `estimateSystemMessage`，
+不加块开销）。所以 40 个 ASCII 的 user 回合 = `10 + 4 + 4 = 18`，比旧口径多 4（保守方向）。
+
+### 33.3 对账：`pnpm vendor:audit`
+
+`scripts/vendor-audit.mjs` 做三件事：许可原文在不在（含 `MIT License` 与上游版权行）、
+每个目标文件在不在且 `targetSha256` 对得上、上游快照在的话连 `sourceSha256` 一起对。
+合上游改动后跑 `--update` 重写哈希 —— **手改搬来的算法必须同时改 MANIFEST 的 `adaptedNotes`**。
+
+### 33.4 测试
+
+- `tokenEstimate.test.ts`（5 例）：ASCII 密度、中文 1 字 1 token、40 ASCII 回合 = 18、空回合、贴图 `+1000/张`。
+- `toolResultPrune.test.ts`（5 例）：预算内不动、超长保头 4096 + 标记 + 保尾 1024、只剪 `tool` 回合、
+  只剪指定区间、emoji 不出 lone surrogate。
+- `contextGate.test.ts`：`estimateTurns` 期望 14 → 18；贴图两例改 `18+1000` / `18+2000`；
+  新增「先剪工具结果，再考虑压回合」4 例（只剪不压 / 剪完还超才压 / `pruneToolResults:false` / 注记出现条件）。
+
+### 33.5 还没做
+
+- **`compaction-basic` 本体没搬**：它的可压缩区间选择绑 `SessionSeq` / `EpochHeader`，
+  搬它等于搬会话模型；目前区间选择仍是本仓库 `planCompaction`。
+- **`pruneSession()` 没搬**：要上游 Session 与 shadow-price 事件协议。
+- **图片价仍是 1000/张的粗估**：上游图像 offload 后按引用价算，那是 route 的账。

@@ -540,7 +540,10 @@ export function registerAiAgentCoreIpc(): void {
          * 却没有任何解释。这条事件就是那句解释。
          */
         onCompact: (info) => {
-          logger.info('[ipc/aiAgentCore] 循环内上下文压缩:', JSON.stringify(info));
+          logger.info('[ipc/aiAgentCore] 循环内上下文闸门:', JSON.stringify(info));
+          // 只剪了工具结果、一条回合都没压时**不发**事件：界面那句「省略 N 条早先回合」
+          // 在 N = 0 时是假话（原文还在，只是中间几千字被掐掉了，且没有摘要替换它）。
+          if (info.dropped <= 0) return;
           emit('ai:compact', {
             projectPath,
             dropped: info.dropped,

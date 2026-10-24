@@ -16,6 +16,7 @@ import {
   makeTurnSummarizer,
   planCompaction,
 } from '@main/services/agent-core/contextGate'
+import { PRUNE_MARKER } from '@main/vendor/dsh/tool-result-pruner/config'
 import type { ChatTurn } from '@main/services/agent-core/core'
 
 const turn = (role: ChatTurn['role'], content: string, name?: string): ChatTurn =>
@@ -34,16 +35,22 @@ describe('★ token 估算', () => {
     expect(estimateTokens('ab中文')).toBe(3)
   })
 
-  it('逐条相加时带一点结构开销', () => {
-    expect(estimateTurns([turn('user', ascii(40))])).toBe(14)
+  it('逐条相加时带结构开销与角色框（定价算法来自 vendor/dsh/token-meter）', () => {
+    // 40 个 ASCII = 10 token 密度 + 4 块结构开销 + 4 角色框
+    // 旧实现只加 4（角色框），换成上游算法后每条多 4 —— 保守方向，不是回归
+    expect(estimateTurns([turn('user', ascii(40))])).toBe(18)
   })
 
   it('★ 贴图按张计 1000 token（不算的话贴图的人以为还有余量）', () => {
-    const withImages: ChatTurn = { role: 'user', content: ascii(40), images: ['data:image/png;base64,AA'] }
-    expect(estimateTurns([withImages])).toBe(14 + 1000)
-    expect(estimateTurns([{ ...withImages, images: ['a', 'b'] }])).toBe(14 + 2000)
+    const withImages: ChatTurn = {
+      role: 'user',
+      content: ascii(40),
+      images: ['data:image/png;base64,AA'],
+    }
+    expect(estimateTurns([withImages])).toBe(18 + 1000)
+    expect(estimateTurns([{ ...withImages, images: ['a', 'b'] }])).toBe(18 + 2000)
     // 没图的回合不多算
-    expect(estimateTurns([turn('user', ascii(40))])).toBe(14)
+    expect(estimateTurns([turn('user', ascii(40))])).toBe(18)
   })
 })
 
@@ -171,5 +178,66 @@ describe('★ 就地落地', () => {
       summarize: async () => '读过 flow.json 的两个节点',
     })
     expect(messages[2]!.content).toContain('读过 flow.json 的两个节点')
+  })
+})
+
+describe('★ 先剪工具结果，再考虑压回合', () => {
+  const huge = (n: number): string => 'x'.repeat(n)
+
+  it('★ 剪完回到预算内：一条回合都不丢，只留剪枝标记', async () => {
+    const messages: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+    ]
+    const outcome = await applyCompaction(messages, { budgetTokens: 20_000, keepRecentTurns: 2 })
+    expect(outcome).not.toBeNull()
+    // 中段两条被剪，剪完总数回到预算内 → 不压回合、不加注记
+    expect(outcome!.dropped).toBe(0)
+    expect(outcome!.pruned).toBe(2)
+    expect(messages).toHaveLength(6)
+    expect(messages[2]!.content).toContain(PRUNE_MARKER)
+    expect(messages[3]!.content).toContain(PRUNE_MARKER)
+    // 尾部保留区不动（推理链不能半剪）
+    expect(messages[5]!.content).toBe(huge(20_000))
+    expect(messages.some(m => m.content.startsWith(COMPACTION_NOTE_HEAD))).toBe(false)
+  })
+
+  it('剪完还超预算：照旧压回合，两件事的计数各自如实', async () => {
+    const messages: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+    ]
+    const outcome = await applyCompaction(messages, { budgetTokens: 4_000, keepRecentTurns: 2 })
+    expect(outcome!.pruned).toBe(2)
+    expect(outcome!.dropped).toBe(2)
+    expect(messages).toHaveLength(5)
+    expect(messages[2]!.role).toBe('system')
+    expect(messages[2]!.content.startsWith(COMPACTION_NOTE_HEAD)).toBe(true)
+  })
+
+  it('pruneToolResults: false 时退回纯压回合（给不想剪的人留开关）', async () => {
+    const messages: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+      turn('tool', huge(20_000), 'read_file'),
+    ]
+    const outcome = await applyCompaction(messages, {
+      budgetTokens: 20_000,
+      keepRecentTurns: 2,
+      pruneToolResults: false,
+    })
+    expect(outcome!.pruned).toBe(0)
+    expect(outcome!.dropped).toBe(2)
   })
 })

@@ -1,0 +1,73 @@
+{
+  "upstream": {
+    "project": "deepseek-ai/deepseek-harness",
+    "url": "https://github.com/deepseek-ai/deepseek-harness",
+    "version": "0.2.1-rc.3",
+    "tag": "dsh-v0.2.1-rc.3",
+    "license": "MIT",
+    "licenseFile": "src/main/vendor/dsh/LICENSE",
+    "snapshot": "deepseek-harness-master/deepseek-harness-master",
+    "vendoredAt": "2026-10-25",
+    "adaptationPolicy": "去 Cordis 化：只搬纯算法，不搬 Service / Session 重放 / Context 注入"
+  },
+  "files": [
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/llm/token-meter/src/estimate.ts",
+      "sourceSha256": "30ecc576a77aa3a65fb8173c551e13d7651ddba2d7bbd907845a003f17ee189d",
+      "targetPath": "src/main/vendor/dsh/token-meter/estimate.ts",
+      "targetSha256": "718af42c4cf869bb1c82613ba2ef1747271c846e9b1e4d314da23f15a3831856",
+      "adaptedNotes": [
+        "类型改从本地 ./types 取，不依赖 @deepseek-ai/dsh-llm / dsh-session",
+        "字符计量改走 ./measure（上游直接 text.length / 4，对中文低估约 4 倍）",
+        "导出 CHARS_PER_TOKEN / BLOCK_OVERHEAD（适配层要用同一个数）",
+        "删掉 estimateToolsTokens（依赖 EpochHeader，本仓库没有该模型）"
+      ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/compaction/compaction-tool-result-pruner/src/config.ts",
+      "sourceSha256": "8538c8b2b3bd7b2b085a86119b694f7934e308a5c4b7f4406e963b190b6eaa98",
+      "targetPath": "src/main/vendor/dsh/tool-result-pruner/config.ts",
+      "targetSha256": "c1df51f419e4b3259bca1212c27a0a962a19fae5f55209b44d48b81da4cfcddb",
+      "adaptedNotes": [
+        "deepFreeze 从 @deepseek-ai/dsh-util-values 改成本文件内的等价实现（递归 Object.freeze）",
+        "注释按本仓库习惯加了中文说明，校验逻辑与默认值一字未改"
+      ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/compaction/compaction-tool-result-pruner/src/types.ts",
+      "sourceSha256": "7f2604d2ca5ac6d8b7b2a4cf5d87a98356a7565bcde37e70c69eb4cfcb138956",
+      "targetPath": "src/main/vendor/dsh/tool-result-pruner/types.ts",
+      "targetSha256": "7dd83a37770fb4b0045eeaf03a7c91a223ea8f916e16d30482494260db198abc",
+      "adaptedNotes": [
+        "删掉 PrunedEntry / PruneResult（绑 SessionSeq / ToolCallId，本仓库不搬 pruneSession）"
+      ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/compaction/compaction-tool-result-pruner/src/index.ts",
+      "sourceSha256": "2890f336ca42f9d8259794eebbc4a9423f69a7394c41796b9981216ed29ed536",
+      "targetPath": "src/main/vendor/dsh/tool-result-pruner/prune.ts",
+      "targetSha256": "b8586379b71340d1b730eff64f15acc9a7bc03d9d416226b6bf01853948e78a6",
+      "adaptedNotes": [
+        "只取 ToolResultPruner.measureContent 与 .pruneContent，提成纯函数（this.config 改入参）",
+        "剪枝逻辑未改：按 code point 切、标记只插一次、剪后必须更小且不超阈值的自检都保留",
+        "没有搬 pruneSession()（要上游 Session 与 shadow-price 事件协议）与 Cordis Service 外壳"
+      ]
+    },
+    {
+      "kind": "adaptation",
+      "targetPath": "src/main/vendor/dsh/token-meter/measure.ts",
+      "targetSha256": "a4dd8d0cb9ea72f545e15033b499368624fbb7f3aeb2c4eb9da2e83271e9ac05",
+      "purpose": "字符计量：ASCII 记 1、宽字符记 4（上游无此文件，是中文口径的适配层）"
+    },
+    {
+      "kind": "adaptation",
+      "targetPath": "src/main/vendor/dsh/token-meter/types.ts",
+      "targetSha256": "1ecda9f3223bcfc7360a4e92a8f71b73578a1990d0c3700dc08d139a1e24773c",
+      "purpose": "上游 ContentBlock / Message 类型的最小垫片（不依赖上游包）"
+    }
+  ]
+}

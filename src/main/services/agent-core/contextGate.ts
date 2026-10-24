@@ -13,8 +13,11 @@
 // 结果就是一条纯内容，没有配不上的调用 —— 真正会丢的是上面那句任务。
 //
 // 摘要两档（与 ai/contextDigest 同一纪律）：有模型先用模型，失败/空退回确定性摘要。
-import type { ChatTurn } from './core'
 import type { DigestLlm } from '../ai/contextDigest'
+import type { ToolResultPruneConfig } from '../../vendor/dsh/tool-result-pruner/types'
+import { estimateTextTokens, estimateTurnTokens } from './tokenEstimate'
+import { pruneToolTurns, TOOL_PRUNE_DEFAULTS } from './toolResultPrune'
+import type { ChatTurn } from './core'
 
 /** 循环内预算默认值：与助手的 `AUTHOR_PROFILE.conversationTokenBudget` 同量级 */
 export const LOOP_TOKEN_BUDGET_DEFAULT = 80_000
@@ -29,42 +32,23 @@ const MAX_SUMMARY_ITEM_CHARS = 400
 /** 模型摘要回来的上限（再长就不像"备忘录"了） */
 export const MAX_SUMMARY_CHARS = 1200
 
-/**
- * 一张图按多少 token 估。
- *
- * 与 ai/tokenBudget 的 IMAGE_TOKENS 同一个口径（1024×1024 一档约 1000），
- * 但**不 import 过来**：那个模块是助手链路的一整包（预算/测量/日志），
- * 循环入口只想要一个常数。两处数字若哪天分叉，注释会指路。
- */
-const IMAGE_TOKENS = 1000
-
 export const COMPACTION_NOTE_HEAD = '【本轮上下文已压缩（摘要非原文，需要细节请重读文件）】'
 
 /**
- * 估算一段文本的 token 数。
+ * 估算一段文本的 token 数（委托 `tokenEstimate`，定价算法来自 vendor/dsh/token-meter）。
  *
- * 不用 `length / 3`（旧实现的写法）：中文在主流分词器里约等于 1 字符 1 token，
- * 除以 3 会把"已经 80k 了"误判成"才 27k"，压到一半才发现爆了。
- * 这里 ASCII 按 4 字符 1 token、其余按 1 字符 1 token —— 粗糙但**偏保守**，
- * 宁可早压一次，也不要等厂商 400。
+ * 口径没变：ASCII 4 字符 1 token、其余 1 字符 1 token —— 粗糙但**偏保守**，
+ * 宁可早压一次，也不要等厂商 400。为什么换成上游算法、中文怎么校正，
+ * 见 `tokenEstimate.ts` 的头注释与 `vendor/dsh/README.md`。
  */
 export function estimateTokens(text: string): number {
-  let ascii = 0
-  let wide = 0
-  for (const ch of text) {
-    if ((ch.codePointAt(0) ?? 0) < 0x80) ascii += 1
-    else wide += 1
-  }
-  return Math.ceil(ascii / 4) + wide
+  return estimateTextTokens(text)
 }
 
-/** 一段对话的 token 估算（逐条相加，留一点每条的结构开销） */
+/** 一段对话的 token 估算（逐条相加：内容块 + 角色框 + 图片，定义权在 `tokenEstimate`） */
 export function estimateTurns(turns: readonly ChatTurn[]): number {
   let total = 0
-  for (const turn of turns) {
-    // 图片按张估（base64 长度当文字算会把预算判断成爆表）
-    total += estimateTokens(turn.content ?? '') + 4 + (turn.images?.length ?? 0) * IMAGE_TOKENS
-  }
+  for (const turn of turns) total += estimateTurnTokens(turn)
   return total
 }
 
@@ -75,6 +59,11 @@ export interface CompactionOptions {
   keepRecentTurns?: number
   /** 语义摘要（可选）：给了就先试它，抛错/空串退回确定性摘要 */
   summarize?: (dropped: readonly ChatTurn[]) => Promise<string | undefined>
+  /**
+   * 摘要之前先剪工具结果：`false` 关掉，给对象就用它的预算。
+   * 默认 {@link TOOL_PRUNE_DEFAULTS}（上游 `DEFAULTS` 的同一组数：8k / 4k / 1k）。
+   */
+  pruneToolResults?: ToolResultPruneConfig | false
 }
 
 export interface CompactionPlan {
@@ -88,7 +77,10 @@ export interface CompactionPlan {
 }
 
 export interface CompactionOutcome {
+  /** 被摘要替换掉的回合数；只剪不压时为 0 */
   dropped: number
+  /** 摘要之前先剪了几条超长工具结果（剪完可能就不需要压了） */
+  pruned: number
   tokensBefore: number
   tokensAfter: number
 }
@@ -222,13 +214,39 @@ export async function applyCompaction(
   opts?: CompactionOptions,
 ): Promise<CompactionOutcome | null> {
   if (!opts) return null
-  const plan = planCompaction(messages, opts)
+  const pruneConfig = opts.pruneToolResults ?? TOOL_PRUNE_DEFAULTS
+  let plan = planCompaction(messages, opts)
   if (!plan) return null
+
+  /**
+   * **先剪，再压**（2026-10-25）：把中段里超长的工具结果掐成「保头 + 标记 + 保尾」，
+   * 剪完若回到预算内就一条回合都不丢 —— 保头保尾的原文（路径、报错、文件尾部的导出）
+   * 比一段摘要有用，而且这一步确定、不用多调一次模型。
+   * 剪完还超，才走原来的摘要压缩。
+   */
+  const pruned =
+    pruneConfig === false
+      ? { pruned: 0, charsRemoved: 0 }
+      : pruneToolTurns(messages, plan.start, plan.end, pruneConfig)
+  if (pruned.pruned > 0) {
+    const retry = planCompaction(messages, opts)
+    if (!retry) {
+      return {
+        dropped: 0,
+        pruned: pruned.pruned,
+        tokensBefore: plan.tokensBefore,
+        tokensAfter: estimateTurns(messages),
+      }
+    }
+    plan = retry
+  }
+
   const summary = opts.summarize ? await opts.summarize(plan.dropped) : undefined
   const note = buildCompactionNote(plan.dropped, summary)
   messages.splice(plan.start, plan.end - plan.start, { role: 'system', content: note })
   return {
     dropped: plan.dropped.length,
+    pruned: pruned.pruned,
     tokensBefore: plan.tokensBefore,
     tokensAfter: estimateTurns(messages),
   }

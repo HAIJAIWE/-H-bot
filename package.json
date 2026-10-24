@@ -52,7 +52,8 @@
     "docs:nodes:check": "node scripts/gen-nodes-reference.mjs --check",
     "audit:baseline": "node scripts/audit-baseline.mjs",
     "audit:baseline:check": "node scripts/audit-baseline.mjs --check",
-    "audit:surface": "node scripts/audit-surface.mjs"
+    "audit:surface": "node scripts/audit-surface.mjs",
+    "vendor:audit": "node scripts/vendor-audit.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.1",
