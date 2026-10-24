@@ -157,12 +157,15 @@ export const HomePanel = memo(function HomePanel() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="max-w-4xl space-y-6 px-6 py-5">
+      {/* 中栏会被两侧面板挤窄（最小到 380px），所以内边距与按钮排布都按窄屏收敛 */}
+      {/* 用容器查询（@container）而不是视口断点：中栏被两侧面板挤窄时视口仍然很宽，
+          sm:/md: 这类按窗口的断点全部会误判，之前主页面就是这么被挤坏的。 */}
+      <div className="@container mx-auto max-w-4xl space-y-5 px-3 py-4 @md:px-6 @md:py-5">
         <section>
           <h2 className="mb-2 text-xs font-medium text-zinc-500">{t('launch.home.currentProject')}</h2>
           {currentProject ? (
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 @md:flex-row @md:items-start @md:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-zinc-200">
@@ -181,7 +184,7 @@ export const HomePanel = memo(function HomePanel() {
                     {currentProject.path}
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     variant="secondary"
@@ -229,7 +232,7 @@ export const HomePanel = memo(function HomePanel() {
 
         <section>
           <h2 className="mb-2 text-xs font-medium text-zinc-500">{t('launch.home.quickStart')}</h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 @md:grid-cols-3 @4xl:grid-cols-5">
             {QUICK_ENTRIES.map((entry) => {
               const Icon = entry.icon;
               return (
@@ -249,9 +252,9 @@ export const HomePanel = memo(function HomePanel() {
         </section>
 
         <section>
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xs font-medium text-zinc-500">{t('launch.home.recent')}</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1">
               <Button size="sm" variant="ghost" onClick={() => void loadRecents()} loading={loading}>
                 {t('launch.common.refresh')}
               </Button>
@@ -292,10 +295,10 @@ export const HomePanel = memo(function HomePanel() {
               {recents.map((recent) => (
                 <li
                   key={recent.path}
-                  className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-800/40"
+                  className="flex flex-col gap-2 px-3 py-2 hover:bg-zinc-800/40 @md:flex-row @md:items-center @md:gap-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="truncate text-sm text-zinc-200">{recent.name}</span>
                       <span className="shrink-0 text-[11px] text-zinc-500">
                         {t('launch.home.lastOpened', { time: formatDateTime(recent.lastOpenedAt) })}
@@ -305,30 +308,32 @@ export const HomePanel = memo(function HomePanel() {
                       {recent.path}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    loading={busyPath === recent.path}
-                    onClick={() => void openProject(recent.path)}
-                  >
-                    {t('launch.home.open')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    title={t('launch.home.openFolder')}
-                    aria-label={t('launch.home.openFolder')}
-                    onClick={() => void openFolder(recent.path)}
-                    leftIcon={<Folder size={13} />}
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    title={t('launch.home.remove')}
-                    aria-label={t('launch.home.remove')}
-                    onClick={() => void removeRecent(recent.path)}
-                    leftIcon={<X size={13} />}
-                  />
+                  <div className="flex shrink-0 items-center justify-end gap-1">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={busyPath === recent.path}
+                      onClick={() => void openProject(recent.path)}
+                    >
+                      {t('launch.home.open')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={t('launch.home.openFolder')}
+                      aria-label={t('launch.home.openFolder')}
+                      onClick={() => void openFolder(recent.path)}
+                      leftIcon={<Folder size={13} />}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={t('launch.home.remove')}
+                      aria-label={t('launch.home.remove')}
+                      onClick={() => void removeRecent(recent.path)}
+                      leftIcon={<X size={13} />}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>

@@ -1,5 +1,5 @@
 // src/renderer/src/components/layout/ThreeColumn.tsx
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useUiStore } from '../../stores/uiStore';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { LeftPanel } from './LeftPanel';
@@ -62,6 +62,33 @@ function ResizeHandle({
   );
 }
 
+/** 中间栏最小宽度：主页面、画布、代码编辑器都要横向空间。
+ *  两侧宽度是可拖拽并持久化的，窗口变小后会把中间栏挤到没法用（曾经出现过只剩 250px 的主页面），
+ *  所以渲染时按视口收敛一次 —— 只影响这一次布局，不改用户存下来的宽度，窗口拉大就恢复。 */
+const MIN_CENTER_WIDTH = 380;
+const MIN_SIDE_WIDTH = 180;
+
+function fitPanels(
+  viewport: number,
+  leftWidth: number,
+  rightWidth: number,
+  leftCollapsed: boolean,
+  rightCollapsed: boolean,
+): { left: number; right: number } {
+  let left = leftCollapsed ? 0 : leftWidth;
+  let right = rightCollapsed ? 0 : rightWidth;
+  if (left + right <= viewport - MIN_CENTER_WIDTH) return { left, right };
+
+  // 先压右侧（AI 面板），不够再压左侧（节点库）；压到最小仍放不下就让内容溢出隐藏。
+  let excess = left + right - (viewport - MIN_CENTER_WIDTH);
+  const rightRoom = Math.max(0, right - MIN_SIDE_WIDTH);
+  const shrinkRight = Math.min(excess, rightRoom);
+  right -= shrinkRight;
+  excess -= shrinkRight;
+  if (excess > 0) left = Math.max(MIN_SIDE_WIDTH, left - excess);
+  return { left, right };
+}
+
 export function ThreeColumn() {
   useLocaleSubscription();
   const leftCollapsed = useUiStore((s) => s.leftPanelCollapsed);
@@ -70,6 +97,14 @@ export function ThreeColumn() {
   const rightWidth = useUiStore((s) => s.rightPanelWidth);
   const setLeftWidth = useUiStore((s) => s.setLeftPanelWidth);
   const setRightWidth = useUiStore((s) => s.setRightPanelWidth);
+
+  const [viewport, setViewport] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setViewport(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const fitted = fitPanels(viewport, leftWidth, rightWidth, leftCollapsed, rightCollapsed);
 
   const leftWidthRef = useRef(leftWidth);
   const rightWidthRef = useRef(rightWidth);
@@ -92,7 +127,7 @@ export function ThreeColumn() {
     <main className="flex-1 flex overflow-hidden" role="main">
       {!leftCollapsed && (
         <>
-          <div style={{ width: leftWidth }} className="shrink-0 overflow-hidden flex flex-col">
+          <div style={{ width: fitted.left }} className="shrink-0 overflow-hidden flex flex-col">
             <LeftPanel />
           </div>
           <ResizeHandle direction="left" onDragStart={startLeftDrag} />
@@ -121,7 +156,7 @@ export function ThreeColumn() {
       {!rightCollapsed && (
         <>
           <ResizeHandle direction="right" onDragStart={startRightDrag} />
-          <div style={{ width: rightWidth }} className="shrink-0 overflow-hidden flex flex-col">
+          <div style={{ width: fitted.right }} className="shrink-0 overflow-hidden flex flex-col">
             <RightPanel />
           </div>
         </>
