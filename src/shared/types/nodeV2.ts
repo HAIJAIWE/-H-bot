@@ -65,11 +65,10 @@ export interface NodeSpecV2 {
   /**
    * 平台兼容性标注（多平台项目过滤可用节点用）。
    * - 'all'：跨平台可用（默认，未标注时视为 'all'）
-   * - 'onebot'：OneBot V11/V12 专属（QQ via NapCat/go-cqhttp 等、OneBot V12 协议端）
    * - 'qq'：QQ 官方 Bot API 专属
    * UI 可据此在多平台项目中提示哪些节点仅 QQ 可用，避免用户误用。
    */
-  platform?: 'all' | 'onebot' | 'qq';
+  platform?: 'all' | 'qq';
 
   /**
    * 节点要求的绑定能力（细粒度，机器可校验；见 shared/domain/common/capabilities.ts）。

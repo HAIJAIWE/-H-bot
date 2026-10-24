@@ -106,11 +106,6 @@ export function NodeSearchDialog() {
                   <div className="text-sm truncate">{spec.label}</div>
                   <div className="text-xs text-zinc-500 truncate">{spec.group}</div>
                 </div>
-                {spec.platform === 'onebot' && (
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-700/40 shrink-0">
-                    {t('palette.onebotOnly')}
-                  </span>
-                )}
                 {spec.platform === 'qq' && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40 shrink-0">
                     {t('palette.qqOfficial')}

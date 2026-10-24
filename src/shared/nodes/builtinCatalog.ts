@@ -70,10 +70,10 @@ const PLATFORM_ANNOTATIONS: Record<string, NonNullable<NodeSpecV2['platform']>> 
   battle_panel: 'qq',
   answer_interaction: 'qq',
   message_recall: 'all',
-  message_edit: 'onebot',
-  api_call: 'onebot',
-  group_op: 'onebot',
-  message_op: 'onebot',
+  message_edit: 'qq',
+  api_call: 'qq',
+  group_op: 'qq',
+  message_op: 'qq',
   button_clicked: 'qq',
 };
 

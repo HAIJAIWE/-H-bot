@@ -321,7 +321,7 @@ export const CATALOG_EN_US: CatalogCopy = {
   "on_ready": {
     "label": "Connection ready",
     "description": "Fires automatically once the bot connection is ready (lifecycle trigger)",
-    "summary": "Fires automatically once the bot connects to the OneBot implementation — for startup notices, data initialization, cache warm-up and registering scheduled tasks. Multiple \"Connection ready\" triggers run in order. Each runtime instance fires it only once (not on reconnect; never before connecting)",
+    "summary": "Fires automatically once the bot connects — for startup notices, data initialization, cache warm-up and registering scheduled tasks. Multiple \"Connection ready\" triggers run in order. Each runtime instance fires it only once (not on reconnect; never before connecting)",
     "tags": [
       "QQ",
       "Lifecycle",
@@ -599,7 +599,7 @@ export const CATALOG_EN_US: CatalogCopy = {
       },
       "inputs.message_id": {
         "name": "Message ID",
-        "description": "ID of the message to recall (OneBot protocol message ID, as a string)"
+        "description": "ID of the message to recall (as a string)"
       },
       "outputs.out": {
         "name": "Exit"
@@ -1664,12 +1664,11 @@ export const CATALOG_EN_US: CatalogCopy = {
   },
   "api_call": {
     "label": "API call",
-    "description": "Call the OneBot API",
-    "summary": "Call a OneBot protocol API (e.g. get_group_list) — for advanced protocol work",
+    "description": "Call the low-level protocol API",
+    "summary": "Call a low-level protocol API (e.g. get_group_list) — for advanced protocol work",
     "tags": [
       "QQ",
       "API",
-      "OneBot",
       "Action"
     ],
     "ports": {
@@ -1678,7 +1677,7 @@ export const CATALOG_EN_US: CatalogCopy = {
       },
       "inputs.action": {
         "name": "API name",
-        "description": "Name of the OneBot API to call"
+        "description": "Name of the protocol API to call"
       },
       "inputs.params": {
         "name": "Params",

@@ -142,11 +142,6 @@ function NewTabPage({ onNavigate }: { onNavigate: (url: string) => void }) {
         {[
           { icon: '🤖', label: t('launch.center.officialPlatform'), url: 'https://q.qq.com' },
           {
-            icon: '🔌',
-            label: t('launch.center.adapterOnebot'),
-            url: 'https://github.com/botuniverse/onebot-11',
-          },
-          {
             icon: '📘',
             label: t('launch.center.flowDoc'),
             url: 'https://www.typescriptlang.org/docs/',

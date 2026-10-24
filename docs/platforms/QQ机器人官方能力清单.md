@@ -76,7 +76,7 @@
 | QQ 群管理 | ✅ | 禁言 `restrict_chat_setting`、批量移除 `batch_remove_members`、入群审批策略、黑名单 | restrict_chat_setting / batch_remove_members |
 | 群成员 · 入群申请 · 消息审核事件 | ✅ | `GROUP_MEMBER_ADD` / `GROUP_JOIN_REQUEST` / `MESSAGE_AUDIT_PASS` / `MESSAGE_AUDIT_REJECT` | GROUP_MEMBER_ADD / GROUP_JOIN_REQUEST |
 | 自定义菜单 / 指令面板 | ✅ | `GET|PUT|DELETE /v2/menu`、`/v2/panels`（列表必须传 scope；一个机器人最多 20 个面板） | /v2/menu / /v2/panels |
-| QQ 频道 | ✅ | `send_channel_msg` 发送；`AT_MESSAGE_CREATE` / `MESSAGE_CREATE` 翻译成 OneBot 的 guild 消息 | send_channel_msg / AT_MESSAGE_CREATE |
+| QQ 频道 | ✅ | `send_channel_msg` 发送；`AT_MESSAGE_CREATE` / `MESSAGE_CREATE` 翻译成运行时的 guild 消息事件 | send_channel_msg / AT_MESSAGE_CREATE |
 
 > 「8 个接口」指前 8 行；后面 5 行是随 QQ 群 / 频道一起接进来的扩展能力，同样有实现锚点。
 
@@ -113,8 +113,8 @@
 
 | 事件 / 类别 | 状态 | 说明 |
 | --- | --- | --- |
-| `C2C_MESSAGE_CREATE` / `GROUP_AT_MESSAGE_CREATE` | ✅ 已翻译 | 单聊与群 @ 消息，转成 OneBot 的 message 事件（带 openid、msg_id、event_id） |
-| 机器人入群/退群、消息状态、好友、群成员、入群申请、频道与子频道变更 | ✅ 2026-10-04 补上 | 9 个通知事件由 `1<<25` 送达；`GROUP_ADD_ROBOT` / `SUBSCRIBE_MESSAGE_STATUS` / `GUILD_CREATE` 等统一转成 OneBot 的 notice 事件 |
+| `C2C_MESSAGE_CREATE` / `GROUP_AT_MESSAGE_CREATE` | ✅ 已翻译 | 单聊与群 @ 消息，转成运行时的 message 事件（带 openid、msg_id、event_id） |
+| 机器人入群/退群、消息状态、好友、群成员、入群申请、频道与子频道变更 | ✅ 2026-10-04 补上 | 9 个通知事件由 `1<<25` 送达；`GROUP_ADD_ROBOT` / `SUBSCRIBE_MESSAGE_STATUS` / `GUILD_CREATE` 等统一转成运行时的 notice 事件 |
 | `INTERACTION_CREATE` | ✅ 已翻译 | 按钮/快捷菜单互动，转成 `answer_interaction` 可回执的 notice |
 | `MESSAGE_CREATE`（频道全量） | ⚠️ 需私域权限 `1<<9` | 代码同一分支也认它；普通机器人收不到，别把它当成「频道消息收不到」的 bug |
 | `MESSAGE_AUDIT_PASS` / `MESSAGE_AUDIT_REJECT` | ⚠️ 主动消息审核结果 | 走 `1<<27`；只有被审核的主动消息才会有，普通对话看不到 |
@@ -157,7 +157,7 @@
 
 - `AT_MESSAGE_CREATE`（intent `1<<30`）：频道里 @机器人 的消息
 - `MESSAGE_CREATE`（intent `1<<9`，私域权限）：频道全量消息，同一分支也认
-- 两者都翻译成 OneBot 的 `message_type: 'guild'` 形状（带 `guild_id` / `channel_id` / `user_id`），
+- 两者都翻译成运行时事件的 `message_type: 'guild'` 形状（带 `guild_id` / `channel_id` / `user_id`），
   于是「收到消息」触发器选「频道消息」就能匹配
 - 2026-10-05 之前只能往频道发、收不到频道消息；这一节对应的就是那次补全
 

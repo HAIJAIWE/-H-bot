@@ -118,8 +118,8 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 
 | 闸门                                | 结果                                                               |
 | ----------------------------------- | ------------------------------------------------------------------ |
-| `vitest run --maxWorkers=2`（全量） | 230 文件通过 / 2928 例通过 / 10 skip（4 文件），0 failed           |
-| `tests/guards`                      | 13 文件 / 96 通过（含写闸门序列调用正控、NapCat 删除守卫）          |
+| `vitest run --maxWorkers=2`（全量） | 231 文件通过 / 2933 例通过 / 10 skip（4 文件），0 failed           |
+| `tests/guards`                      | 14 文件 / 101 通过（含写闸门序列调用正控、NapCat/OneBot 删除守卫） |
 | `node scripts/typecheck.mjs`        | node **0 错** / web **0 错**                                       |
 | `electron-vite build`               | EXIT=0（main/preload/renderer 三入口）                             |
 | 真机                                | 起窗、项目「还原验证项目」可选中、低代码页可编辑、console errors 0 |

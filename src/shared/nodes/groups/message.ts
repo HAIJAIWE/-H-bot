@@ -399,7 +399,7 @@ export const messageNodes: NodeSpecV2[] = [
         kind: 'data',
         dataType: 'string',
         required: true,
-        description: '要撤回的消息 ID（OneBot 协议消息 ID，字符串形式）',
+        description: '要撤回的消息 ID（字符串形式）',
       },
     ],
     outputs: [

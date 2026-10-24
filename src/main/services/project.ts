@@ -200,7 +200,7 @@ export class ProjectService {
     const envContent = [
       'ENVIRONMENT=prod',
       '',
-      '# 运行时连接的 OneBot 网关（TS 运行时作为 WS 客户端连接它）',
+      '# 运行时连接的翻译器网关（TS 运行时作为 WS 客户端连它）',
       'QQBOT_TRANSLATOR_HOST=127.0.0.1',
       `QQBOT_TRANSLATOR_PORT=${translatorPort}`,
       '',

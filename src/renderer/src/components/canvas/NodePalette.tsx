@@ -446,14 +446,6 @@ export function NodePalette() {
               {t('palette.composed')}
             </span>
           )}
-          {spec.platform === 'onebot' && (
-            <span
-              className="text-xs px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-700/40"
-              title={t('palette.onebotTitle')}
-            >
-              {t('palette.onebotOnly')}
-            </span>
-          )}
           {spec.platform === 'qq' && (
             <span
               className="text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40"

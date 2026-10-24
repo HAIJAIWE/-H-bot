@@ -325,8 +325,6 @@
     "addNodeAria": "添加节点: {name}（可拖拽到流程）",
     "composedTitle": "组装节点：由多个原子节点组合而成",
     "composed": "组装",
-    "onebotTitle": "OneBot 专属：仅 OneBot 协议端可用",
-    "onebotOnly": "QQ专属",
     "qqOfficialTitle": "QQ 官方专属：仅 QQ 官方 Bot API 可用",
     "qqOfficial": "QQ官方",
     "searchPlaceholder": "搜索节点...",
@@ -2085,7 +2083,6 @@
       "deploy": "🚀 部署项目"
     },
     "center": {
-      "adapterOnebot": "OneBot 协议",
       "flowDoc": "流程图文档",
       "officialPlatform": "QQ 机器人开放平台",
       "qqGroup": "QQ 群",
@@ -2230,7 +2227,7 @@
       "eventMessage": "消息",
       "eventReply": "回复",
       "noActivityHint": "启动机器人后，最近的运行事件会显示在这里",
-      "officialHint": "官方 API 模式：通过翻译器端口(1001/2001...)连接\nQQ 官方事件经翻译器转成 OneBot V11 格式后转发",
+      "officialHint": "官方 API 模式：通过翻译器端口(1001/2001...)连接\nQQ 官方事件经翻译器转发给运行时",
       "recentActivity": "最近动态",
       "running": "运行中",
       "runtimeStatus": "运行状态",
@@ -2430,7 +2427,7 @@
       }
     },
     "ports": {
-      "translator": "OneBot 翻译器 (WebSocket)",
+      "translator": "翻译器 (WebSocket)",
       "empty": "暂无活动端口",
       "autoRefresh": "每 5 秒自动刷新"
     },
@@ -2600,7 +2597,7 @@
       "open": "▶ 本地测试（真解释器 · 无副作用）",
       "prefix": "前缀",
       "previewFailed": "预览失败",
-      "readyHint": "连接就绪不看消息内容：会把这个流程里的「连接就绪」触发器逐个跑一遍，等于机器人刚连上 OneBot。",
+      "readyHint": "连接就绪不看消息内容：会把这个流程里的「连接就绪」触发器逐个跑一遍，等于机器人刚连上网关。",
       "resultNoMatch": "⏭️ 无匹配触发器",
       "resultTriggered": "✅ 已触发",
       "run": "▶ 运行测试",

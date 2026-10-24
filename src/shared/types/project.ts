@@ -75,40 +75,6 @@ export interface ResourceLimit {
   maxCPUPercent?: number
 }
 
-/**
- * 额外启用的多平台适配器（不含主 adapter）。
- *
- * 设计说明：
- * - 主 adapter（`adapter` 字段）决定 QQ 接入方式（当前只有 official）
- * - `botAdapters` 数组列出额外启用的非 QQ 平台适配器（如 Feishu/Kook/Telegram 等）
- * - botManager 启动时把主 adapter 对应的 OneBot V11 + botAdapters 合并写到 .env 的 BOT_ADAPTERS
- * - 空数组表示只用主 adapter（向后兼容，不写 BOT_ADAPTERS，bot.py 默认回退 OneBot V11）
- *
- * 显示名对应 bot.py 内置 `_ADAPTER_MAP` 的 key：
- *   'OneBot V11' | 'OneBot V12' | 'QQ' | 'Telegram' | 'Discord'
- *   | 'Kook' | 'Feishu' | 'Mirai2' | 'Satori' | 'Console'
- */
-export type BotAdapterName =
-  | 'OneBot V11'
-  | 'OneBot V12'
-  | 'QQ'
-  | 'Telegram'
-  | 'Discord'
-  | 'Kook'
-  | 'Feishu'
-  | 'Mirai2'
-  | 'Satori'
-  | 'Console'
-
-/**
- * 各平台凭据（写入 .env 的平台配置）。
- *
- * key 是环境变量名（如 FEISHU_APP_ID），value 是凭据值。
- * 凭据不进 project.json 的明文，由 UI 临时持有并直接写到 .env 文件。
- * 但为简化首版实现，先存到 project.json 的 platformCredentials，后续可改为加密存储。
- */
-export type PlatformCredentials = Record<string, string>
-
 export interface ProjectConfig {
   name: string
   qq?: string
@@ -139,16 +105,6 @@ export interface ProjectConfig {
   portBlock?: number
   // 翻译器端口：自动分配（从 portBlock 计算），用户不可修改
   translatorPort?: number
-  /**
-   * 额外启用的多平台适配器（不含主 adapter）。
-   * 空数组表示只用主 adapter，向后兼容旧行为。
-   */
-  botAdapters?: BotAdapterName[]
-  /**
-   * 各平台凭据。key 为平台显示名（如 'Feishu'），value 为环境变量字典（如 { FEISHU_APP_ID: '...', ... }）。
-   * botManager 启动时把这些 key=value 追加到 .env。
-   */
-  platformCredentials?: Record<BotAdapterName, PlatformCredentials>
   /** project.json 自身的结构版本（service 写入，用于以后的存档迁移）。 */
   projectSchemaVersion?: number
   createdAt: string

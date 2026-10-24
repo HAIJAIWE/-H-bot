@@ -325,8 +325,6 @@
     "addNodeAria": "Add node: {name} (draggable onto the flow)",
     "composedTitle": "Composite node: assembled from several atomic nodes",
     "composed": "Composite",
-    "onebotTitle": "OneBot only: requires an OneBot protocol backend",
-    "onebotOnly": "QQ only",
     "qqOfficialTitle": "QQ official only: requires the official QQ Bot API",
     "qqOfficial": "QQ official",
     "searchPlaceholder": "Search nodes...",
@@ -2085,7 +2083,6 @@
       "deploy": "Deploy project"
     },
     "center": {
-      "adapterOnebot": "OneBot protocol",
       "flowDoc": "Flowchart document",
       "officialPlatform": "QQ Bot Open Platform",
       "qqGroup": "QQ group",
@@ -2230,7 +2227,7 @@
       "eventMessage": "Message",
       "eventReply": "Reply",
       "noActivityHint": "Recent runtime events show up here once the bot is running",
-      "officialHint": "Official API mode: connects through a translator port (1001/2001...). QQ official events are converted to OneBot V11 by the translator and forwarded.",
+      "officialHint": "Official API mode: connects through a translator port (1001/2001...). QQ official events are forwarded to the runtime by the translator.",
       "recentActivity": "Recent activity",
       "running": "Running",
       "runtimeStatus": "Status",
@@ -2430,7 +2427,7 @@
       }
     },
     "ports": {
-      "translator": "OneBot translator (WebSocket)",
+      "translator": "Translator (WebSocket)",
       "empty": "No active ports",
       "autoRefresh": "Auto-refreshes every 5 seconds"
     },
@@ -2600,7 +2597,7 @@
       "open": "▶ Local test (real interpreter · no side effects)",
       "prefix": "Prefix",
       "previewFailed": "Preview failed",
-      "readyHint": "Connection-ready triggers ignore the message content: every \"connection ready\" trigger in this flow is run once, as if the bot had just connected to OneBot.",
+      "readyHint": "Connection-ready triggers ignore the message content: every \"connection ready\" trigger in this flow is run once, as if the bot had just connected to the gateway.",
       "resultNoMatch": "⏭️ No matching trigger",
       "resultTriggered": "✅ Triggered",
       "run": "▶ Run test",

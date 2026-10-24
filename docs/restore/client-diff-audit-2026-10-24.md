@@ -171,8 +171,8 @@ web 286 错；本轮已全部修到 **0 错**，`node scripts/typecheck.mjs` 两
 | 闸门 | 结果 |
 | --- | --- |
 | `electron-vite build` | EXIT 0（含 §五 i18n 改动） |
-| `tests/guards` | 13 文件 / 96 passed |
-| 全量 vitest（2026-10-24 删除 NapCat 全链路后复跑） | 230 文件 / 2928 passed + 10 skipped（2938 例）/ 0 failed |
+| `tests/guards` | 14 文件 / 101 passed |
+| 全量 vitest（2026-10-24 清掉 OneBot 用户可见面后复跑） | 231 文件 / 2933 passed + 10 skipped（2943 例）/ 0 failed |
 | `tsc`（`node scripts/typecheck.mjs`） | node **0 错** / web **0 错**（§八） |
 | 仓库自查脚本（2026-10-24 05:12） | check:catalog / identity / duplication / userdata / i18n×2 / docs:nodes:check / audit:baseline:check / audit / benchmark 全部 EXIT 0 |
 | `package.json` scripts | 30 条全部有实现，逐条实测（§七） |

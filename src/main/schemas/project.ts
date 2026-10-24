@@ -146,11 +146,6 @@ export const saveConfigSchema = createProjectSchema.extend({
   portBlock: z.number().int().positive().optional(),
   projectSchemaVersion: z.number().int().positive().optional(),
   createdAt: z.string().optional(),
-  /** 旧多平台适配器字段（10/18 已由 lark / dingtalk 取代）：保留以免老存档保存时被剥掉。 */
-  botAdapters: z.array(z.string()).optional(),
-  platformCredentials: z
-    .record(z.string(), z.record(z.string(), z.string()))
-    .optional()
 })
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>
