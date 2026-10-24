@@ -375,7 +375,15 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
   const visibleLeftPorts = isExpanded ? leftPorts : leftPorts.slice(0, COLLAPSED_PORT_LIMIT);
   const visibleRightPorts = isExpanded ? rightPorts : rightPorts.slice(0, COLLAPSED_PORT_LIMIT);
   const maxPortCount = Math.max(visibleLeftPorts.length, visibleRightPorts.length);
-  const hiddenPortCount = computeHiddenPortCount(
+  // 左右两侧各自统计溢出数量：折叠态只渲染前 COLLAPSED_PORT_LIMIT 个端口，
+  // 每侧各给一个 "+N" 胶囊。原来只算右侧 —— 左侧被截断时没有任何提示，
+  // 用户会以为节点本来就没有这些输入端口（channel_op 扩到 47 模式后尤其明显）。
+  const hiddenLeftPortCount = computeHiddenPortCount(
+    leftPorts.length,
+    isExpanded,
+    COLLAPSED_PORT_LIMIT,
+  );
+  const hiddenRightPortCount = computeHiddenPortCount(
     rightPorts.length,
     isExpanded,
     COLLAPSED_PORT_LIMIT,
@@ -816,15 +824,25 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
           document.body,
         )}
 
-      {/* 折叠态溢出端口提示（"+N" 在左下外，双击展开查看；与右下 AI 推荐按钮错开）
+      {/* 折叠态溢出端口提示（左右各一个 "+N" 胶囊，双击展开查看）
           原样式是 10px 的 zinc-500 纯文字，在深色画布上几乎看不见 —— 用户会以为
-          节点只有这几个端口。现在改成有底有边的胶囊，并在 tooltip 里说清怎么展开。 */}
-      {!isExpanded && hiddenPortCount > 0 && (
+          节点只有这几个端口。现在改成有底有边的胶囊，并在 tooltip 里说清怎么展开。
+          左侧胶囊贴左下；右侧胶囊贴右下但要避开 AI 推荐按钮（-right-1.5 的圆形按钮），
+          所以用 right-6 让出位置。 */}
+      {!isExpanded && hiddenLeftPortCount > 0 && (
         <span
           className="absolute -bottom-1 left-1.5 z-10 rounded border border-zinc-600 bg-zinc-800 px-1 text-[10px] leading-4 text-zinc-300 cursor-pointer hover:border-zinc-400 hover:text-zinc-100"
-          title={t('canvas.node.hiddenPorts', { count: hiddenPortCount })}
+          title={t('canvas.node.hiddenLeftPorts', { count: hiddenLeftPortCount })}
         >
-          +{hiddenPortCount}
+          +{hiddenLeftPortCount}
+        </span>
+      )}
+      {!isExpanded && hiddenRightPortCount > 0 && (
+        <span
+          className="absolute -bottom-1 right-6 z-10 rounded border border-zinc-600 bg-zinc-800 px-1 text-[10px] leading-4 text-zinc-300 cursor-pointer hover:border-zinc-400 hover:text-zinc-100"
+          title={t('canvas.node.hiddenRightPorts', { count: hiddenRightPortCount })}
+        >
+          +{hiddenRightPortCount}
         </span>
       )}
 

@@ -92,15 +92,19 @@ export function filterDataOutputs(
 
 /**
  * 计算折叠态溢出端口数（用于 "+N" 视觉提示）。
- * 展开态始终返回 0；折叠态返回右侧端口数超出 limit 的部分（不小于 0）。
+ * 展开态始终返回 0；折叠态返回该侧端口数超出 limit 的部分（不小于 0）。
+ *
+ * **左右两侧各调一次**：原来只算右侧，左侧被截断时没有任何提示 ——
+ * channel_op 扩到 47 模式后左端口一次挂出十几个，折叠卡只显示前 4 个且不报数，
+ * 看上去像是「这个节点压根没有这些输入」。
  */
 export function computeHiddenPortCount(
-  totalRightPorts: number,
+  totalPorts: number,
   expanded: boolean,
   limit = 4,
 ): number {
   if (expanded) return 0;
-  return Math.max(0, totalRightPorts - limit);
+  return Math.max(0, totalPorts - limit);
 }
 
 /**
