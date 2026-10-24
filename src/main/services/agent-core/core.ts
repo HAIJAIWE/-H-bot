@@ -16,6 +16,10 @@ import { runInSandbox } from './sandbox';
 import { runToolGroup } from './scheduler';
 import { parseFlow } from '../ai/flowIndex';
 import { normalizeFlow, validateFlow } from '@shared/nodes/flowNormalize';
+import { applyCompaction, type CompactionOptions, type CompactionOutcome } from './contextGate';
+import { MAX_TOOL_OUTPUT_CHARS, modelFacingOutput } from './toolOutput';
+
+export { MAX_TOOL_OUTPUT_CHARS, clampToolOutput } from './toolOutput';
 
 export interface ChatTurn {
   role: 'user' | 'assistant' | 'tool' | 'system';
@@ -91,48 +95,6 @@ export interface Tool {
 
 export const MAX_ROUNDS_DEFAULT = 12;
 
-/**
- * 单个工具结果回灌给模型的默认字符上限（≈8k token）。
- *
- * ## 为什么必须有
- *
- * 读一个 3000 行的文件 ≈ 100k 字符 ≈ 30k token。一次 `read_file` 就能把上下文撑爆，
- * 而模型的反应不是"报错"，是**开始胡说 + 忘掉前面的约束**（助手链路早就为这件事做过
- * 预算与溢出，见 ai/tokenBudget.ts；循环这一版此前是裸的）。
- *
- * ## 为什么保留头尾、而不是只留头
- *
- * 文件末尾常常是"这个文件到底导出了什么"（导出块 / 表的尾部），只留头会让模型以为
- * 文件里没有它。被省略的部分**明确写出来**（多少字），模型才知道自己看到的是节选。
- */
-export const MAX_TOOL_OUTPUT_CHARS = 24_000;
-
-/** 超长工具结果：保头尾，中间写清省略了多少字符 */
-export function clampToolOutput(
-  output: string,
-  limit = MAX_TOOL_OUTPUT_CHARS,
-  /** 完整内容的落盘路径（spill 成功时才有）；没给就如实说"没保存" */
-  locator?: string,
-): string {
-  if (output.length <= limit) return output;
-  const head = Math.floor(limit * 0.6);
-  const tail = limit - head;
-  const omitted = output.length - limit;
-  const howTo = locator
-    ? '完整内容已存到 ' +
-      locator +
-      '；要看别处就用 search_text 在那份文件里搜关键词，或分段 read_file。'
-    : '完整内容没有保存（这次没有可用的溢出存储），需要的话请用更小的范围重读。';
-  return (
-    output.slice(0, head) +
-    '\n\n…（中间省略 ' +
-    omitted +
-    ' 个字符。' +
-    howTo +
-    '）…\n\n' +
-    output.slice(output.length - tail)
-  );
-}
 
 /** 工作区内的相对路径解析：越界一律拒绝（绝对路径也不行） */
 export function resolveInWorkspace(workspace: string, rel: unknown): string {
@@ -256,29 +218,6 @@ async function walkFiles(
   await walk(workspace);
 }
 
-/**
- * 决定"模型看到的工具结果"：短的原样给，长的先落盘再给头尾节选。
- *
- * 三条规则（与 DSH 的 spill-policy 同构，实现是我们自己的）：
- *  1. 没超上限 → 原样；
- *  2. 超了且有溢出存储 → **完整落盘**，节选里带上路径与"怎么读回来"的指引；
- *  3. 超了但落盘失败 → **fail-open：不裁**。"没有出路的省略"比"上下文大一点"更糟
- *     （本仓库既有原则，见 ai/spillStore.ts 的注释）。
- *
- * 例外：**完全没有溢出存储**（脚本/测试）时按上限裁，并如实告诉模型"没保存" ——
- * 那种环境本来就没有恢复路径，留着原文只会把上下文撑爆。
- */
-async function modelFacingOutput(
-  toolName: string,
-  output: string,
-  opts: { maxToolOutputChars?: number; spill?: (name: string, text: string) => Promise<string | undefined> },
-): Promise<string> {
-  const limit = opts.maxToolOutputChars ?? MAX_TOOL_OUTPUT_CHARS;
-  if (output.length <= limit) return output;
-  if (!opts.spill) return clampToolOutput(output, limit);
-  const locator = await opts.spill(toolName, output);
-  return locator ? clampToolOutput(output, limit, locator) : output;
-}
 
 export const CORE_TOOLS: Tool[] = [
   {
@@ -560,6 +499,13 @@ export interface LoopOptions {
    * **不裁**（宁可上下文大一点，也不给一个没有出路的省略，与助手链路同一条规则）。
    */
   spill?: (toolName: string, text: string) => Promise<string | undefined>;
+  /**
+   * 每轮问模型前过一道上下文闸门（见 `./contextGate`）：默认不开，开了就按预算压中段。
+   * 跨轮历史由调用方裁（historyNote），这里管的是**同一轮里**只增不减的 messages。
+   */
+  compaction?: CompactionOptions;
+  /** 真的压了才回调（没超预算不会打扰调用方） */
+  onCompact?: (info: CompactionOutcome) => void;
 }
 
 /**
@@ -708,6 +654,9 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
     // 轮边界：先消费 inbox（中途插话），再问模型
     const injected = opts.inbox?.();
     if (injected) messages.push(injected);
+    // 问模型之前先看上下文装不装得下：撑爆时厂商不会报错，它只会截掉系统提示
+    const compacted = await applyCompaction(messages, opts.compaction);
+    if (compacted) opts.onCompact?.(compacted);
     const reply = await opts.model(messages);
     finalText = reply.text ?? '';
     const calls = reply.calls ?? [];

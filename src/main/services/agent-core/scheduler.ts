@@ -35,7 +35,7 @@ export interface ToolGroupDeps {
   results: ToolResultEntry[];
   maxParallel: number;
   isAborted: () => boolean;
-  /** 模型看到的结果（可能先落盘再给节选，见 core 的 modelFacingOutput） */
+  /** 模型看到的结果（可能先落盘再给节选，见 toolOutput 的 modelFacingOutput） */
   modelFacing: (name: string, output: string) => Promise<string>;
   onToolStart?: (call: ToolCall) => void;
   onToolResult?: (

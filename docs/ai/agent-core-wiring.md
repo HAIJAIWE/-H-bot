@@ -553,3 +553,39 @@ splice 语义），所以有完整历史、能回放、能校验"同一 id 不�
 
 要回放 / 分叉的话，正确做法是给 **history + trace** 这两份现有数据加读侧能力，
 而不是再造一份写侧。
+
+## 23. 循环内上下文压缩（2026-10-24，对齐 DSH 的 compaction）
+
+§10 的跨轮记忆是**两次对话之间**的事；§12.1 限制的是**单条工具结果**的大小。
+两件事都做了，循环**内部**仍然只增不减：每跑一次工具就多一条输出，12 轮 × 24k 字符
+足够撑爆任何窗口 —— 而撑爆时厂商不会礼貌报错，它要么 400，要么悄悄截掉最前面那段
+系统提示（那意味着模型开始忘了自己在改哪个项目）。
+
+现在每轮**问模型之前**过一道闸门（`src/main/services/agent-core/contextGate.ts`）：
+
+| 边界 | 规则 | 为什么 |
+|---|---|---|
+| 头部系统提示 | 永远保留 index 0 | 那里是项目规则与路径 |
+| 任务那句 | 保住紧随系统提示的那条 user | 90 字确定性摘要顶不上需求原文 |
+| 尾部 | 保留最近 `keepRecentTurns`（默认 8）条 | 正在进行的推理链不能半剪 |
+| 中段 | 压成**一条 system 注记** | 注记里写明「摘要非原文，要细节请重读文件」 |
+
+- **就地 splice，不换数组**：调度器与调用方拿着同一个 `messages` 引用，换新数组会出现两份对话；
+- **估 token 不再用 `length/3`**：ASCII 按 4 字符≈1 token、非 ASCII 按 1 字符=1 token，
+  旧的除法对中文低估约 3 倍，预算永远对不上（`makeContextService` 也改成同一口径）；
+- **摘要两档**：`QQBAT_CONTEXT_SUMMARY=model` 时先用模型（`makeTurnSummarizer`），
+  抛错/空就退回确定性摘要 —— 压缩是每轮都要走的路，模型服务抖一下不能让整轮报错；
+- **没有孤立工具结果的风险**：这个循环不把带 `tool_calls` 的 assistant 回合放进 `messages`
+  （结果就是一条纯内容），所以不存在"结果配不上调用"；真正的风险是任务那句被压掉。
+  这条也是最初设计走过弯路的地方：按"保留区不许以 tool 开头"往回让，会让 `dropped` 恒空、
+  **压缩永远不触发**，只有测试能抓住它。
+
+阈值与助手链路同源：`AUTHOR_PROFILE.conversationTokenBudget`（80k）。接线在
+`src/main/ipc/aiAgentCore.ts`（`compaction.budgetTokens` + `onCompact` 打日志）。
+同时把"单个工具结果给模型看多少"从 `core.ts` 拆成了 `toolOutput.ts`（`clampToolOutput` /
+`modelFacingOutput`）：那是**策略**，和循环控制无关，拆分后 core 离 800 行红线也更远。
+测试：`tests/main/services/agent-core/contextGate.test.ts`（16 例，含"就地改同一数组"）与
+`loopCompaction.test.ts`（4 例，跑真循环看 messages 峰值回落、系统提示与任务句仍在）。
+
+**还没做**：压缩发生时界面上没有提示（现在只有主进程日志）。要做就得开一个新事件并在
+`tests/guards/agentCoreEventContract.test.ts` 的 emit 清单里登记，别偷偷加。

@@ -20,6 +20,7 @@ import {
 import type { ApprovalRequest, TraceEvent } from './contracts';
 import { buildSystemPrompt, PLAN_ONLY_NOTE } from './prompt';
 import { listTools } from './core';
+import { estimateTokens, type CompactionOptions, type CompactionOutcome } from './contextGate';
 
 export interface RunTurnInput {
   projectPath: string;
@@ -89,6 +90,10 @@ export interface RunTurnInput {
   tools?: import('./core').Tool[];
   /** 工具结束（ok 显式给出时以它为准，没给看输出前缀） */
   onToolEnd?: (call: ToolCall, output: string, ok?: boolean) => void;
+  /** 循环内上下文闸门（见 ./contextGate）：不传 = 不压 */
+  compaction?: CompactionOptions;
+  /** 真的压了才回调（主进程日志/以后的界面提示靠它） */
+  onCompact?: (info: CompactionOutcome) => void;
 }
 
 export interface RunTurnResult {
@@ -104,7 +109,8 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
     sandbox: makeSandboxService(),
     approval: makeApprovalService(input.approval ?? (async () => false)),
     context: makeContextService({
-      estimate: (text) => Math.ceil(text.length / 3),
+      // 与 contextGate 同一口径：旧的 length/3 对中文低估约 3 倍，预算永远对不上
+      estimate: (text) => estimateTokens(text),
       compact: async (messages) => messages,
       spill: async (text) => text,
     }),
@@ -157,6 +163,8 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
     ...(input.onBeforeWrite ? { onBeforeWrite: input.onBeforeWrite } : {}),
     ...(input.maxRounds ? { maxRounds: input.maxRounds } : {}),
     ...(input.signal ? { signal: input.signal } : {}),
+    ...(input.compaction ? { compaction: input.compaction } : {}),
+    ...(input.onCompact ? { onCompact: input.onCompact } : {}),
   });
   return {
     finalText: result.finalText,

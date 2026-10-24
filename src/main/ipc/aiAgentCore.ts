@@ -44,6 +44,8 @@ import { readPreset, resolvePresetTools, writePresets } from '../services/ai/pre
 import { listMainPlugins, pluginOwnedTools } from '../services/plugins/host';
 import { scopeToolsByPlugins } from '../services/plugins/scoping';
 import { resolveSummaryLlm } from '../services/ai/summaryLlm';
+import { makeTurnSummarizer } from '../services/agent-core/contextGate';
+import { AUTHOR_PROFILE } from '@shared/agent/policy';
 import { summarizeDroppedHistory } from '../services/ai/contextDigest';
 import type { ApprovalRequest } from '../services/agent-core/contracts';
 import { logger } from '../services/infra/logger';
@@ -194,6 +196,11 @@ export function registerAiAgentCoreIpc(): void {
        * 只有前半句时，模型知道"有更早的对话"却不知道是什么，长任务里会重复问已经答过的事。
        */
       const summaryLlm = await resolveSummaryLlm(projectPath);
+      /**
+       * 循环内压缩的语义摘要器：只在 `QQBAT_CONTEXT_SUMMARY=model` 时存在。
+       * 没配模型就是 undefined → 压缩退回确定性摘要（压缩每轮都要走，不能靠外部服务）。
+       */
+      const turnSummarizer = makeTurnSummarizer(summaryLlm);
       const historyNote = [
         describeDropped(retention),
         await summarizeDroppedHistory(past, retention.kept, summaryLlm),
@@ -362,6 +369,15 @@ export function registerAiAgentCoreIpc(): void {
         history,
         ...(historyNote ? { historyNote } : {}),
         ...(maxRounds ? { maxRounds } : {}),
+        /**
+         * 循环内的上下文闸门：messages 在一轮里只增不减（每跑一次工具多一条输出），
+         * 12 轮 × 单条 24k 字符足够撑爆窗口。预算与助手链路同源（AUTHOR_PROFILE）。
+         */
+        compaction: {
+          budgetTokens: AUTHOR_PROFILE.conversationTokenBudget,
+          ...(turnSummarizer ? { summarize: turnSummarizer } : {}),
+        },
+        onCompact: (info) => logger.info('[ipc/aiAgentCore] 循环内上下文压缩:', JSON.stringify(info)),
         signal: ctrl.signal,
         // ── 流式观测：模型边吐字、工具边执行，界面就能边显示 ──
         onTextChunk: chunk,

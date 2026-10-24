@@ -9,7 +9,17 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const SKIP_DIRS = new Set(['node_modules', '.git', '_recovery', '_baseline', 'dist', 'out', 'projects'])
+// deepseek-harness-master：上游对照快照（.gitignore 里），是别人的源码，不是我们的栈
+const SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  '_recovery',
+  '_baseline',
+  'dist',
+  'out',
+  'projects',
+  'deepseek-harness-master',
+])
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
