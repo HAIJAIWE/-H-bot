@@ -8,6 +8,7 @@ import * as fs from "fs";
 import * as fs_promises from "fs/promises";
 import { decryptConfigSecret } from "../project/configSecrets";
 import { init_paths, legacyUserDataPath, userDataPathOrThrow } from "../infra/paths";
+import { canonicalProjectPath } from "../pathGuard";
 
 function appDataDir() {
 	return userDataPathOrThrow("officialConfig", electron.app);
@@ -88,15 +89,21 @@ function officialConfigFromEnv(env = process.env) {
 * 用户不会因为"新目录是空的"就被判定为未配置，凭据仍能从老地方读回来。
 */
 function legacyOfficialConfigFile(projectPath) {
-	const name = `${Buffer.from(projectPath).toString("base64url")}.json`;
-	const current = (0, path.join)(appDataDir(), name);
-	if ((0, fs.existsSync)(current)) return current;
+	// 文件名在旧实现里是 base64url(路径)。而旧文件是用 **canonicalProjectPath**（Windows 下全小写）
+	// 命名的 —— 真机踩到过：项目路径是 `E:\H Bot 制造\...`，旧文件却是 `e:\h bot 制造\...`，
+	// 拿原始路径去拼文件名会"查无此文件"，表现为「未配置 AppID 和 AppSecret」。
+	// 所以两种写法都试，和 monolithic 时代的候选列表保持一致。
+	const names = [projectPath, canonicalProjectPath(projectPath)]
+		.filter((v, i, arr) => v && arr.indexOf(v) === i)
+		.map((v) => `${Buffer.from(v).toString("base64url")}.json`);
+	const dirs = [appDataDir()];
 	const legacyDir = legacyUserDataPath("officialConfig", electron.app);
-	if (legacyDir) {
-		const legacy = (0, path.join)(legacyDir, name);
-		if ((0, fs.existsSync)(legacy)) return legacy;
+	if (legacyDir && legacyDir !== dirs[0]) dirs.push(legacyDir);
+	for (const dir of dirs) for (const name of names) {
+		const probe = (0, path.join)(dir, name);
+		if ((0, fs.existsSync)(probe)) return probe;
 	}
-	return current;
+	return (0, path.join)(dirs[0], names[0]);
 }
 /**
 * 文件里的 sandbox 允许被 env 覆盖：容器/远程不方便改加密配置，

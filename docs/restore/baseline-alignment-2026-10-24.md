@@ -22,12 +22,12 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 | --------------------------------- | --------------------------------------------------------- |
 | 打包产物 js                       | 25 个 / 5.6 MB（main 24 + renderer index）                |
 | 产物模块清单（region 去重）       | **594 个**                                                |
-| 恢复树 `src/*.ts(x)`              | 816 个（2026-10-24 依次清理 5 个 ops 副本、2 个翻译器、4 个 NapCat 模块、12 个 Python 旧栈 .ts 后；另新增 `translator/actions/aliases.ts` 旧动作名兼容表、`services/infra/sqlite.ts` + `nodeSqliteFallback.ts` 的 SQLite 统一入口、`components/launch/HomePanel.tsx` 主页面） |
+| 恢复树 `src/*.ts(x)`              | 822 个（2026-10-24 依次清理 5 个 ops 副本、2 个翻译器、4 个 NapCat 模块、12 个 Python 旧栈 .ts 后；另新增 `translator/actions/aliases.ts` 旧动作名兼容表、`services/infra/sqlite.ts` + `nodeSqliteFallback.ts` 的 SQLite 统一入口、`components/launch/HomePanel.tsx` 主页面；再把官方适配器统一到 `services/official/` 门面并删掉单文件 `services/official.ts`） |
 | 产物模块在树里的覆盖率            | **98.3%（584/594）**                                      |
 | 缺失                              | 10 个，**全部已登记理由**（未登记 0）                     |
-| 树里有、产物里没有 region         | 213 个（其中 33 个是纯类型/再导出，构建后本就不留模块名） |
-| 这 213 里，导出符号能在产物中搜到 | 83 个（被内联或改名，不是缺）                             |
-| 真的没进过这次构建                | **97 个**                                                 |
+| 树里有、产物里没有 region         | 219 个（其中纯类型/再导出构建后本就不留模块名）           |
+| 这 219 里，导出符号能在产物中搜到 | 84 个（被内联或改名，不是缺）                             |
+| 真的没进过这次构建                | **100 个**                                                |
 
 缺的 10 个（`--check` 里逐条写明了理由，`MISSING_OK`）：
 

@@ -180,7 +180,7 @@ web 286 错；本轮已全部修到 **0 错**，`node scripts/typecheck.mjs` 两
 
 补充（2026-10-24 收尾）：全量测试全绿后复跑 `electron-vite build` 又抓到一处 **MISSING_EXPORT** ——
 `src/main/services/builtinNodes/joinApproval.ts` 从 `persistentStore` 引 `validateStrategyGroups` /
-`validateWhitelistUsers`，两者真实定义在 `src/main/services/official.ts`；已改成从 `../official` 引入，
+`validateWhitelistUsers`，两者当时真实定义在单文件 `src/main/services/official.ts`（2026-10 已统一到 `services/official/validation.ts`）；已改成从 `../official` 引入，
 重建 EXIT 0。教训：**vitest 里缺失的命名导出会静默变 `undefined`（路径没被用例走到就全绿），只有
 rolldown 构建会报 MISSING_EXPORT** —— 所以 build 与 typecheck 必须一起当闸门。
 

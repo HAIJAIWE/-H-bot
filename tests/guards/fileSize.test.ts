@@ -118,8 +118,6 @@ const BASELINE: Record<string, string> = {
     '待拆（766 行 / 28 次）：又长又热但没过 800 线 —— 对话状态机，拆之前先补测试',
   'src\\main\\services\\builtinNodes\\builtinNodes.ts':
     '待拆（2,881 行）：内置节点的 TypeScript 实现本体 —— 一个 kind 一个 handler，全放在一个文件里。拆的路径清楚：按域拆（消息 / 群管 / 文件 / 数据库 / 时间 / 变量…），每个域一个文件、入口仍是同一张 kind→handler 表。当前登记、暂不拆：handler 之间共享大量小工具（参数解析 / 回复封装），先拆会把它们复制成三份',
-  'src\\main\\services\\official.ts':
-    '待拆（3,202 行）：QQ 官方机器人协议端 —— API 客户端 + 会话 + 媒体上传 + 流式分片 + 事件分发，一根线穿下来。拆的路径：media / stream / events 三块先出去（各自只有少量跨块状态），剩下的 client + session 保持一处',
   'src\\renderer\\src\\components\\blocks\\BlockView.tsx':
     '待拆（1,243 行）：低代码画布上的节点卡 —— 端口渲染 + 配置摘要 + 内联编辑 + 右键菜单都在这里。拆的路径：端口区 → PortsView、配置摘要 → ConfigSummary、内联编辑 → InlineEditors（各自只依赖 node + spec）',
   'src\\renderer\\src\\lib\\mockRunner.ts':

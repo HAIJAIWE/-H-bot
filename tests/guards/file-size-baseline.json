@@ -2,9 +2,6 @@
   "src/shared/nodes/i18n/catalog.en-US.ts": {
     "lines": 5910
   },
-  "src/main/services/official.ts": {
-    "lines": 3202
-  },
   "src/main/services/builtinNodes/builtinNodes.ts": {
     "lines": 3000
   },

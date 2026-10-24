@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T06:00:59.136Z",
+  "generatedAt": "2026-10-24T11:45:31.666Z",
   "baseline": {
     "kind": "packaged-client",
     "bundle": "_baseline/out-bundle",
@@ -8,7 +8,7 @@
     "regions": 594
   },
   "tree": {
-    "files": 816
+    "files": 822
   },
   "missing": {
     "total": 10,
@@ -83,9 +83,9 @@
     }
   ],
   "delta": {
-    "total": 213,
-    "symbolHit": 83,
-    "unshipped": 97,
+    "total": 219,
+    "symbolHit": 84,
+    "unshipped": 100,
     "unshippedFiles": [
       "src/main/ipc/aiAgentCore.ts",
       "src/main/ipc/aiAllowRules.ts",
@@ -124,6 +124,9 @@
       "src/main/services/infra/nodeSqliteFallback.ts",
       "src/main/services/infra/sqlite.ts",
       "src/main/services/messageQueue.ts",
+      "src/main/services/official/gatewayClose.ts",
+      "src/main/services/official/interactionEvent.ts",
+      "src/main/services/official/scene.ts",
       "src/main/services/plugins/aiPluginLoader.ts",
       "src/main/services/plugins/builtinHostPlugins.ts",
       "src/main/services/plugins/defaults.ts",

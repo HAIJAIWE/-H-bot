@@ -43,7 +43,7 @@ async function getTranslatorPort(projectPath: string): Promise<number> {
 }
 
 export function registerOfficialIpc(): void {
-  onOfficialStatusChange((projectPath, status, appId) => {
+  onOfficialStatusChange((projectPath: string, status: string, appId: string) => {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send('official:statusChange', { projectPath, status, appId })
@@ -51,7 +51,7 @@ export function registerOfficialIpc(): void {
     }
   })
 
-  onOfficialMessage((projectPath, message) => {
+  onOfficialMessage((projectPath: string, message: unknown) => {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send('official:message', { projectPath, message })

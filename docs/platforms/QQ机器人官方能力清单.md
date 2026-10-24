@@ -50,7 +50,7 @@
   把「群聊也可以流式」这种误用在类型层就写不出来；**拦群聊是调用方的责任**
   （见 `src/main/services/official/messages.ts` 的注释，以及 `builtinNodes.ts` 里流式节点只允许单聊的报错）
 - 群管理：禁言 `restrict_chat_setting`、批量移除成员 `batch_remove_members`、入群审批策略、
-  群黑名单、机器人状态查询等（具体端点见 `src/main/services/official.ts`）
+  群黑名单、机器人状态查询等（端点调用见 `src/main/services/translator/actions/group.ts` 与 `builtinNodes/joinApproval.ts`）
 
 ### 2.3 频道（QQ 频道）
 

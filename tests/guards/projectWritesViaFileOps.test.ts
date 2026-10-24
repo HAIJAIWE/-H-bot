@@ -687,12 +687,6 @@ const ALLOWED: Record<string, Allowed> = {
       '【系统/非项目】指标导出（用户选定路径 / appData）',
     counts: { writeFileSync: 2 },
   },
-
-  'src/main/services/official.ts': {
-    why:
-      '【系统/非项目】官方协议端：把各账号的登录态/配置持久化到 appData 的官方目录（<key>.json），不是项目目录',
-    counts: { writeFile: 1 },
-  },
   'src/main/services/bot/policy.ts': {
     why:
       '【应用自有数据】机器人用量记账与调用日志：.qqbat/bot-usage/<date>.json 与 .qqbat/bot-calls/<date>.log，路径 = projectPath + 固定目录/日期文件名；写失败只 warn，不影响回复',

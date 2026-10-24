@@ -4,6 +4,25 @@ import { apiBase, authFetch, getSession } from "./client";
 import { emitSystemLog } from "../runner/runtimeEvents";
 import { isLocalFileSource, uploadLocalFileByParts } from "./media";
 
+/** 官方发消息请求体：字段名/配对关系就是线上契约 */
+interface OfficialMessageBody {
+	msg_type: number;
+	content?: string;
+	markdown?: unknown;
+	keyboard?: unknown;
+	media?: { file_info: string };
+	input_notify?: { input_type: number; input_second: number };
+	is_wakeup?: boolean;
+	event_id?: string;
+	msg_id?: string;
+	msg_seq?: number;
+	message_reference?: unknown;
+	force_verify_image_resource?: boolean;
+}
+
+/** `error` 非空表示**本地就不该发**（例如输入中状态给了群聊），不是发送失败 */
+type BuildMessageBodyResult = { body: OfficialMessageBody; error: "" } | { body: null; error: string };
+
 /**
 * 把「输入中状态」的持续秒数夹到官方允许的 1~60 秒。
 *
@@ -62,7 +81,7 @@ function wrapKeyboardForApi(keyboard, appIdStr) {
 * 返回 `{ body: null, error }` 表示**本地就不该发**（例如输入中状态给了群聊）：
 * 与其发出去换一个与被测行为无关的错误码，不如在这里停下并说清原因。
 */
-function buildMessageBody(chatType, content, options, appId) {
+function buildMessageBody(chatType, content, options, appId): BuildMessageBodyResult {
 	const body = { msg_type: options.msgType ?? 0 };
 	if (options.ark || options.embed) return {
 		body: null,

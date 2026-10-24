@@ -69,7 +69,7 @@ function walk(dir: string, out: string[] = []): string[] {
  * ⚠️ 之前只匹配单引号，于是 ai:toolCall / ai:proposal / ai:agentStep 全被判成「没人发」，
  * 白名单越加越多 —— 那是扫描器坏了，不是代码坏了。
  */
-/** 这些接收者的 emit 是**进程内 EventEmitter**，不是往窗口发（services/official.ts 的 emitter 就是这种） */
+/** 这些接收者的 emit 是**进程内 EventEmitter**，不是往窗口发（services/official/client.ts 的 emitter 就是这种） */
 const IN_PROCESS_EMITTERS = new Set(['this', 'emitter', 'bus', 'hub', 'events', 'ee', 'eventEmitter']);
 
 export function collectSentChannels(files: readonly string[]): string[] {

@@ -38,10 +38,6 @@ const ALLOWED = {
     max: 2,
     reason: 'crashReporter 在 app ready 前可能被调用，不能依赖 paths 的懒加载',
   },
-  'src/main/services/official.ts': {
-    max: 1,
-    reason: '官方凭据旧位置（qqbat-data/official）迁移来源',
-  },
   'src/main/services/templates.ts': {
     max: 1,
     reason: '模板目录（<userData>/templates）尚未纳入 USER_DATA_LAYOUT',

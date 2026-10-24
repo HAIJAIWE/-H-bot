@@ -22,7 +22,7 @@
 // http(s) 直链由官方**服务端去拉**再转存（要求公网可访问）；
 // 本地文件（`C:\...`、`/tmp/x.png`）走官方**分片上传**，无需公网暴露。
 // 两者都不是的输入进 `unsupported` 并给出可读原因，**绝不静默丢弃**。
-import { mediaFileTypeOf, isLocalFileSource } from './official'
+import { mediaFileTypeOf, isLocalFileSource } from './official/media'
 
 export interface MediaPart {
   /** 官方 file_type：1 图片 / 2 视频 / 3 语音 / 4 文件 */

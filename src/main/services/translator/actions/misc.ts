@@ -1,6 +1,6 @@
 // @ts-nocheck
 // 由 10/18 打包产物还原（chunk: FlowRuntime-LedUoDmO.js）；见 _recovery/README-recovery.md
-// 校验实现只有一个真源：official.ts 里的纯函数（限 32 字符）。
+// 校验实现只有一个真源：official/validation.ts 里的纯函数（限 32 字符）。
 // 原来这里指到 builtinNodes/persistentStore，是产物还原时按 chunk 归属猜错的路径。
 import { validateCallbackData } from "../../official";
 

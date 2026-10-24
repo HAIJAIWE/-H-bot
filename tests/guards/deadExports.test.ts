@@ -343,28 +343,6 @@ const RESTORED_BASELINE: Record<string, string> = {
   'src\\main\\services\\ai\\scout.ts:scoutWithModel': RESTORED_REASON,
   'src\\main\\services\\benchmark.ts:runBenchmark': RESTORED_REASON,
 
-  // 官方 API 封装保持齐全（群成员管理 / 频道管理 / 公告 / 置顶 / 表情回应 / 黑名单）—— 本构建的界面没有这些入口，与 10/18 产物一致；待做管理面板时接线。
-  'src\\main\\services\\official.ts:addChannelPin': RESTORED_REASON,
-  'src\\main\\services\\official.ts:addChannelReaction': RESTORED_REASON,
-  'src\\main\\services\\official.ts:approveGroupJoinRequest': RESTORED_REASON,
-  'src\\main\\services\\official.ts:createChannelAnnounce': RESTORED_REASON,
-  'src\\main\\services\\official.ts:createGuildChannel': RESTORED_REASON,
-  'src\\main\\services\\official.ts:deleteChannelAnnounce': RESTORED_REASON,
-  'src\\main\\services\\official.ts:deleteGuildChannel': RESTORED_REASON,
-  'src\\main\\services\\official.ts:getBotSelf': RESTORED_REASON,
-  'src\\main\\services\\official.ts:getGroupMembers': RESTORED_REASON,
-  'src\\main\\services\\official.ts:getGuildChannel': RESTORED_REASON,
-  'src\\main\\services\\official.ts:listChannelPins': RESTORED_REASON,
-  'src\\main\\services\\official.ts:listChannelReactionUsers': RESTORED_REASON,
-  'src\\main\\services\\official.ts:listGroupJoinRequests': RESTORED_REASON,
-  'src\\main\\services\\official.ts:listGuildChannels': RESTORED_REASON,
-  'src\\main\\services\\official.ts:removeChannelPin': RESTORED_REASON,
-  'src\\main\\services\\official.ts:removeChannelReaction': RESTORED_REASON,
-  'src\\main\\services\\official.ts:removeGroupMembers': RESTORED_REASON,
-  'src\\main\\services\\official.ts:setGroupMemberMute': RESTORED_REASON,
-  'src\\main\\services\\official.ts:updateGroupBlacklist': RESTORED_REASON,
-  'src\\main\\services\\official.ts:updateGuildChannel': RESTORED_REASON,
-
   // 渲染层组件可编译但本构建无挂载点（BlockView 等旧画布视图）。已按客户端基准归档的组件见 _recovery/dead-renderer/。
   'src\\renderer\\src\\lib\\mockRunner.ts:simulateExecution': RESTORED_REASON,
 

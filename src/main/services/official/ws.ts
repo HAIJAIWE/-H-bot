@@ -5,6 +5,8 @@ import { emitStatus, emitter, ensureToken, getGatewayUrl, projectPathIndex, sess
 import { loadOfficialConfig } from "./config";
 import { BASE_INTENTS, OPTIONAL_INTENTS, dropLowestOptionalIntent, intentLabel, intentsOf, officialIntents } from "./intents";
 import { closeActionOf, closeReasonOf, fatalAdviceOf } from "./gatewayClose";
+import { parseMessageSceneExt } from "./scene";
+import type { ParsedOfficialEvent } from "./types";
 
 function connectWs(session, url, isResume) {
 	if (session.ws) try {
@@ -294,8 +296,26 @@ function stopHeartbeat(session) {
 * 表现为"官方渠道拿不到昵称"，看起来像平台限制。导出后可以对着
 * 官方文档的示例负载**逐字段**钉住（见 tests/main/services/officialEventParse.test.ts）。
 */
-function parseOfficialEvent(t, d) {
-	const event = {
+/** 对象或 JSON 字符串都认（官方部分字段在事件里是 JSON 字符串形态） */
+function asRecord(v) {
+	if (v && typeof v === "object" && !Array.isArray(v)) return v;
+	if (typeof v === "string" && v.trim().startsWith("{")) try {
+		const parsed = JSON.parse(v);
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+	} catch {}
+	return null;
+}
+/** 数组或 JSON 字符串都认 */
+function asArray(v) {
+	if (Array.isArray(v)) return v;
+	if (typeof v === "string" && v.trim().startsWith("[")) try {
+		const parsed = JSON.parse(v);
+		if (Array.isArray(parsed)) return parsed;
+	} catch {}
+	return null;
+}
+function parseOfficialEvent(t, d): ParsedOfficialEvent {
+	const event: ParsedOfficialEvent = {
 		type: t,
 		id: d.id || "",
 		content: d.content || "",
@@ -314,7 +334,8 @@ function parseOfficialEvent(t, d) {
 	event.messageType = Number(d.message_type ?? -1);
 	event.arkType = String(d.ark_type ?? "");
 	if (d.group_openid) event.groupOpenid = d.group_openid;
-	if (d.attachments && Array.isArray(d.attachments)) event.attachments = d.attachments.map((a) => ({
+	const rawAttachments = asArray(d.attachments);
+	if (rawAttachments) event.attachments = rawAttachments.map((a) => ({
 		contentType: a.content_type || "",
 		filename: a.filename || "",
 		url: a.url || "",
@@ -322,6 +343,31 @@ function parseOfficialEvent(t, d) {
 		height: a.height,
 		size: a.size
 	}));
+	// 结构化卡片（官方只支持收，不支持发）
+	const ark = asRecord(d.ark_data);
+	if (ark) {
+		const fields = asRecord(ark.fields);
+		event.arkData = {
+			arkType: String(ark.ark_type || ""),
+			arkName: String(ark.ark_name || ""),
+			prompt: String(ark.prompt || ""),
+			fields: fields ?? {}
+		};
+	}
+	// 嵌套消息元素（引用消息 103 / 聊天记录 102 等），原样保留给翻译器
+	const elements = asArray(d.msg_elements);
+	if (elements) event.msgElements = elements;
+	// 消息场景上下文：msg_idx 就是引用回复要用的 REFIDX
+	const scene = asRecord(d.message_scene);
+	if (scene) {
+		const ext = asArray(scene.ext) ?? [];
+		const kv = parseMessageSceneExt(ext);
+		event.messageScene = {
+			source: String(scene.source || ""),
+			ext: ext.filter((x) => typeof x === "string"),
+			refIdx: kv.msg_idx || ""
+		};
+	}
 	return event;
 }
 async function startOfficial(projectPath) {

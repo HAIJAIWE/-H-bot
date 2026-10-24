@@ -42,7 +42,8 @@ const CHECK = args.get("check") === "true";
 
 /**
  * region 有、树里没有的，必须在这里逐条说明为什么可以没有。
- * 只允许两类：①已裁决删除的重复实现（真源在别处）；②非模块（?raw 伪模块 / 改了扩展名）。
+ * 只允许三类：①已裁决删除的重复实现（真源在别处）；②非模块（?raw 伪模块 / 改了扩展名）；
+ * ③按决议拆分/合并成新模块（原文仍可从 _baseline/out-bundle 的 region 回溯）。
  */
 const MISSING_OK = {
   "src/main/services/ops/metricsExport.ts":

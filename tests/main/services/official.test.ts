@@ -3,10 +3,10 @@ import {
   wrapKeyboardForApi,
   buildMessageBody,
   clampInputSeconds,
-  mediaFileTypeOf,
-  parseMessageSceneExt,
-  parseOfficialEvent,
-} from '../../../src/main/services/official'
+} from '../../../src/main/services/official/messages'
+import { mediaFileTypeOf } from '../../../src/main/services/official/media'
+import { parseMessageSceneExt } from '../../../src/main/services/official/scene'
+import { parseOfficialEvent } from '../../../src/main/services/official/ws'
 
 describe('wrapKeyboardForApi', () => {
   it('模板格式（含 id 字段）原样返回', () => {
@@ -83,76 +83,88 @@ describe('wrapKeyboardForApi', () => {
 })
 
 describe('buildMessageBody', () => {
+  /**
+   * 官方发消息的载荷契约是 `{ body, error }`（与 sendOfficialMessage 同一约定）：
+   * 成功时 body 非空、error 为空串；本地就不该发的组合（例如输入中状态给群聊）
+   * 返回 `{ body: null, error: 原因 }`。测试只走成功路径，失败路径单独钉。
+   */
+  function bodyOf(
+    chatType: string,
+    content: string,
+    options: Record<string, unknown>,
+    appId = '102345678',
+  ) {
+    const built = buildMessageBody(chatType, content, options, appId)
+    expect(built.error).toBe('')
+    expect(built.body).not.toBeNull()
+    return built.body!
+  }
+
   it('默认 msg_type=0，内容进 content', () => {
-    const body = buildMessageBody('你好', {}, '102345678')
-    expect(body).toEqual({ msg_type: 0, content: '你好' })
+    expect(bodyOf('c2c', '你好', {})).toEqual({ msg_type: 0, content: '你好' })
   })
 
   it('msg_type=2 + markdown 时进 markdown 字段，且不带 content', () => {
-    const body = buildMessageBody('ignored', { msgType: 2, markdown: { content: '# 标题' } }, '1')
+    const body = bodyOf('c2c', 'ignored', { msgType: 2, markdown: { content: '# 标题' } })
     expect(body).toEqual({ msg_type: 2, markdown: { content: '# 标题' } })
     expect(body.content).toBeUndefined()
   })
 
   it('msg_type=2 + markdown + keyboard 时 keyboard 被包装进 content 字段', () => {
-    const body = buildMessageBody(
-      '',
-      { msgType: 2, markdown: { content: 'x' }, keyboard: { rows: [] } },
-      '102345678',
-    )
+    const body = bodyOf('c2c', '', {
+      msgType: 2,
+      markdown: { content: 'x' },
+      keyboard: { rows: [] },
+    })
     expect(body.keyboard).toEqual({ content: { rows: [], bot_appid: 102345678 } })
   })
 
   it('msg_type=7 + media 时进 media.file_info（keyboard 不带）', () => {
-    const body = buildMessageBody(
-      '',
-      { msgType: 7, media: { fileInfo: 'FILE_INFO_X' }, keyboard: { rows: [] } },
-      '1',
-    )
+    const body = bodyOf('c2c', '', {
+      msgType: 7,
+      media: { fileInfo: 'FILE_INFO_X' },
+      keyboard: { rows: [] },
+    })
     expect(body.media).toEqual({ file_info: 'FILE_INFO_X' })
     expect(body.keyboard).toBeUndefined()
     expect(body.content).toBeUndefined()
   })
 
   it('is_wakeup 与 msg_id/event_id 互斥：为 true 时后两者都不带', () => {
-    const body = buildMessageBody('召回', { isWakeup: true, eventId: 'E1', msgId: 'M1' }, '1')
+    const body = bodyOf('c2c', '召回', { isWakeup: true, eventId: 'E1', msgId: 'M1' })
     expect(body.is_wakeup).toBe(true)
     expect(body.event_id).toBeUndefined()
     expect(body.msg_id).toBeUndefined()
   })
 
   it('is_wakeup 为 false/缺省时正常带 event_id 与 msg_id', () => {
-    const body = buildMessageBody('回复', { eventId: 'E1', msgId: 'M1' }, '1')
+    const body = bodyOf('c2c', '回复', { eventId: 'E1', msgId: 'M1' })
     expect(body.event_id).toBe('E1')
     expect(body.msg_id).toBe('M1')
     expect(body.is_wakeup).toBeUndefined()
   })
 
   it('message_reference 与 msg_type=2 组合仍生效（引用不能单独发）', () => {
-    const body = buildMessageBody(
-      '',
-      {
-        msgType: 2,
-        markdown: { content: '# x' },
-        messageReference: { message_id: 'REFIDX_abc' },
-        msgId: 'M1',
-      },
-      '1',
-    )
+    const body = bodyOf('c2c', '', {
+      msgType: 2,
+      markdown: { content: '# x' },
+      messageReference: { message_id: 'REFIDX_abc' },
+      msgId: 'M1',
+    })
     expect(body.message_reference).toEqual({ message_id: 'REFIDX_abc' })
     expect(body.msg_id).toBe('M1')
   })
 
   it('msg_seq 透传（0 也要带上，否则被官方去重）', () => {
-    expect(buildMessageBody('x', { msgSeq: 0 }, '1').msg_seq).toBe(0)
-    expect(buildMessageBody('x', { msgSeq: 3 }, '1').msg_seq).toBe(3)
-    expect(buildMessageBody('x', {}, '1').msg_seq).toBeUndefined()
+    expect(bodyOf('c2c', 'x', { msgSeq: 0 }).msg_seq).toBe(0)
+    expect(bodyOf('c2c', 'x', { msgSeq: 3 }).msg_seq).toBe(3)
+    expect(bodyOf('c2c', 'x', {}).msg_seq).toBeUndefined()
   })
 
   it('msg_type=6 输入中状态：只带 input_notify，**不带 content**', () => {
     // 官方契约：msg_type=6 的内容字段是 input_notify；同时带 content 会被判
     // 22006「消息类型与内容不匹配」。默认 30 秒、上限 60 秒。
-    const body = buildMessageBody('这行不该出现', { msgType: 6 }, '1')
+    const body = bodyOf('c2c', '这行不该出现', { msgType: 6 })
     expect(body.msg_type).toBe(6)
     expect(body.input_notify).toEqual({ input_type: 1, input_second: 30 })
     expect(body.content).toBeUndefined()
@@ -160,10 +172,22 @@ describe('buildMessageBody', () => {
   })
 
   it('msg_type=6 的时长被夹到 1~60（非法值回落默认 30）', () => {
-    expect((buildMessageBody('', { msgType: 6, inputNotify: { inputSecond: 5 } }, '1').input_notify as { input_second: number }).input_second).toBe(5)
-    expect((buildMessageBody('', { msgType: 6, inputNotify: { inputSecond: 999 } }, '1').input_notify as { input_second: number }).input_second).toBe(60)
-    expect((buildMessageBody('', { msgType: 6, inputNotify: { inputSecond: 0 } }, '1').input_notify as { input_second: number }).input_second).toBe(30)
-    expect((buildMessageBody('', { msgType: 6, inputNotify: { inputSecond: -3 } }, '1').input_notify as { input_second: number }).input_second).toBe(30)
+    expect(bodyOf('c2c', '', { msgType: 6, inputNotifySeconds: 5 }).input_notify?.input_second).toBe(5)
+    expect(bodyOf('c2c', '', { msgType: 6, inputNotifySeconds: 999 }).input_notify?.input_second).toBe(60)
+    expect(bodyOf('c2c', '', { msgType: 6, inputNotifySeconds: 0 }).input_notify?.input_second).toBe(30)
+    expect(bodyOf('c2c', '', { msgType: 6, inputNotifySeconds: -3 }).input_notify?.input_second).toBe(30)
+  })
+
+  it('输入中状态发给群聊时本地拒绝（官方只有单聊端点有这个字段）', () => {
+    const built = buildMessageBody('group', '', { msgType: 6 }, '')
+    expect(built.body).toBeNull()
+    expect(built.error).toContain('输入中状态')
+  })
+
+  it('单聊/群聊带 ark 时本地拒绝（只有频道发送接口有 ark/embed）', () => {
+    const built = buildMessageBody('c2c', 'x', { ark: { ark_type: 'x' } }, '')
+    expect(built.body).toBeNull()
+    expect(built.error).toContain('ARK')
   })
 
   it('clampInputSeconds 直接验证边界', () => {
@@ -188,8 +212,11 @@ describe('mediaFileTypeOf', () => {
     expect(mediaFileTypeOf('voice')).toBe(3)
   })
 
-  it('大小写不敏感', () => {
-    expect(mediaFileTypeOf('IMAGE')).toBe(1)
+  it('大小写敏感：大写视为未知（OneBot 段类型与节点下拉本身就是小写）', () => {
+    // 与 10/18 产物一致：这里不做 toLowerCase。调用方是段翻译器（段类型固定小写）
+    // 与节点参数下拉（image/video/record/file），不需要兜底；真传了大写应当报错，
+    // 而不是被悄悄当成图片发出去。
+    expect(mediaFileTypeOf('IMAGE')).toBeNull()
   })
 
   it('未知类型返回 null（调用方必须明确报错，不能兜底成图片）', () => {
