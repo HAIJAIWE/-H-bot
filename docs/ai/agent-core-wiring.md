@@ -74,10 +74,10 @@ command / irreversible  → run_command           { command: summary, ...detail 
 
 ### 7.2 还没做的（不是遗漏，是有意的下一步）
 
-| 没做 | 为什么现在不做 | 补的条件 |
-|---|---|---|
-| **审批规则跨轮持久化** | `always` 现在 = **本轮内**不再问该类别（§11）；跨轮要一张规则表**并且**要有撤销它的界面 | 与 `toolGuard` 的 allow 规则表一起做，同批补撤销入口 |
-| **按线程分记忆** | 载荷没有 `threadId`，循环用**默认线程**那份记忆 | 要按线程分就得动 schema + preload + 载荷契约三处（见 §10.3） |
+| 没做                   | 为什么现在不做                                                                          | 补的条件                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **审批规则跨轮持久化** | `always` 现在 = **本轮内**不再问该类别（§11）；跨轮要一张规则表**并且**要有撤销它的界面 | 与 `toolGuard` 的 allow 规则表一起做，同批补撤销入口         |
+| **按线程分记忆**       | 载荷没有 `threadId`，循环用**默认线程**那份记忆                                         | 要按线程分就得动 schema + preload + 载荷契约三处（见 §10.3） |
 
 （**流式**在 §9 落地、**跨轮记忆**在 §10 落地 —— 这两条原来都排在这张表里。）
 
@@ -101,11 +101,11 @@ node scripts/gen-capability-catalog.mjs   改完附录要重跑（生成物是�
 两处都是**缺陷**，不是取舍 —— 记在这里是因为它们说明了一件事：
 **假模型测不出"和真厂商的接口对不对得上"**。
 
-| # | 现象 | 根因 | 修法 |
-|---|---|---|---|
-| 1 | 第一次调用直接 400：`the role in last message must be in [user, function, tool]` | `runAgentTurn` 收了 `requirement` 却**没放进对话** —— 循环从空 `messages` 起步 | `LoopOptions.initialTurns` + `prompt.ts`（系统提示 + 用户要求） |
-| 2 | 每轮都 `[工具失败] 未知工具: undefined`，跑满 12 轮 | provider 回调的是**原始 OpenAI 形状**（`{id, function:{name, arguments}}`），类型上却声明成 `AiToolCall` | `modelAdapter` 复用 `toolMessages.normalizeToolCalls` |
-| 3 | 模型瞎猜参数名（`path` / `command`） | 工具定义的 `parameters` 写死成空 `properties` | `CORE_TOOLS` 带真实 JSON Schema，适配器透传 |
+| #   | 现象                                                                             | 根因                                                                                                     | 修法                                                            |
+| --- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1   | 第一次调用直接 400：`the role in last message must be in [user, function, tool]` | `runAgentTurn` 收了 `requirement` 却**没放进对话** —— 循环从空 `messages` 起步                           | `LoopOptions.initialTurns` + `prompt.ts`（系统提示 + 用户要求） |
+| 2   | 每轮都 `[工具失败] 未知工具: undefined`，跑满 12 轮                              | provider 回调的是**原始 OpenAI 形状**（`{id, function:{name, arguments}}`），类型上却声明成 `AiToolCall` | `modelAdapter` 复用 `toolMessages.normalizeToolCalls`           |
+| 3   | 模型瞎猜参数名（`path` / `command`）                                             | 工具定义的 `parameters` 写死成空 `properties`                                                            | `CORE_TOOLS` 带真实 JSON Schema，适配器透传                     |
 
 验证结果（RPG 测试项目，266 个节点）：
 
@@ -146,10 +146,10 @@ agent-core 直接发这五条 = **渲染层一行监听都不用改**。新开�
 
 ### 9.2 循环侧的两个钩子
 
-| 钩子 | 位置 | 用途 |
-|---|---|---|
-| `onTextChunk` | `modelAdapter` → `callLlm.onChunk` | 模型边吐字边发 `ai:chunk` |
-| `onToolStart` / `onToolResult` | `runAgentLoop` | 工具开始先摆一行 running，结束更新成 done/error |
+| 钩子                           | 位置                               | 用途                                            |
+| ------------------------------ | ---------------------------------- | ----------------------------------------------- |
+| `onTextChunk`                  | `modelAdapter` → `callLlm.onChunk` | 模型边吐字边发 `ai:chunk`                       |
+| `onToolStart` / `onToolResult` | `runAgentLoop`                     | 工具开始先摆一行 running，结束更新成 done/error |
 
 `runAgentLoop` 里**先报开始再执行**（连拼错的工具名也留一行），并且模型没给 `call.id`
 时**当场补一个稳定 id** —— 开始/结束两条事件对不上，界面上就会多出一行永不结束的"运行中"。
@@ -230,11 +230,11 @@ agent-core 直接发这五条 = **渲染层一行监听都不用改**。新开�
 
 规则落盘在项目内 `.qqbat/ai-approvals.json`（`services/ai/allowRules.ts`）：
 
-| kind | match | 为什么 |
-|---|---|---|
-| `write` | 项目内**相对路径** | 存绝对路径的话，项目一搬家规则全失效；而且界面上难读 |
-| `command` | **整条命令行** | `run_command` 名字太宽：`pnpm test` 与 `git push` 是两种事 |
-| `tool` | 工具名 + **排序后的参数** | 助手侧的 `run_bot`/`run_test` 走这一类；参数顺序不同算同一个动作 |
+| kind      | match                     | 为什么                                                           |
+| --------- | ------------------------- | ---------------------------------------------------------------- |
+| `write`   | 项目内**相对路径**        | 存绝对路径的话，项目一搬家规则全失效；而且界面上难读             |
+| `command` | **整条命令行**            | `run_command` 名字太宽：`pnpm test` 与 `git push` 是两种事       |
+| `tool`    | 工具名 + **排序后的参数** | 助手侧的 `run_bot`/`run_test` 走这一类；参数顺序不同算同一个动作 |
 
 上限 50 条（先按时间淘汰最旧的）；去重；**读不出来一律当"没有规则"**（退化成每次都问，
 最安全的一侧）—— 审批这条路上不能因为一张便利表而把整轮对话挡死。
@@ -272,6 +272,7 @@ ai:clearAllowRules  全部清空  → 「全部清空（以后每次都问）」
 现在日志里留着（`readHistoryForUi` 能读到），下一轮排查不用靠猜。
 
 边界：
+
 - **界面**：`loadHistoryFromDisk` 读到"最后一条是 attempt 且后面没有新对话"时，在输入框上方
   挂一条黄色提示（"上次运行失败了/被取消了：原因"，可关闭）。它不是对话气泡 —— 它不是谁说的话；
 - 只在**运行失败**时写（正常收尾不写）；写失败只记 warn，绝不影响错误上报；
@@ -305,7 +306,8 @@ isConcurrencySafe + pre/post waterfall）在我们这里只抄了两块**现在�
 - **pre/post waterfall**：只有 `onToolStart/Result` 两条观测，没有"拦截并改写"的钩子。
 
 **为什么只抄这两块**：上游那套是为"多消费方复用同一工具结果"设计的；我们只有一个消费方（一个模型
-+ 一个界面），先把**成败语义**和**卡死**这两个真问题解决，其余等有第二个消费方再说。
+
+- 一个界面），先把**成败语义**和**卡死**这两个真问题解决，其余等有第二个消费方再说。
 
 ## 20. 「先计划」模式（2026-10-18，对齐 dsh-plan 的最小可用形态）
 
@@ -438,8 +440,8 @@ DSH 的 `session-projection` 是一张**可合并的投影表**：消息、工�
 循环不再认具体的工具数组，只认一张表：
 
 ```ts
-registerTool(tool)   // 名字必须小写 snake_case、必须有 description、不许重名
-listTools()          // 循环默认从这里取（opts.tools 显式传参仍然优先）
+registerTool(tool) // 名字必须小写 snake_case、必须有 description、不许重名
+listTools() // 循环默认从这里取（opts.tools 显式传参仍然优先）
 ```
 
 内置的 6 个在模块加载时注册。要加工具（业务侧 / 测试 / 以后的插件）**不用改循环** ——
@@ -465,11 +467,11 @@ ai:agentCoreSteer  { projectPath, text }
 
 与「排队下一句」的区别说清楚：
 
-| | 插话（本节的） | 排队下一句（原有） |
-|---|---|---|
-| 生效时机 | **当前这一轮**的下一个步边界 | 这一轮结束之后的新一轮 |
-| 主进程 | 同一次运行内 | 新的运行 |
-| 界面 | 输入框旁「插话」按钮（跑着且输入框有字时出现） | 普通「发送」 |
+|          | 插话（本节的）                                 | 排队下一句（原有）     |
+| -------- | ---------------------------------------------- | ---------------------- |
+| 生效时机 | **当前这一轮**的下一个步边界                   | 这一轮结束之后的新一轮 |
+| 主进程   | 同一次运行内                                   | 新的运行               |
+| 界面     | 输入框旁「插话」按钮（跑着且输入框有字时出现） | 普通「发送」           |
 
 ### 14.2 三条硬规矩（都有测试钉着）
 
@@ -484,10 +486,10 @@ ai:agentCoreSteer  { projectPath, text }
 
 现在两个目标都有了，对应 DSH 的 `next-step` / `next-turn`：
 
-| 目标 | 行为 | 界面 |
-|---|---|---|
-| `step`（默认） | 下一个步边界注入**当前这一轮** | 「插话」 |
-| `turn` | 这一轮结束后**自动作为新的一轮**开始（一次调用连续跑多轮） | 「排队」 |
+| 目标           | 行为                                                       | 界面     |
+| -------------- | ---------------------------------------------------------- | -------- |
+| `step`（默认） | 下一个步边界注入**当前这一轮**                             | 「插话」 |
+| `turn`         | 这一轮结束后**自动作为新的一轮**开始（一次调用连续跑多轮） | 「排队」 |
 
 队列**落盘**（`.qqbat/agent-inbox.json`）：`step` 每次启动时清掉（上一轮的插话已过期），
 `turn` 从盘上读回来接着跑 —— 应用崩了，用户排的那句也不会丢。
@@ -501,14 +503,14 @@ splice 语义），所以有完整历史、能回放、能校验"同一 id 不�
 
 ## 12. 工具集（2026-10-18 补了两个"找东西"的）
 
-| 工具 | 只读？ | 用途 |
-|---|---|---|
-| `read_file` | 是 | 读全文 |
-| `write_file` | 否（过闸） | 整文件覆盖 |
-| `run_command` | 否（过闸） | 白名单命令 |
-| `validate_flow` | 是 | 校验 `.qqbat/flow.json` |
-| `list_dir` | 是 | 列目录（子目录带 `/`，跳过 node_modules/.git/dist/out/.qqbat） |
-| `search_text` | 是 | 按正则搜文本，返回 `文件:行号: 内容`，可加 `glob` 过滤 |
+| 工具            | 只读？     | 用途                                                           |
+| --------------- | ---------- | -------------------------------------------------------------- |
+| `read_file`     | 是         | 读全文                                                         |
+| `write_file`    | 否（过闸） | 整文件覆盖                                                     |
+| `run_command`   | 否（过闸） | 白名单命令                                                     |
+| `validate_flow` | 是         | 校验 `.qqbat/flow.json`                                        |
+| `list_dir`      | 是         | 列目录（子目录带 `/`，跳过 node_modules/.git/dist/out/.qqbat） |
+| `search_text`   | 是         | 按正则搜文本，返回 `文件:行号: 内容`，可加 `glob` 过滤         |
 
 为什么要补后两个：只有 `read_file` 的时候，"X 定义在哪"只能一个个文件读 ——
 这既是模型最常干的事，也是上下文烧得最快的地方。补上之后同一件事一次调用就够。
@@ -563,12 +565,12 @@ splice 语义），所以有完整历史、能回放、能校验"同一 id 不�
 
 现在每轮**问模型之前**过一道闸门（`src/main/services/agent-core/contextGate.ts`）：
 
-| 边界 | 规则 | 为什么 |
-|---|---|---|
-| 头部系统提示 | 永远保留 index 0 | 那里是项目规则与路径 |
-| 任务那句 | 保住紧随系统提示的那条 user | 90 字确定性摘要顶不上需求原文 |
-| 尾部 | 保留最近 `keepRecentTurns`（默认 8）条 | 正在进行的推理链不能半剪 |
-| 中段 | 压成**一条 system 注记** | 注记里写明「摘要非原文，要细节请重读文件」 |
+| 边界         | 规则                                   | 为什么                                     |
+| ------------ | -------------------------------------- | ------------------------------------------ |
+| 头部系统提示 | 永远保留 index 0                       | 那里是项目规则与路径                       |
+| 任务那句     | 保住紧随系统提示的那条 user            | 90 字确定性摘要顶不上需求原文              |
+| 尾部         | 保留最近 `keepRecentTurns`（默认 8）条 | 正在进行的推理链不能半剪                   |
+| 中段         | 压成**一条 system 注记**               | 注记里写明「摘要非原文，要细节请重读文件」 |
 
 - **就地 splice，不换数组**：调度器与调用方拿着同一个 `messages` 引用，换新数组会出现两份对话；
 - **估 token 不再用 `length/3`**：ASCII 按 4 字符≈1 token、非 ASCII 按 1 字符=1 token，
@@ -598,11 +600,11 @@ splice 语义），所以有完整历史、能回放、能校验"同一 id 不�
 
 现在两条链路共用同一份映射（`src/shared/ai/roleDomains.ts` 是唯一真源），角色在这一轮干两件事：
 
-| 层 | 落点 | 说明 |
-|---|---|---|
-| 提示 | `runTurn` 的 `roleNote` | 角色强调句 + 预设附加要求，插在 `planOnly` 之后、历史交代之前 |
-| 写域 | `approval` 回调最前面的闸 | 按**路径**判，不按工具名 |
-| 预设 | `.qqbat/agent-presets.json` 的 `role` / `prompt` | 预设显式写死优先于"跟着页面走" |
+| 层   | 落点                                             | 说明                                                          |
+| ---- | ------------------------------------------------ | ------------------------------------------------------------- |
+| 提示 | `runTurn` 的 `roleNote`                          | 角色强调句 + 预设附加要求，插在 `planOnly` 之后、历史交代之前 |
+| 写域 | `approval` 回调最前面的闸                        | 按**路径**判，不按工具名                                      |
+| 预设 | `.qqbat/agent-presets.json` 的 `role` / `prompt` | 预设显式写死优先于"跟着页面走"                                |
 
 ### 为什么写域按路径判，不能套工具白名单
 
@@ -662,10 +664,10 @@ roleNote 透传与预设覆盖）、`tests/main/services/ai/presets.test.ts`（r
 界面按下去没反应，主进程照旧跑。这一节记补上的两个；`images` 与 `activeFilePath` 见 §26
 （同一族问题的第二批，外加预设的 `permissionMode`）。
 
-| 开关 | 落点 | 语义 |
-|---|---|---|
-| `planFirst` | `runTurn` 的 `planOnly` | 提示追加 `PLAN_ONLY_NOTE`，**且**工具表只留 `category === 'query'` |
-| `fullAccess` | `approval` 回调里、角色闸**之后** | 跳过「问人」，不跳过角色写域，也不写 `allowRules` |
+| 开关         | 落点                              | 语义                                                               |
+| ------------ | --------------------------------- | ------------------------------------------------------------------ |
+| `planFirst`  | `runTurn` 的 `planOnly`           | 提示追加 `PLAN_ONLY_NOTE`，**且**工具表只留 `category === 'query'` |
+| `fullAccess` | `approval` 回调里、角色闸**之后** | 跳过「问人」，不跳过角色写域，也不写 `allowRules`                  |
 
 ### 为什么完全权限排在角色闸后面
 
@@ -698,11 +700,11 @@ roleNote 透传与预设覆盖）、`tests/main/services/ai/presets.test.ts`（r
 §25 补的是两个**开关**，这一节补剩下三处**数据**：贴图、当前打开的文件、预设的审批口径。
 共同点是同一族问题：渲染层一路传到了 IPC、schema 也收着，断在主进程 handler 这一环。
 
-| 字段 | 断在哪 | 现在落到哪 |
-|---|---|---|
-| `images` | `aiAgentCore` 从来没读过；循环的消息类型里也根本没有"图"这个位 | `ChatTurn.images` → `modelAdapter` → `ChatMessage.images` → provider 的 `apiContentOf` |
-| `activeFilePath` | 只有助手链路（`services/ai/index.ts`）读了 | 循环的 `roleNote` 末尾（`activeFileHintFor`） |
-| `AgentPreset.permissionMode` | schema / preload / 渲染层都有，**服务层类型里没有这个字段** | `presets.ts` 读写归一 + `approval` 的 `effectiveFullAccess` |
+| 字段                         | 断在哪                                                         | 现在落到哪                                                                             |
+| ---------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `images`                     | `aiAgentCore` 从来没读过；循环的消息类型里也根本没有"图"这个位 | `ChatTurn.images` → `modelAdapter` → `ChatMessage.images` → provider 的 `apiContentOf` |
+| `activeFilePath`             | 只有助手链路（`services/ai/index.ts`）读了                     | 循环的 `roleNote` 末尾（`activeFileHintFor`）                                          |
+| `AgentPreset.permissionMode` | schema / preload / 渲染层都有，**服务层类型里没有这个字段**    | `presets.ts` 读写归一 + `approval` 的 `effectiveFullAccess`                            |
 
 ### 贴图：provider 早就支持，断在 ChatTurn 这一层
 
@@ -785,12 +787,12 @@ emit('ai:compact', { projectPath, dropped, tokensBefore, tokensAfter })
 
 一条新 IPC 通道要**四处登记**，少一处就是静默失效（§26 刚踩过同族的坑）：
 
-| 位置 | 作用 |
-|---|---|
-| `src/main/ipc/aiAgentCore.ts` | `emit`（`onCompact` 回调里，logger 之后） |
-| `src/preload/index.ts` | `onCompact(cb)` → `ipcRenderer.on('ai:compact')` |
-| `src/renderer/src/types/ipc.ts` | `onCompact?` 类型（`?`：老窗口不崩） |
-| `src/renderer/src/stores/aiStore.ts` | `init()` 里订阅 + `cleanup` 里退订 |
+| 位置                                 | 作用                                             |
+| ------------------------------------ | ------------------------------------------------ |
+| `src/main/ipc/aiAgentCore.ts`        | `emit`（`onCompact` 回调里，logger 之后）        |
+| `src/preload/index.ts`               | `onCompact(cb)` → `ipcRenderer.on('ai:compact')` |
+| `src/renderer/src/types/ipc.ts`      | `onCompact?` 类型（`?`：老窗口不崩）             |
+| `src/renderer/src/stores/aiStore.ts` | `init()` 里订阅 + `cleanup` 里退订               |
 
 另外三本账也要各加一行，否则闸门红：`docs/ai/ai-capability-layering-*.md` 的附录（`ai.onCompact = X`）、
 分层表里 `ai` 那一行、以及 `node scripts/gen-capability-catalog.mjs` 重生成的两份 `.generated.ts`。
@@ -821,3 +823,68 @@ emit('ai:compact', { projectPath, dropped, tokensBefore, tokensAfter })
 
 **还没做**：压缩前给用户一个"正在压缩"的即时反馈（压缩是同步的、通常几十毫秒，先不加）；把这条提示也
 持久化进历史（那就得给 JSONL 加个不发给模型的消息类型，等真有人抱怨"重开看不到"再说）。
+
+## 28. 会话预设：JSON 文本框 → 表单（2026-10-25）
+
+### 为什么改
+
+旧版只有一个整文件 JSON 的 textarea。问题不是「难用」，是**骗人**：字段拼错、枚举写成 `coder `
+（多一个空格）、`allowedTools` 写成对象 —— 主进程 `readPresets` 一律当「没写」处理，而 `writePresets`
+遇到没名字/重名的条目是**静默跳过**。用户看到「保存成功」、以为加了一道闸，实际什么都没生效。
+表单把真实字段摆出来，改错当场报错 —— 与 §26「传了没读」是同一族问题：**界面说做了、主进程没做**。
+
+### 表单只管它认识的键，别的原样带走
+
+编辑对象就是文件里解析出来的**那个对象**（`type Draft = Record<string, unknown>`），
+`setField(index, key, value)` 只动一个键，`value === undefined` 表示**把这个键删掉**。于是：
+
+| 情况                                          | 结果                                                                        |
+| --------------------------------------------- | --------------------------------------------------------------------------- |
+| 文件里有人写了 `id` / `legacyNote` / 未来字段 | 保存时原样写回（表单不认识的键不受影响）                                    |
+| 把描述清空                                    | `description` 键消失，而不是写一个空字符串                                  |
+| 工具一个都不勾                                | `allowedTools` 键消失（空集 = 不限制，与 `scoping.ts` 语义一致），不是 `[]` |
+| 权限模式选「默认」                            | `permissionMode` 键消失（等价于 `ask`），只有选「完全放行」才写 `full`      |
+
+为什么纠结空串与不写：主进程两边的归一并不完全一样（`normalizePrompt` 会把空串当没写，
+但 `allowedTools: []` 与缺键在 `scoping` 里是不同分支）。**写文件的一方按最保守的形式落盘**，
+以后改归一逻辑也不会因为历史文件里的一堆空串而出现两种解释。
+
+### 名字是唯一键：`PresetSelect` 从 id 改回 name 是**修 bug**
+
+`src/main/services/ai/presets.ts` 的 `readPreset(projectPath, name)` 只按 `name` 查；而
+`PresetSelect` 原来把文件里的 `id` 当下拉的 `value`。后果：任何写了 `id` 的预设，选中后主进程
+查不到 → 工具白名单、角色、权限模式**全部静默失效**，界面看起来一切正常。现在 `parsePresetOptions`
+按 `name` 建表、同名只留第一条、文件里的 `id` 不再参与选择。
+
+### 保存路径没变，但界面先拦两道
+
+仍然走 `ai:savePresets` → `writePresets`（唯一写盘入口，`.qqbat/agent-presets.json`），区别是：
+
+- **空名字 / 重名在界面就拦**：主进程对这两种是静默跳过（重名还是后者覆盖前者），不拦的话保存成功是假的。
+- **warnings 不关窗**：未知工具 / 未装载插件只回警告（预设允许先写、后装），`onSaved()` 先通知外面刷新列表
+  （`ChatPanel` 的 `presetEpoch + 1`），窗口留着让人看警告。
+- **坏文件不被覆盖**：解析失败时原样进 JSON 模式并报错；从 JSON 切回表单解析失败时**留在 JSON 模式**，
+  用户刚写的文本一个字都不丢。
+- **没有项目就不许假装能存**：`projectPath` 来自 `projectStore.currentProject?.path`，启动器还没选项目时是
+  `undefined`。旧写法 `if (!projectPath) return` 让"保存"变成静默空转（点了没反应、不报错、列表还是空的）——
+  现在开头就 `setError(presetNoProject)`、保存按钮 `disabled`，说明区和空态各显示一次「先打开一个项目」，
+  也不去读盘（没项目就没有文件可读）。
+
+### 刻意没做
+
+- `plugins` 仍只有 JSON 模式：它的语义是「限定运行时主进程插件贡献的工具」（`pluginOwnedTools()` 跳过
+  `builtin.*`），而 `plugin.listInstalled()` 返回的是**AI 节点插件** —— 两者不是一回事，做下拉等于给错清单。
+  表单里发现该预设声明了 `plugins` 时只显示一行琥珀提示（去 JSON 模式改）。
+- 没做预设预览（选中后显示它到底放开了哪些工具）：那要拉一遍注册表 + 角色写域，属于第二步。
+
+### 测试
+
+- `tests/renderer/components/ai/PresetEditor.test.tsx`（11 例）：列表/字段铺开、改角色+勾工具后写回且
+  保留 `id`/`legacyNote`、清空字段删键、未勾工具不写 `allowedTools`、空名字与重名拒存、删除后少一条、
+  有 warnings 不关窗但 `onSaved` 已触发、坏文件进 JSON 模式改好可存、JSON 解析失败不吞输入、
+  没有 `projectPath` 时明说没地方存且保存禁用、不读盘。
+- `tests/renderer/components/ai/PresetSelect.test.tsx`（5 例）：键用 name（写 id 也没用）、同名去重、
+  未知 `role`/`permissionMode` 只丢字段不连坐整条、名字两端空白归一、非数组当空表。
+
+**还没做**：预设「现在生效了什么」的界面回显（角色按钮已有一半：选带 `role` 的预设会联动高亮），
+以及 `plugins` 的表单化 —— 等运行时插件（`plugin.listHost()` 里可停用那些）真的会有第三方贡献工具再说。
