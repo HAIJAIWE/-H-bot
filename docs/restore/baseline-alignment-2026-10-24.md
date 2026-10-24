@@ -169,6 +169,26 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 
 `scripts/audit-baseline.mjs` 的默认基准已改为「先看 `_baseline/out-bundle/`，没有才回退 `D:/tmp/hbot-out`」，所以本文所有数字都可以只靠仓库复算。
 
+## 七之二、通道与节点 kind 对账（2026-10-24 加）
+
+模块级覆盖率只证明「文件在」，不证明「前端调得到的通道、flow.json 里能跑的节点在」。为了回答后者，用 `scripts/audit-surface.mjs` 把 10/18 产物和 `src/` 各扫一遍，规则是「命名空间 + 冒号」的字符串（33 个真实命名空间白名单，排除 `node:fs` / `http://` / i18n 的 `ai.chat.copy` 这类噪声）。
+
+| 面 | 10/18 产物 | 恢复树 | 结论 |
+| --- | --- | --- | --- |
+| IPC 通道 | 227 | 236 | 缺 8（全是 `runtime:` 控制面，**刻意退役**，见下）；多 17（本轮新增的 agent-core 与插件市场通道） |
+| 节点 kind 字面量 | 111 | 127 | 缺 1 = `greet`，只出现在产物里的**文档正文**（插件节点写法示例），不是真实节点；实际节点 0 缺 |
+
+刻意退役的 8 个通道：`runtime:start` / `runtime:stop` / `runtime:restart` / `runtime:status` / `runtime:statusChange` / `runtime:statusChanged` / `runtime:sendCommand` / `runtime:listRunning`。
+
+原因是它们和 `botManager:*` 是**同一件事的两套控制面**：客户端里 run/stop 走 runtime，恢复期已统一到 `botManager`（含翻译器生命周期），`runtime:` 只留观测三件套（`batchLog` / `executeNode` / `injectTestMessage`）。保留旧通道等于把双控制面请回来，故不补。前端零调用方由 `tests/guards/ipcSurfaceParity.test.ts` 与 `ipcPayloadContract.test.ts` 守着。
+
+树里多出的 17 个通道（客户端没有）属于本轮新增能力：`ai:agentCoreRun/Steer/Step`、`ai:getAllowRules/clearAllowRules/removeAllowRule/savePresets`、`plugin:listHost/setHostEnabled`、`plugin:loadAi`、`plugin:marketAddSource/marketInstall/marketList/marketRemoveSource/marketUninstall`，以及事件名 `metrics:exported`。
+
+复算方式（需要 `_baseline/out-bundle/`，不入库）：
+
+```powershell
+node scripts/audit-surface.mjs      # = pnpm audit:surface；打印 missingChannels / missingKinds / unexpected
+```
 ## 八、怎么复核这份文档
 
 ```powershell
