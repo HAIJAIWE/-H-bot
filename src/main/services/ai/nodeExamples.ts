@@ -79,7 +79,7 @@ var NODE_EXAMPLES = [
 			"  const text = String(ctx.inputs.text ?? '');",
 			"  const groupId = String(ctx.inputs.group_id ?? ctx.event?.group_id ?? '');",
 			"  if (!text) { ctx.log('没有要发的内容，跳过'); return { result: 'skipped' }; }",
-			"  const res = await ctx.bot.callApi('send_group_msg', { group_id: Number(groupId), message: text });",
+			"  const res = await ctx.bot.callApi('send_group_message', { group_id: Number(groupId), message: text });",
 			"  ctx.log('已发送', groupId);",
 			"  return { result: JSON.stringify(res ?? {}) };",
 			"}"

@@ -4,9 +4,9 @@
  */
 
 import { GROUP_OP_LEGACY_REASONS } from '../../../shared/nodes/fieldOptions';
-import { BotInterface, OneBotEvent } from './builtinNodes';
+import { BotInterface, RuntimeEvent } from './builtinNodes';
 
-interface ExtendedOneBotEvent extends OneBotEvent {
+interface ExtendedRuntimeEvent extends RuntimeEvent {
   flag?: string;
   sub_type?: string;
 }
@@ -89,7 +89,7 @@ interface GroupOpResult {
 
 export async function groupOp(
   bot: BotInterface | null = null,
-  event: ExtendedOneBotEvent | null = null,
+  event: ExtendedRuntimeEvent | null = null,
   options: GroupOpOptions
 ): Promise<GroupOpResult> {
   const {
@@ -290,7 +290,7 @@ export async function groupOp(
 
     // ==== approve_friend 模式（同意/拒绝好友请求）====
     if (mode === 'approve_friend') {
-      const flagStr = String(flag || (event as ExtendedOneBotEvent)?.flag || '');
+      const flagStr = String(flag || (event as ExtendedRuntimeEvent)?.flag || '');
       if (!flag) return { success: false, error: 'flag 不能为空' };
 
       if (!bot) return { success: false, error: 'bot 不可用' };
@@ -309,10 +309,10 @@ export async function groupOp(
     // ==== approve_group 模式（同意/拒绝加群请求/邀请）====
     if (mode === 'approve_group') {
       const reason = ''; // kwargs.get('reason', '')
-      const flagStr = String(flag || (event as ExtendedOneBotEvent)?.flag || '');
+      const flagStr = String(flag || (event as ExtendedRuntimeEvent)?.flag || '');
       if (!flag) return { success: false, error: 'flag 不能为空' };
 
-      const subType = String(sub_type || (event as ExtendedOneBotEvent)?.sub_type || '');
+      const subType = String(sub_type || (event as ExtendedRuntimeEvent)?.sub_type || '');
       if (!subType) return { success: false, error: "sub_type 不能为空（需为 'add' 或 'invite'）" };
       if (!['add', 'invite'].includes(subType)) {
         return { success: false, error: `sub_type 非法: ${subType}（需为 'add' 或 'invite'）` };

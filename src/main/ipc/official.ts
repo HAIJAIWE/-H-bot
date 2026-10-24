@@ -184,7 +184,7 @@ export function registerOfficialIpc(): void {
     })
   })
 
-  /** official:startTranslator — 启动 OneBot 翻译器 */
+  /** official:startTranslator — 启动翻译器 */
   ipcMain.handle('official:startTranslator', async (_event, args: unknown) => {
     const parsed = startOfficialTranslatorSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }

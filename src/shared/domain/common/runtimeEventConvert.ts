@@ -1,8 +1,8 @@
 // @ts-nocheck
 // 由 10/18 打包产物还原（chunk: index.js）；见 _recovery/README-recovery.md
 
-/** 把内部消息段转成 OneBot 风格的段（`{ type, data }`） */
-function segmentsToOneBot(event) {
+/** 把内部消息段转成协议风格的段（`{ type, data }`） */
+function segmentsToRuntime(event) {
 	const segs = event.parsed?.rawSegments ?? [];
 	if (segs.length === 0) return event.rawMessage ? [{
 		type: "text",
@@ -53,7 +53,7 @@ function isGroupMessage(event) {
 	return event.subType === "group" || Boolean(event.groupId);
 }
 /**
-* `StandardEvent` → OneBot v11 事件。
+* `StandardEvent` → 运行时事件。
 *
 * 对 `meta` 事件返回 `null`（运行时的 meta 只用来取 `self_id`，
 * 由适配器自己发 heartbeat/lifecycle，不走这里）。
@@ -64,7 +64,7 @@ function toRuntimeEvent(event) {
 	if (kind === "message") {
 		const msg = event;
 		const group = isGroupMessage(msg);
-		const segments = segmentsToOneBot(msg);
+		const segments = segmentsToRuntime(msg);
 		const rawMessage = msg.rawMessage || segments.map((s) => s.data?.text ?? "").join("");
 		return {
 			post_type: "message",
@@ -126,4 +126,4 @@ function toRuntimeEvent(event) {
 	};
 }
 
-export { segmentsToOneBot, isGroupMessage, toRuntimeEvent };
+export { segmentsToRuntime, isGroupMessage, toRuntimeEvent };

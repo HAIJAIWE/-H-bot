@@ -2,7 +2,7 @@
 // 由 10/18 打包产物还原（chunk: registration-B3DiGKnT.js）；见 _recovery/README-recovery.md
 
 /**
-* message_op —— 构造 OneBot v11 消息段（不发送）。
+* message_op —— 构造运行时事件契约消息段（不发送）。
 *
 * 输出 `segment` 供 `message_send(mode=segment)` 发送，因此本节点是纯构造函数：
 * 不接触 bot / event，也不产生副作用（catalog 中 `sideEffects: []`）。
@@ -176,7 +176,7 @@ function mdBullets(items) {
 	return (items ?? []).map((i) => String(i ?? "").trim()).filter(Boolean).map((i) => `- ${i}`).join("\n");
 }
 /**
-* 一组 `名称 值` 行（图2 的「等级：Lv3 / 经验：0/100」那种排版）。
+* 一组 `名称值` 行（图2 的「等级：Lv3 / 经验：0/100」那种排版）。
 *
 * ## 对齐怎么算的（真机 + 计算都调过）
 *
@@ -239,7 +239,7 @@ function cut(text, max) {
 *
 * 宽进的三种写法都认：
 *   · `"金创药"`                          → 文字与 data 相同
-*   · `"/购买 金创药"`                     → 文字=data
+*   · `"/购买金创药"`                     → 文字=data
 *   · `["搜一下", "https://example.com"]`  → [文字, 链接]
 *   · `{ label, data }` / `{ label, url }` → 完整写法
 *

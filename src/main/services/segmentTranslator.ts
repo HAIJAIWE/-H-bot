@@ -1,6 +1,6 @@
 // src/main/services/segmentTranslator.ts
 //
-// OneBot 消息段 → **官方 API 可发送形态** 的纯函数翻译层。
+// 消息段 → **官方 API 可发送形态** 的纯函数翻译层。
 //
 // ## 为什么要有这个文件
 //
@@ -97,9 +97,9 @@ export function normalizeSegments(input: unknown, warnings: string[]): unknown[]
 }
 
 /**
- * 官方附件（用户发来的图片/语音/视频/文件）→ OneBot 消息段。
+ * 官方附件（用户发来的图片/语音/视频/文件）→ 消息段。
  *
- * 接收侧用：翻译器构造 OneBot 事件时把附件挂进 `message`，
+ * 接收侧用：翻译器构造运行时事件时把附件挂进 `message`，
  * 这样 `get_context` 的 `message_part` 与表达式才看得到。
  * `content_type` 是 MIME（`image/png`）或官方自定义值（`voice`/`file`）。
  */

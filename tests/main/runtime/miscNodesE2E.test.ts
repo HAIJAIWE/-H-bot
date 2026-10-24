@@ -121,7 +121,7 @@ describe('branch_switch：按值选出口', () => {
 })
 
 describe('message_send 回复当前会话：必须带上目标（回归：QQ 400「用户/群已注销」）', () => {
-  // 事故（真机实测）：`send_msg` 只带 message 时，翻译器既没有 user_id 也没有 group_id，
+  // 事故（真机实测）：`send_message` 只带 message 时，翻译器既没有 user_id 也没有 group_id，
   // 反查 openid 只能拿到 '0' → 官方 API 回 400「请求的资源不存在(用户/群已注销)」，
   // 于是**所有回复都发不出去**（日志里 `准备发送: UID=0, openid=0`）。
   const graph = {
@@ -132,7 +132,7 @@ describe('message_send 回复当前会话：必须带上目标（回归：QQ 400
     edges: [edge('e1', 't', 'next', 's', 'in')],
   }
   const sendParams = (r: { actions: Array<{ api: string; params: Record<string, unknown> }> }) =>
-    r.actions.find((a) => a.api === 'send_msg')?.params ?? {}
+    r.actions.find((a) => a.api === 'send_message')?.params ?? {}
 
   it('群消息：带 message_type=group + group_id', async () => {
     const r = await runFlowGraph(graph)
@@ -168,7 +168,7 @@ describe('message_send 回复当前会话：必须带上目标（回归：QQ 400
       edges: [edge('e1', 't', 'next', 's', 'in')],
     }
     const r = await runFlowGraph(pushGraph)
-    expect(r.actions.find((a) => a.api === 'send_private_msg')?.params).toMatchObject({
+    expect(r.actions.find((a) => a.api === 'send_private_message')?.params).toMatchObject({
       user_id: '999',
       message: '推送',
     })
@@ -308,7 +308,7 @@ describe('message_send 引用回复（reply_to）', () => {
       edges: [edge('e1', 't', 'next', 's', 'in')],
     }
     const r = await runFlowGraph(graph)
-    expect(r.actions[0]?.api).toBe('send_msg')
+    expect(r.actions[0]?.api).toBe('send_message')
     expect(r.actions[0]?.params).toMatchObject({ message: '好的', reply_to: 'REFIDX_x' })
   })
 
@@ -375,7 +375,7 @@ describe('message_send 互动召回（is_wakeup，仅单聊主动推送）', () 
       edges: [edge('e1', 't', 'next', 's', 'in')],
     }
     const r = await runFlowGraph(graph)
-    expect(r.actions[0]?.api).toBe('send_private_msg')
+    expect(r.actions[0]?.api).toBe('send_private_message')
     expect(r.actions[0]?.params).toMatchObject({ user_id: '10001', is_wakeup: true })
   })
 
@@ -412,7 +412,7 @@ describe('message_send 互动召回（is_wakeup，仅单聊主动推送）', () 
       edges: [edge('e1', 't', 'next', 's', 'in')],
     }
     const r = await runFlowGraph(graph)
-    expect(r.actions[0]?.api).toBe('send_keyboard_msg')
+    expect(r.actions[0]?.api).toBe('send_keyboard_message')
     expect(r.actions[0]?.params).toMatchObject({ is_wakeup: true })
   })
 
@@ -450,7 +450,7 @@ describe('message_send 互动召回（is_wakeup，仅单聊主动推送）', () 
       edges: [edge('e1', 't', 'next', 's', 'in')],
     }
     const r = await runFlowGraph(graph)
-    expect(r.actions[0]?.api).toBe('send_group_msg')
+    expect(r.actions[0]?.api).toBe('send_group_message')
     expect(r.actions[0]?.params).not.toHaveProperty('is_wakeup')
   })
 })
@@ -474,9 +474,9 @@ describe('message_send 流式消息（仅单聊，节点内自动切片）', () 
   it('按「每片字数」切片逐片下发，末片 input_state=10', async () => {
     const r = await runFlowGraph(streamGraph({ text: 'abcdefghij', stream_chunk_size: 4 }))
     expect(r.actions.map((a) => a.api)).toEqual([
-      'send_stream_msg',
-      'send_stream_msg',
-      'send_stream_msg',
+      'send_stream_message',
+      'send_stream_message',
+      'send_stream_message',
     ])
     expect(r.actions.map((a) => a.params.content_raw)).toEqual(['abcd', 'efgh', 'ij'])
     expect(r.actions.map((a) => a.params.index)).toEqual([0, 1, 2])
@@ -540,7 +540,7 @@ describe('message_send 流式消息（仅单聊，节点内自动切片）', () 
       streamGraph({ text: 'abcdefghijkl', stream_chunk_size: 4 }),
       {
         callApi: (api) => {
-          if (api !== 'send_stream_msg') return { status: 'ok' }
+          if (api !== 'send_stream_message') return { status: 'ok' }
           calls += 1
           if (calls === 2) throw new Error('50002 频率限制')
           return { message_id: 'test-msg-1' }
@@ -560,7 +560,7 @@ describe('message_send 流式消息（仅单聊，节点内自动切片）', () 
       streamGraph({ text: 'abcdefgh', stream_chunk_size: 4 }),
       {
         callApi: (api) => {
-          if (api !== 'send_stream_msg') return { status: 'ok' }
+          if (api !== 'send_stream_message') return { status: 'ok' }
           throw new Error('网络中断')
         },
       },

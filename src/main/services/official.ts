@@ -2806,7 +2806,7 @@ function asArray(v: unknown): unknown[] | null {
  * 官方事件 → 内部事件。
  *
  * 这里解析出的 `attachments` / `arkData` / `msgElements` / `messageScene` 是**接收侧**能力的
- * 基础：翻译器构造 OneBot 事件时会读它们。不解析的话，用户发来的图片、结构化卡片、
+ * 基础：翻译器构造运行时事件时会读它们。不解析的话，用户发来的图片、结构化卡片、
  * 引用内容在流程里完全看不到（历史上就是如此 —— attachments 解析了但挂在没人消费的 `parsed` 上）。
  */
 export function parseOfficialEvent(t: string, d: Record<string, unknown>): OfficialEvent {

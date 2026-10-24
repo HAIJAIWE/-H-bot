@@ -230,7 +230,7 @@ const INLINE_FIELDS: Record<string, InlineField[]> = {
     { key: 'max_retries', label: '次数', type: 'number', placeholder: '3' },
     { key: 'delay', label: '间隔', type: 'number', placeholder: '1' },
   ],
-  edit_msg: [
+  edit_message: [
     { key: 'new_text', label: '新文本', type: 'text', placeholder: '编辑后的内容' },
   ],
   memory_op: [
@@ -474,7 +474,7 @@ export function formatSummary(node: FlowNode): string {
       return `"${String(cfg.text || cfg.message || '').slice(0, 25)}"`
     }
     case 'recall': return '撤回消息'
-    case 'edit_msg': return `"${String(cfg.new_text || '').slice(0, 25)}"`
+    case 'edit_message': return `"${String(cfg.new_text || '').slice(0, 25)}"`
 
     // 逻辑
     case 'if_branch': return String(cfg.expression || '条件判断')

@@ -2,12 +2,12 @@
 /**
  * TS Flow 运行时
  *
- * 作为 OneBot v11 WebSocket 客户端连接翻译器（官方 QQ 网关桥接；路径见
+ * 作为运行时事件 WebSocket 客户端连接翻译器（官方 QQ 网关桥接；路径见
  * shared/protocol/bus.ts 的 BUS_WS_PATH —— 服务端与客户端必须一致，写错就是
  * 握手 400 "运行时永远连不上"），接收事件并驱动 FlowInterpreter 执行，
  * 动作通过 WebSocket 回传。
  *
- * 历史：取代迁移前的 Python/NoneBot 机器人进程（bot.py），现状以本文件为准。
+ * 历史：取代迁移前的 Python 机器人进程（bot.py），现状以本文件为准。
  */
 
 import WebSocket from 'ws';
@@ -69,7 +69,7 @@ export class FlowRuntime {
   constructor(
     private projectPath: string,
     private translatorPort: number,
-    /** OneBot 网关主机。默认本机（Electron 内嵌翻译器）；远程部署时指向网关地址 */
+    /** 网关主机。默认本机（Electron 内嵌翻译器）；远程部署时指向网关地址 */
     private host: string = '127.0.0.1',
   ) {
     this.interpreter = new FlowInterpreter(projectPath);
@@ -165,7 +165,7 @@ export class FlowRuntime {
   //
   // 三个生命周期触发器的**触发时机**在这一个文件里定死，别处不再派发：
   //   on_startup → `start()` 那一刻（不等连接，只适合不发消息的初始化）
-  //   on_ready   → WebSocket `open`（真的连上 OneBot）之后一次
+  //   on_ready   → WebSocket `open`（真的连上网关）之后一次
   //   scheduled  → 每秒问一次 `dueTriggers`，cron / interval 判定在 scheduler.ts
   // 三者都按触发器 id 在 `lastFired` 里记账，保证"每个只跑一次"或"按间隔跑"。
 
@@ -288,7 +288,7 @@ export class FlowRuntime {
       logger.info('[ts-runtime] 已连接翻译器');
       this.emitLog('[ts-runtime] 已连接翻译器');
       this.setStatus('running');
-      // `on_ready`（连接就绪）的名字就是它的语义：**连上 OneBot 之后**才触发。
+      // `on_ready`（连接就绪）的名字就是它的语义：**连上网关之后**才触发。
       // 之前的实现把它当成"启动即触发"，在还没连上时就跑，于是流程里的发消息必然失败。
       void this.tickSchedules();
     });
@@ -406,7 +406,7 @@ export class FlowRuntime {
   // Bot 接口（handler 调用）
   // ============================================================
 
-  /** BotInterface 实现：callApi → OneBot action */
+  /** BotInterface 实现：callApi → 协议动作 */
   get bot(): HandlerBot {
     return {
       callApi: (api: string, params: Record<string, unknown>) => this.callApi(api, params),
@@ -414,7 +414,7 @@ export class FlowRuntime {
     };
   }
 
-  /** 发送 OneBot action 并等待响应 */
+  /** 发送协议动作并等待响应 */
   callApi(api: string, params: Record<string, unknown>, timeoutMs = 30_000): Promise<unknown> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return Promise.reject(new Error('翻译器未连接'));

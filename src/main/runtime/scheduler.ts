@@ -88,7 +88,7 @@ function isOneShotLifecycle(kind) {
 * 恰恰是最容易写错、也最该被锁住的部分（曾经 `on_ready` 在**还没连上**时就跑了，
 * 于是流程里的发消息必然失败）。
 *
-* @param connected 运行时是否已连上 OneBot（`FlowRuntime.status === 'running'`）
+* @param connected 运行时是否已连上网关（`FlowRuntime.status === 'running'`）
 */
 function selectDueLifecycle(triggers, lastFiredAt, nowMs, connected) {
 	const selection = {

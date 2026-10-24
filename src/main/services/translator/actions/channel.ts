@@ -6,7 +6,7 @@ import { sendOfficialMessage } from "../../official/messages";
 var sendChannelMsg = async (host, { params, echo, responder }) => {
 	const cid = String(params.channel_id ?? "").trim();
 	if (!cid) {
-		responder.fail(echo, "send_channel_msg 缺少 channel_id");
+		responder.fail(echo, "send_channel_message 缺少 channel_id");
 		return;
 	}
 	const cContent = typeof params.content === "string" ? params.content : "";
@@ -16,7 +16,7 @@ var sendChannelMsg = async (host, { params, echo, responder }) => {
 	const cEmbed = params.embed && typeof params.embed === "object" ? params.embed : null;
 	const cImage = typeof params.image === "string" ? params.image.trim() : "";
 	if (!cContent.trim() && !cMarkdown && !cArk && !(cEmbed && String(cEmbed.title ?? "").trim()) && !cImage) {
-		responder.fail(echo, "send_channel_msg 至少要有一个内容字段（content / markdown / ark / embed / image）—— 官方原话是\"至少需要有一个字段，否则无法下发消息\"");
+		responder.fail(echo, "send_channel_message 至少要有一个内容字段（content / markdown / ark / embed / image）—— 官方原话是\"至少需要有一个字段，否则无法下发消息\"");
 		return;
 	}
 	const cCtx = host.ctxFor(params, cid);
@@ -156,7 +156,7 @@ var reactionEmoji = async (host, { action, params, echo, responder }) => {
 	else responder.fail(echo, r.error);
 };
 var channelActions = {
-	send_channel_msg: sendChannelMsg,
+	send_channel_message: sendChannelMsg,
 	channel_list: channelList,
 	channel_get: channelGet,
 	channel_create: channelCreate,

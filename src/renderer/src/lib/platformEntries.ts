@@ -18,7 +18,7 @@ export const TOOLBAR_PLATFORM_TAGS = {
 
 /** 顶层（开发模式）标签页上的平台专属入口 */
 export const TOP_TAB_PLATFORM_TAGS = {
-  /** 「面板」= 按钮面板（inline keyboard），面向 QQ/OneBot —— QQ 平台专有 */
+  /** 「面板」= 按钮面板（inline keyboard），面向 QQ —— QQ 平台专有 */
   panels: ['QQ'],
 } as const satisfies Record<string, readonly string[]>;
 

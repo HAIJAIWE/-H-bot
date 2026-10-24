@@ -46,8 +46,8 @@ var SandboxTranslator = class {
 		};
 		this.adapter = new SandboxAdapter(ctx);
 		this.adapter.onEvent((event) => {
-			const onebot = toRuntimeEvent(event);
-			if (onebot) this.broadcast(onebot);
+			const runtimeEvent = toRuntimeEvent(event);
+			if (runtimeEvent) this.broadcast(runtimeEvent);
 		});
 		this.wss = new ws.WebSocketServer({
 			host: "127.0.0.1",
@@ -158,7 +158,7 @@ var SandboxTranslator = class {
 	* 处理运行时发来的动作。
 	*
 	* ⚠️ `protected` 是**有意的扩展点**：真实平台（飞书/KOOK…）把它当翻译器用时，
-	* 需要在这里把 `send_msg` 之类的动作**真的发出去**（而不是只记在 `actions` 里），
+	* 需要在这里把 `send_message` 之类的动作**真的发出去**（而不是只记在 `actions` 里），
 	* 同时保留原有的记录 + 回 echo 行为。子类覆写后调 `super` 即可。
 	* 改成 private 会逼出一个"复制整份 SandboxTranslator"的坏方案。
 	*
@@ -266,19 +266,19 @@ var SandboxTranslator = class {
 	*
 	* 真实平台接入（`lark/adapter.ts`）要用 `emitGroupMessage(text, over)` 推**真实**消息：
 	* 父类构造函数里已经接好 `adapter.onEvent → toRuntimeEvent → broadcast`，
-	* 所以子类只需 `emit*`，**不要**自己再造一份 OneBot 事件
+	* 所以子类只需 `emit*`，**不要**自己再造一份运行时事件
 	* （踩过：自己造的那份让运行时"说处理了"但流程图读到的内容不对）。
 	*/
 	get sandboxAdapter() {
 		return this.adapter;
 	}
 	/**
-	* 向所有连着的运行时广播一条 OneBot 事件。
+	* 向所有连着的运行时广播一条运行时事件。
 	*
-	* `protected` 是**有意的扩展点**：需要广播**任意** OneBot 事件时用
+	* `protected` 是**有意的扩展点**：需要广播**任意** 运行时事件时用
 	* （`pushGroupMessage` 只能发固定文本）。事件形状与它内部产出的完全一致。
 	*/
-	broadcastOneBot(event) {
+	broadcastEvent(event) {
 		this.broadcast(event);
 	}
 	broadcast(event) {

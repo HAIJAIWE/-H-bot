@@ -236,7 +236,7 @@ async function checkPermission(bot, event, role = "admin") {
 	} catch (e) {
 		return permissionResult(false, false, `查询群成员信息失败：${e instanceof Error ? e.message : String(e)}`);
 	}
-	const haveLevel = ONEBOT_ROLE_LEVELS[memberRole] ?? 0;
+	const haveLevel = ROLE_LEVELS[memberRole] ?? 0;
 	const needLevel = PERMISSION_LEVELS[need];
 	return permissionResult(true, haveLevel >= needLevel, "", memberRole || "guest");
 }
@@ -254,9 +254,9 @@ async function checkPermission(bot, event, role = "admin") {
 * （层级见 `PERMISSION_LEVELS`「超级管理员 > 群主 > 管理员 > 成员 > 游客」）：
 *
 * - 机器人主人 → `'super_admin'`；
-* - 群聊 → **OneBot 原样返回的 role**（`owner` / `admin` / `member`；不认识的值也原样带出）：
+* - 群聊 → **原样返回的 role**（`owner` / `admin` / `member`；不认识的值也原样带出）：
 *   端口叫"实际角色"，那它就该是群里的事实，而不是我们归一化之后的看法
-*   （归一化只用于比较，见 `ONEBOT_ROLE_LEVELS[...] ?? 0`）；
+*   （归一化只用于比较，见 `ROLE_LEVELS[...] ?? 0`）；
 * - 群聊但返回的 role 为空 → `'guest'`；
 * - 私聊非超管 → `'guest'`：契约明说"私聊只有超级管理员生效"，对这个会话而言他确实只是游客；
 * - **判断不出来**（级别非法 / 事件里没有 user_id / 查群失败）→ `''`：`user_role` 是对人的断言，
@@ -301,11 +301,11 @@ var PERMISSION_LEVELS = {
 	owner: 3,
 	super_admin: 4
 };
-/** OneBot `get_group_member_info` 返回的 role → 层级（返回别的值一律按最低处理） */
-var ONEBOT_ROLE_LEVELS = {
+/** 网关 `get_group_member_info` 返回的 role → 层级（返回别的值一律按最低处理） */
+var ROLE_LEVELS = {
 	member: 1,
 	admin: 2,
 	owner: 3
 };
 
-export { performHttpRequest, normalizeHeaders, httpRequest, apiCall, checkPermission, permissionResult, superAdminIds, HTTP_MAX_RESPONSE_BYTES, HTTP_MAX_TIMEOUT_MS, PERMISSION_LEVELS, ONEBOT_ROLE_LEVELS };
+export { performHttpRequest, normalizeHeaders, httpRequest, apiCall, checkPermission, permissionResult, superAdminIds, HTTP_MAX_RESPONSE_BYTES, HTTP_MAX_TIMEOUT_MS, PERMISSION_LEVELS, ROLE_LEVELS };

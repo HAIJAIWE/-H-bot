@@ -248,7 +248,7 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
   'src\\main\\services\\bot\\segmentTranslator.ts:translateSegments':
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
-  // 扁平副本（生产走 services/bot/segmentTranslator.ts）：原先唯一引用是已删除的 onebot-translator 旧测试
+  // 扁平副本（生产走 services/bot/segmentTranslator.ts）：原先唯一引用是已删除的旧翻译器测试
   'src\\main\\services\\segmentTranslator.ts:attachmentsToSegments':
     '扁平副本，零生产引用；整文件去重时一并处理（与 bot/segmentTranslator.ts 合并）',
   'src\\main\\services\\segmentTranslator.ts:translateSegments':
@@ -284,8 +284,6 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
   'src\\shared\\domain\\common\\capabilities.ts:missingCapabilities':
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
   'src\\shared\\domain\\common\\runtimeEventConvert.ts:fromRuntimeEvent':
-    '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
-  'src\\shared\\domain\\common\\runtimeEventConvert.ts:toOneBotSendAction':
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
   'src\\shared\\domain\\common\\standardEvent.ts:isCustomEvent':
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',

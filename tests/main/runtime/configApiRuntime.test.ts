@@ -153,7 +153,7 @@ describe('配置表绑定 → 节点输入端口（TS 运行时）', () => {
       event: { raw_message: '/技能', message: '/技能', get_message: () => '/技能' },
     })
 
-    expect(r.actions.filter((a) => a.api === 'send_msg').map((a) => a.params.message)).toEqual([
+    expect(r.actions.filter((a) => a.api === 'send_message').map((a) => a.params.message)).toEqual([
       '技能=火球术',
     ])
   })
@@ -199,7 +199,7 @@ describe('配置表绑定 → 节点输入端口（TS 运行时）', () => {
       event: { raw_message: '/技能', message: '/技能', get_message: () => '/技能' },
     })
 
-    expect(r.actions.filter((a) => a.api === 'send_msg').map((a) => a.params.message)).toEqual([
+    expect(r.actions.filter((a) => a.api === 'send_message').map((a) => a.params.message)).toEqual([
       '威力档=30',
     ])
   })
@@ -239,7 +239,7 @@ describe('配置表绑定 → 节点输入端口（TS 运行时）', () => {
     })
 
     // 关键：不抛错、链照常走完（不是"整个流程挂掉"）
-    expect(r.actions.filter((a) => a.api === 'send_msg').map((a) => a.params.message)).toEqual([
+    expect(r.actions.filter((a) => a.api === 'send_message').map((a) => a.params.message)).toEqual([
       'X[{var1}]',
     ])
   })
@@ -296,7 +296,7 @@ const runMonster = async (opts: { expression: string; order: string }) => {
   const r = await runFlowGraph(rowBindingGraph(opts), {
     event: { raw_message: '/打怪', message: '/打怪', get_message: () => '/打怪' },
   })
-  return r.actions.filter((a) => a.api === 'send_msg').map((a) => a.params.message)
+  return r.actions.filter((a) => a.api === 'send_message').map((a) => a.params.message)
 }
 
 describe('配置表：随机取一行 / 按列排序 / 取整行（RPG 主线要用）', () => {

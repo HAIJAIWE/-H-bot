@@ -3,28 +3,28 @@
 import { z } from "zod";
 
 /**
-* **OneBot 动作名 → 能力** 的映射。
+* **协议动作名 → 能力** 的映射。
 *
 * ## 为什么需要它
 *
-* 节点声明的是**能力**，而线上跑的是**动作名**（`send_group_msg` 之类）。
+* 节点声明的是**能力**，而线上跑的是**动作名**（`send_group_message` 之类）。
 * 两边要能对上，才能在"节点要求 X、绑定只有 Y"时**说清楚缺什么**。
 *
-* ⚠️ **这张表是过渡期的桥**：OneBot 动作名的粒度比能力细
-* （`send_msg` / `send_private_msg` / `send_group_msg` 都归 `im.message.send`）。
+* ⚠️ **这张表是过渡期的桥**：协议动作名的粒度比能力细
+* （`send_message` / `send_private_message` / `send_group_message` 都归 `im.message.send`）。
 * 将来如果绑定的能力声明直接落到动作上，这张表可以退化掉 —— 但现在不能删，
 * 因为**存量绑定的接口就是动作名**（`BotInterface.callApi(api, params)`）。
 */
 var ONEBOT_ACTION_CAPABILITY = {
-	send_msg: "im.message.send",
-	send_private_msg: "im.message.send",
-	send_group_msg: "im.message.send",
-	send_keyboard_msg: "im.message.send_keyboard",
+	send_message: "im.message.send",
+	send_private_message: "im.message.send",
+	send_group_message: "im.message.send",
+	send_keyboard_message: "im.message.send_keyboard",
 	send_media: "im.message.send_media",
-	send_stream_msg: "im.message.send_stream",
-	send_group_forward_msg: "im.message.send_forward",
-	delete_msg: "im.message.recall",
-	edit_msg: "im.message.edit",
+	send_stream_message: "im.message.send_stream",
+	send_group_forward_message: "im.message.send_forward",
+	delete_message: "im.message.recall",
+	edit_message: "im.message.edit",
 	get_group_info: "im.group.info",
 	get_group_bot_state: "im.group.bot_state",
 	get_group_mute_state: "im.group.mute_state",

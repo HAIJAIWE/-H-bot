@@ -1,7 +1,7 @@
 // tests/renderer/components/launch/ConnectionConfigDialog.test.tsx
 //
 // 连接设置（官方 API）：10/18 起只剩翻译器端口一个可编辑项 ——
-// 官方 API 走翻译器（OneBot）接入，NapCat 主机/端口/Token 那组表单已随 NapCat 适配器退役。
+// 官方 API 走翻译器（本机网关）接入，NapCat 主机/端口/Token 那组表单已随 NapCat 适配器退役。
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'

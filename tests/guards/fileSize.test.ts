@@ -60,6 +60,10 @@ const DATA_FILES: Record<string, string> = {
     '**由脚本生成的表**（`scripts/gen-capability-catalog.mjs` 从 docs/ai/ai-capability-layering-*.md 生成，' +
     '257 条）。改动它 = 改文档再重新生成，**手拆没有意义**；而且 `capabilityLayering` 闸门逐条盯着' +
     '它与文档一致 —— 真出问题会先在那里红',
+  'src\\shared\\nodes\\groups\\message.ts':
+    '**声明式节点目录分片**（消息域 6 个节点，1,140 行）—— 2026-10-03 从 `builtinCatalog.ts` 按 group 原样拆出，' +
+    '内容是每节点的端口/配置/文案表，不是逻辑。它进队列是因为 2026-10-24 的 OneBot 清理顺手改了这里的平台标注，' +
+    '提交次数从 1 变 2；按内容性质属数据表，与 builtinCatalog 同源，拆成更小的表只会让「加节点要记得登记在哪个文件」变复杂',
   'src\\renderer\\src\\types\\ipc.ts':
     '桥的**声明**（228 个方法签名 + 支持类型）—— 没有运行时逻辑。' +
     '它长是因为**桥大**（228 个方法），不是因为结构差；' +

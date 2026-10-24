@@ -193,8 +193,7 @@ export class ProjectService {
     fullConfig: ProjectConfig,
   ): Promise<void> {
     const translatorPort = fullConfig.translatorPort;
-    // 迁移说明：旧实现写 NoneBot2 的 .env（DRIVER=~fastapi+~websockets、
-    // ONEBOT_WS_URLS）并生成完整的 bot.py（nonebot.init() + load_plugins）。
+    // 迁移说明：旧实现写 Python 机器人栈的 .env（驱动/网关地址等键）并生成完整的 bot.py。
     // TS 运行时不读这些驱动配置，也不需要 bot.py —— 它由主进程直接解释
     // .qqbat/flow.json。这里只保留运行时与容器部署真正会用到的变量。
     const envContent = [

@@ -13,7 +13,7 @@ import { pruneMessageContexts } from "../translator/messageContext";
 import { BUS_WS_PATH } from "../../../shared/protocol/bus";
 import { officialApiRequest, onOfficialMessage, onOfficialStatusChange } from "../official/client";
 import { noticeEventOf } from "../official/noticeEvents";
-import { ALL_ACTION_HANDLERS } from "../translator/actions/index";
+import { ALL_ACTION_HANDLERS, normalizeActionName } from "../translator/actions/index";
 import { init_logger, logger } from "../infra/logger";
 
 init_dataService();
@@ -121,7 +121,7 @@ async function findFreePort(startPort) {
 /**
 * QQ 官方 `author.bot` → 统一侧的 `sender_type`。
 *
-* 官方给的是**布尔**，而 `StandardEvent` / OneBot 扩展字段统一用 `'user'` / `'bot'`
+* 官方给的是**布尔**，而 `StandardEvent` / 扩展字段统一用 `'user'` / `'bot'`
 * （见 `shared/domain/common/standardEvent.ts` 的 `BaseEvent.senderType`）。
 *
 * ⚠️ **字段缺失时返回 `undefined`，不猜成 `'user'`** ——
@@ -302,7 +302,7 @@ function injectTestMessage(projectPath, message, chatType = "group", chatId) {
 	return true;
 }
 /**
-* QQ 官方 API ↔ OneBot 协议的翻译器。
+* QQ 官方 API ↔ 网关协议的翻译器。
 *
 * ⚠️ 下面有 11 个成员**故意不写 private**（`projectPath` / `selfIdNum` / `messageIdToContext` /
 * `ctxFor` / `getOpenidByUid` / `getOrCreateUid` / `messageExtras` / `extractText` /
@@ -338,7 +338,7 @@ var EventBus = class {
 	uidToOpenid = /* @__PURE__ */ new Map();
 	openidToUid = /* @__PURE__ */ new Map();
 	uidNext = UID_START;
-	/** message_id → {chatType, chatId} 映射，用于 delete_msg 撤回消息 */
+	/** message_id → {chatType, chatId} 映射，用于 delete_message 撤回消息 */
 	messageIdToContext = /* @__PURE__ */ new Map();
 	unsubMessage = null;
 	unsubStatus = null;
@@ -542,7 +542,7 @@ var EventBus = class {
 	/**
 	* 消息 id / REFIDX → REFIDX 的映射（设计文档模块 4）。
 	*
-	* 为什么必须有映射层：**REFIDX ≠ OneBot 消息 id**，两者不是一回事。
+	* 为什么必须有映射层：**REFIDX ≠ 消息 id**，两者不是一回事。
 	* 事件侧从 `message_scene.ext`（`["msg_idx=REFIDX_xxx"]`）登记进来，
 	* 发送侧就能把流程里拿到的"消息 id"换算成官方要的引用标识。
 	*/
@@ -575,7 +575,7 @@ var EventBus = class {
 		return this.refIdxByMessageId.get(raw) ?? "";
 	}
 	/**
-	* 把 OneBot 侧的 `reply_to` / `is_wakeup` 换算成官方发送选项。
+	* 把网关侧的 `reply_to` / `is_wakeup` 换算成官方发送选项。
 	*
 	* 认不出引用目标时**抛错**（`run().catch` 会把它变成 sendError）——
 	* 静默丢掉引用会让用户以为"回复了某条消息"，实际是普通消息。
@@ -602,7 +602,7 @@ var EventBus = class {
 	* 同一个群里 A 触发流程、B 随后发言会把槽位**覆盖掉**，A 的回复于是带着 **B 的 event_id**
 	* 发出去，被官方按错条归属或按重复去重。
 	*
-	* 带不回来（老调用方、裸 OneBot 客户端）时就退回原来的单槽位行为 —— **不能把老路径弄坏**。
+	* 带不回来（老调用方、裸网关客户端）时就退回原来的单槽位行为 —— **不能把老路径弄坏**。
 	*/
 	ctxFor(params, targetKey) {
 		const mid = params.message_id;
@@ -613,19 +613,19 @@ var EventBus = class {
 		return this.ctx.get(targetKey);
 	}
 	/**
-	* 把 OneBot 侧的**顺序 UID** 还原成官方 **openid**（群号与用户都适用）。
+	* 把网关侧的**顺序 UID** 还原成官方 **openid**（群号与用户都适用）。
 	*
 	* ## 为什么必须有这个回查
 	*
-	* 本翻译器对外是 OneBot v11 语义：事件里的 `group_id` / `user_id` 是**自己分配的顺序
+	* 本翻译器对外是运行时事件语义：事件里的 `group_id` / `user_id` 是**自己分配的顺序
 	* 整数**（见 {@link getOrCreateUid} —— `uidNext++`），因为官方 openid 是长串、无法当
-	* OneBot 的 int 字段用。**群号也一样**：事件构造处用
+	* 运行时的 int 字段用。**群号也一样**：事件构造处用
 	* `this.getOrCreateUid(groupOpenid)` 把 `group_openid` 换成了顺序 UID。
 	*
 	* 所以凡是把 `params.group_id` / `params.user_id` 拼进官方接口的地方，
 	* **都必须先回查**：官方 `/v2/groups/...` 的路径参数与 `user_openid` 字段要的都是 openid。
 	*
-	* 发消息那几条路（send_private_msg / send_group_msg / …）一直是回查的；
+	* 发消息那几条路（send_private_message / send_group_message / …）一直是回查的；
 	* 群管理这一组当初漏了，于是 6 个动作全都拿着顺序 UID 去调 openid 接口 —— 必然失败
 	* （表现为"禁言/踢人/查群成员点了没反应"，而且报的是官方接口的错，很难反查到翻译器）。
 	*
@@ -639,7 +639,7 @@ var EventBus = class {
 		if (!Number.isFinite(n)) return s;
 		return this.getOpenidByUid(n) ?? s;
 	}
-	/** 将字符串哈希为正整数（OneBot V11 要求 message_id 为 int） */
+	/** 将字符串哈希为正整数（协议要求 message_id 为 int） */
 	hashToInt(s) {
 		let hash = 0;
 		for (let i = 0; i < s.length; i++) {
@@ -894,7 +894,7 @@ var EventBus = class {
 		* 同一分支也认它）。2026-10-05 补：此前**只能发到频道、收不到频道消息** ✗
 		*（能力清单 §7.9 的"频道事件翻译"一直列着 `AT_MESSAGE_CREATE` / `MESSAGE_CREATE` 这个计划）。
 		*
-		* 广播成 OneBot 的 `message_type: 'guild'` 形状（带 `guild_id` / `channel_id`），
+		* 广播成运行时的 `message_type: 'guild'` 形状（带 `guild_id` / `channel_id`），
 		* 于是「收到消息」触发器选「频道消息」就能匹配 ✓
 		*/
 		if (type === "AT_MESSAGE_CREATE" || type === "MESSAGE_CREATE") {
@@ -1111,13 +1111,14 @@ var EventBus = class {
 	* 不必再动这个文件。
 	*/
 	handleAction(responder, msg) {
-		const action = msg.action;
+		// 旧动作名（存量 flow.json / 第三方插件）在这里归一化成现行命名，新名原样透传
+		const action = normalizeActionName(msg.action);
 		const params = msg.params || {};
 		const echo = msg.echo;
 		const run = async () => {
 			const handler = ALL_ACTION_HANDLERS[action];
 			if (!handler) {
-				const errMsg = `不支持的 OneBot action: ${action}（已在 SUPPORTED_ACTIONS 登记的都支持；新增能力请先登记再写实现）`;
+				const errMsg = `不支持的 协议动作: ${action}（已在 SUPPORTED_ACTIONS 登记的都支持；新增能力请先登记再写实现）`;
 				emitSystemLog(this.projectPath, errMsg, "warn");
 				responder.fail(echo, errMsg);
 				return;
@@ -1162,7 +1163,7 @@ var EventBus = class {
 	}
 	/** 检测消息段中的 markdown + keyboard（消息段扩展格式）。
 	*  返回 {markdown, keyboard} 或 null（非键盘消息时）。
-	*  用于 send_msg 等标准 action 中识别按钮消息并路由到 Official API keyboard 端点。
+	*  用于 send_message 等标准 action 中识别按钮消息并路由到 Official API keyboard 端点。
 	*/
 	extractMarkdownKeyboard(message) {
 		if (!Array.isArray(message)) return null;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T00:54:44.181Z",
+  "generatedAt": "2026-10-24T02:33:58.023Z",
   "baseline": {
     "kind": "packaged-client",
     "bundle": "_baseline/out-bundle",
@@ -8,7 +8,7 @@
     "regions": 594
   },
   "tree": {
-    "files": 812
+    "files": 813
   },
   "missing": {
     "total": 10,
@@ -83,9 +83,9 @@
     }
   ],
   "delta": {
-    "total": 209,
+    "total": 210,
     "symbolHit": 83,
-    "unshipped": 93,
+    "unshipped": 94,
     "unshippedFiles": [
       "src/main/ipc/aiAgentCore.ts",
       "src/main/ipc/aiAllowRules.ts",
@@ -135,6 +135,7 @@
       "src/main/services/plugins/sandboxPluginBridge.ts",
       "src/main/services/plugins/scoping.ts",
       "src/main/services/segmentTranslator.ts",
+      "src/main/services/translator/actions/aliases.ts",
       "src/main/templates/builtinTemplates.ts",
       "src/main/templates/buttonPanelTemplates.ts",
       "src/main/templates/combatTemplates.ts",

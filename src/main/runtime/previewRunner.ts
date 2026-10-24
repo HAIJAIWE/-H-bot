@@ -19,7 +19,7 @@ import { createTempWorkspace, disposeTempWorkspace } from '../services/infra/tem
 /** 预览串行锁：进程级开关（env / 持久化目录）不能被并发预览互相覆盖 */
 var previewRunning = false;
 /**
-* 把界面的输入合成为一条 OneBot 风格**消息**事件。
+* 把界面的输入合成为一条协议风格**消息**事件。
 *
 * 触发器匹配（`matchTrigger`）读的是 `raw_message` 等字段，所以这里按真实事件形状构造。
 *
@@ -74,7 +74,7 @@ function stubResponseFor(api, params) {
 		nickname: "测试用户",
 		role: "member"
 	};
-	if (api.includes("get_msg")) return {
+	if (api.includes("get_message")) return {
 		message_id: params.message_id ?? 1,
 		message: "测试消息"
 	};

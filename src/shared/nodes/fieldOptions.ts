@@ -137,7 +137,7 @@ export const CONFIG_QUERY_MODE_OPTIONS = [
  * ⚠️ 官方接入下的**可发/不可发**必须写在标签里：
  * 官方发送侧只有「文本 / Markdown / 富媒体 / 引用」这几种表达方式，
  * 表情 / 音乐 / 戳一戳 / 合并转发**官方根本没有发送接口**。
- * 这些取值是从 OneBot 时代留下的（存量 flow.json 里还有），保留但不该让用户以为能用 ——
+ * 这些取值是从旧协议时代留下的（存量 flow.json 里还有），保留但不该让用户以为能用 ——
  * 以前只有运行到那一步才报错，等于让用户在画布上白搭一遍。
  */
 export const MESSAGE_OP_SEGMENT_TYPE_OPTIONS = [
@@ -163,7 +163,7 @@ export const MESSAGE_OP_MUSIC_TYPE_OPTIONS = [
 /**
  * group_op:mode —— 群管理操作。
  *
- * ⚠️ **这里只放官方真正支持的写法**。从 OneBot 时代继承下来、而官方根本没有的能力
+ * ⚠️ **这里只放官方真正支持的写法**。从旧协议时代继承下来、而官方根本没有的能力
  * （设置名片/头衔、主动退群、群公告、上传群文件、审批好友请求、设全员禁言、群精华）
  * 已**从下拉里移除** —— 它们以前挂在列表里，用户选中后必然失败，等于在画布上白搭一遍。
  *
@@ -217,7 +217,7 @@ export const GROUP_OP_LEGACY_REASONS: Readonly<Record<string, string>> = {
  *
  * 取值必须与翻译器**真正广播出来的** notice_type 一致（见 eventBus.ts）。
  * 这里曾经只在节点描述里写了 'group_increase'/'group_decrease'/'group_recall'/'group_admin'
- * 这类 OneBot 标准名 —— 而官方适配器根本不发这些名字（发的是 group_member_add /
+ * 这类协议标准名 —— 而官方适配器根本不发这些名字（发的是 group_member_add /
  * group_member_remove / message_audit / interaction）。照着描述配流程的人会永远等不到事件。
  */
 export const NOTICE_TYPE_OPTIONS = [

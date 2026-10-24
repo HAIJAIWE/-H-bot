@@ -7,7 +7,7 @@ import { adapterSwitchSchema } from '../schemas/adapter'
 /**
  * 当前活动的适配器类型。
  *
- * 10/18 基线起 shared/types/adapter.ts 只注册 official（NapCat 的 OneBot 通道已退役、
+ * 10/18 基线起 shared/types/adapter.ts 只注册 official（NapCat 的网关通道已退役、
  * 也没有任何 napcat:* IPC 注册），这里的默认值必须跟着收敛 —— 否则 adapter:current
  * 会报一个永远切不回去的假类型，界面上就成了「当前用的是 NapCat」。
  */

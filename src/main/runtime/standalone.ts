@@ -10,9 +10,9 @@ import { onBotLog, onNodeEvent } from "../services/runner/runtimeEvents";
 * 独立（headless）运行时入口 —— Docker / SSH 部署用
 *
 * 启动的是**完整一条链路**（与桌面版同构）：
-*   eventBus（OneBot v11 网关本体）→ 官方适配器 → FlowRuntime（解释执行 flow.json）
+*   eventBus（网关本体）→ 官方适配器 → FlowRuntime（解释执行 flow.json）
 *
-* ⚠️ 历史坑（2026-10-01 修）：本文件曾经**只** `new FlowRuntime()`。它是 OneBot WS
+* ⚠️ 历史坑（2026-10-01 修）：本文件曾经**只** `new FlowRuntime()`。它是网关 WS
 * **客户端** —— 本机没有翻译器在监听时它永远连不上，于是"部署成功"的镜像一个消息都收不到。
 * 现在装配统一走 `headlessAssembly.startHeadless`，并由
 * `tests/guards/standaloneAssembly.test.ts` 钉住"必须到达 startTranslator 与 startOfficial"。

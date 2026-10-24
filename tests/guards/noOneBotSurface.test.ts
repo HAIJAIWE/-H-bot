@@ -1,10 +1,11 @@
 // tests/guards/noOneBotSurface.test.ts
-// 守卫：OneBot 从来不是本项目的可选协议端（adapterRegistry 只注册过 official），
-// 它只是"翻译器 ↔ 运行时"之间的私有事件/动作形状。2026-10-24 起，用户可见面上
-// 一切 OneBot 表述都已清掉；这里锁住这层外表，避免从旧文档/旧代码里又被搬回来。
+// 守卫：OneBot 从来不是本项目的可选协议端（adapterRegistry 只注册过 official）。
+// 2026-10-24 起：用户可见面清掉一切 OneBot 表述，随后连**内部命名**也一并改成
+// 项目自己的（RuntimeEvent / ROLE_LEVELS / send_group_message），旧动作名只保留在
+// 翻译器入口的别名表里（src/main/services/translator/actions/aliases.ts）做兼容。
+// 这里同时锁住外表与命名：再出现大写 OneBot 说明有人从旧产物里搬回来了。
 //
-// 注意：内部契约（OneBotEvent / ONEBOT_ROLE_LEVELS / send_group_msg 这类动作名）
-// 仍然存在，那是运行时私有协议，不在本守卫范围内。
+// 唯一允许的存量：flow.json 里的历史 runtime 值 `'nonebot2'`（小写，磁盘数据，不能改）。
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join, dirname } from 'path'
@@ -60,6 +61,13 @@ describe('OneBot 不是可选协议端（用户可见面已清理）', () => {
     expect(project).not.toContain('PlatformCredentials')
     expect(project).not.toContain('botAdapters')
     expect(read('src/main/schemas/project.ts')).not.toContain('platformCredentials')
+  })
+
+  it('src 里不再出现大写 OneBot（内部命名已改成 RuntimeEvent / 动作名_ message）', () => {
+    const offenders = srcFiles
+      .map((file) => ({ rel: file.slice(ROOT.length + 1), text: readFileSync(file, 'utf-8') }))
+      .filter(({ text }) => /OneBot/.test(text))
+    expect(offenders.map((o) => o.rel)).toEqual([])
   })
 
   it('文档不再把 OneBot 描述成外部协议端', () => {

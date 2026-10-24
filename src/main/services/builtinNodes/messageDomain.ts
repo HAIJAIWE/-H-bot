@@ -2,7 +2,7 @@
 // 由 10/18 打包产物还原（chunk: registration-B3DiGKnT.js）；见 _recovery/README-recovery.md
 import { buildStreamChunkPlan } from "../../runtime/signals";
 
-/** 发送一条消息，覆盖纯文本/按钮UI/消息段/合并转发 × 回复/推送 全部场景。 */
+/** 发送一条消息，覆盖纯文本/按钮UI/消息段/合并转发 × 回复/推送全部场景。 */
 async function messageSend(bot, event, text = "", mode = "text", markdown = "", keyboard = null, segments = null, messages = null, userId = "", targetType = "", targetId = "", vars = {}, mediaUrl = "", mediaType = "", fileName = "", replyTo = "", isWakeup = false, streamContentType = "", streamChunkSize = 0, streamIntervalMs = 300, inputSecond = 0, arkTemplateId = "", arkKv = "", embedTitle = "", embedPrompt = "", embedDescription = "", embedThumbnail = "", embedFields = "", forceVerifyImageResource = false) {
 	const modeStr = String(mode || "text");
 	const targetTypeStr = String(targetType || "").toLowerCase();
@@ -128,7 +128,7 @@ async function messageSend(bot, event, text = "", mode = "text", markdown = "", 
 		};
 		for (const chunk of plan) {
 			try {
-				const mid = responseMessageId(await bot.callApi("send_stream_msg", {
+				const mid = responseMessageId(await bot.callApi("send_stream_message", {
 					...baseParams,
 					content_raw: chunk.contentRaw,
 					index: chunk.index,
@@ -139,7 +139,7 @@ async function messageSend(bot, event, text = "", mode = "text", markdown = "", 
 			} catch (e) {
 				const err = e instanceof Error ? e : new Error(String(e));
 				if (streamMsgId) try {
-					await bot.callApi("send_stream_msg", {
+					await bot.callApi("send_stream_message", {
 						...baseParams,
 						content_raw: "",
 						index: chunk.index + 1,
@@ -174,7 +174,7 @@ async function messageSend(bot, event, text = "", mode = "text", markdown = "", 
 			...wakeupFor(isPush && targetTypeStr === "group" ? "group" : "private")
 		});
 		try {
-			await bot.callApi("send_msg", {
+			await bot.callApi("send_message", {
 				message: [{
 					type: "markdown",
 					data: {
@@ -239,7 +239,7 @@ async function messageSend(bot, event, text = "", mode = "text", markdown = "", 
 			const [targetParams] = resolveTarget(event, targetTypeStr, targetIdStr);
 			if (targetTypeStr === "group") return {
 				success: true,
-				message_id: responseMessageId(await bot.callApi("send_group_msg", {
+				message_id: responseMessageId(await bot.callApi("send_group_message", {
 					...targetParams,
 					message: msg,
 					...withReplyTo
@@ -248,7 +248,7 @@ async function messageSend(bot, event, text = "", mode = "text", markdown = "", 
 			};
 			else return {
 				success: true,
-				message_id: responseMessageId(await bot.callApi("send_private_msg", {
+				message_id: responseMessageId(await bot.callApi("send_private_message", {
 					...targetParams,
 					message: msg,
 					...withReplyTo,
@@ -257,7 +257,7 @@ async function messageSend(bot, event, text = "", mode = "text", markdown = "", 
 				error: ""
 			};
 		}
-		await bot.callApi("send_msg", {
+		await bot.callApi("send_message", {
 			message: renderTemplate(String(text)),
 			...buildTargetParams(event),
 			...withReplyTo,
@@ -277,11 +277,11 @@ async function messageSend(bot, event, text = "", mode = "text", markdown = "", 
 	}
 }
 /**
-* 把「发消息」的各个模式映射成**频道**的请求字段，并调 `send_channel_msg`。
+* 把「发消息」的各个模式映射成**频道**的请求字段，并调 `send_channel_message`。
 *
 * ## 为什么单独一个函数
 *
-* 频道的请求体与 OneBot 的 `message` 不是一回事（见调用点的说明）。把它收在这里，
+* 频道的请求体与运行时的 `message` 不是一回事（见调用点的说明）。把它收在这里，
 * 好处是"频道支持哪些形态、不支持哪些"能一眼看完 —— 而不是散在七个模式分支里。
 *
 * ## 映射表（每一项都对应官方频道发送接口的某个字段）
@@ -373,7 +373,7 @@ async function sendToChannel(bot, config, mode, channelId, renderTemplate, withR
 		case "segment": return {
 			success: false,
 			message_id: "",
-			error: "频道发不了消息段：官方频道发送接口只有 content / markdown / ark / embed / image 五种字段，没有 OneBot 消息段。请改用文本或 Markdown。"
+			error: "频道发不了消息段：官方频道发送接口只有 content / markdown / ark / embed / image 五种字段，没有 消息段。请改用文本或 Markdown。"
 		};
 		case "forward": return {
 			success: false,
@@ -394,7 +394,7 @@ async function sendToChannel(bot, config, mode, channelId, renderTemplate, withR
 	try {
 		return {
 			success: true,
-			message_id: responseMessageId(await bot.callApi("send_channel_msg", params)),
+			message_id: responseMessageId(await bot.callApi("send_channel_message", params)),
 			error: ""
 		};
 	} catch (e) {
@@ -469,7 +469,7 @@ async function messageRecall(bot, event, messageId = 0) {
 		error: "message_id 不能为空"
 	};
 	try {
-		await bot.callApi("delete_msg", { message_id: mid });
+		await bot.callApi("delete_message", { message_id: mid });
 		return {
 			success: true,
 			error: ""
@@ -496,7 +496,7 @@ async function messageEdit(bot, _event = null, messageId = "", newText = "") {
 		error: "new_text 为空"
 	};
 	try {
-		await bot.callApi("edit_msg", {
+		await bot.callApi("edit_message", {
 			message_id: messageId,
 			message: newText
 		});
@@ -549,8 +549,8 @@ async function sendKeyboard(bot, event, markdown, keyboard, targetType = "", tar
 			...extra
 		};
 		if (msgId) params.msg_id = msgId;
-		console.info(`[message_send] 按钮UI模式-方式1: send_keyboard_msg, message_type=${target.message_type}`);
-		const mid = responseMessageId(await bot.callApi("send_keyboard_msg", params));
+		console.info(`[message_send] 按钮UI模式-方式1: send_keyboard_message, message_type=${target.message_type}`);
+		const mid = responseMessageId(await bot.callApi("send_keyboard_message", params));
 		if (mid) {
 			console.info(`[message_send] 按钮UI模式-方式1成功: message_id=${mid}`);
 			return {
@@ -559,11 +559,11 @@ async function sendKeyboard(bot, event, markdown, keyboard, targetType = "", tar
 				error: ""
 			};
 		}
-		errors.push("send_keyboard_msg 返回空 message_id");
+		errors.push("send_keyboard_message 返回空 message_id");
 	} catch (e) {
 		const err = e instanceof Error ? e : new Error(String(e));
 		console.warn(`[message_send] 按钮UI模式-方式1不可用: ${err.name}: ${err.message}`);
-		errors.push(`send_keyboard_msg: ${err.message}`);
+		errors.push(`send_keyboard_message: ${err.message}`);
 	}
 	try {
 		const params2 = {
@@ -571,8 +571,8 @@ async function sendKeyboard(bot, event, markdown, keyboard, targetType = "", tar
 			...target
 		};
 		if (msgId) params2.msg_id = msgId;
-		console.info(`[message_send] 按钮UI模式-方式2: send_msg(markdown+keyboard 段), message_type=${target.message_type}`);
-		const mid2 = responseMessageId(await bot.callApi("send_msg", params2));
+		console.info(`[message_send] 按钮UI模式-方式2: send_message(markdown+keyboard 段), message_type=${target.message_type}`);
+		const mid2 = responseMessageId(await bot.callApi("send_message", params2));
 		if (mid2) {
 			console.info(`[message_send] 按钮UI模式-方式2成功: message_id=${mid2}`);
 			return {
@@ -581,24 +581,24 @@ async function sendKeyboard(bot, event, markdown, keyboard, targetType = "", tar
 				error: ""
 			};
 		}
-		errors.push("send_msg(markdown+keyboard) 返回空 message_id");
+		errors.push("send_message(markdown+keyboard) 返回空 message_id");
 	} catch (e) {
 		const err = e instanceof Error ? e : new Error(String(e));
 		console.warn(`[message_send] 按钮UI模式-方式2不可用: ${err.name}: ${err.message}`);
-		errors.push(`send_msg(markdown+keyboard): ${err.message}`);
+		errors.push(`send_message(markdown+keyboard): ${err.message}`);
 	}
 	const errSummary = errors.join("；");
 	console.error(`[message_send] 按钮UI模式-所有发送方式均失败: ${errSummary}`);
 	try {
-		if (target.message_type === "group") await bot.callApi("send_group_msg", {
+		if (target.message_type === "group") await bot.callApi("send_group_message", {
 			group_id: target.group_id,
 			message: String(markdown)
 		});
-		else if (target.message_type === "private") await bot.callApi("send_private_msg", {
+		else if (target.message_type === "private") await bot.callApi("send_private_message", {
 			user_id: target.user_id,
 			message: String(markdown)
 		});
-		else await bot.callApi("send_msg", {
+		else await bot.callApi("send_message", {
 			message: String(markdown),
 			...target
 		});
@@ -614,7 +614,7 @@ async function sendKeyboard(bot, event, markdown, keyboard, targetType = "", tar
 	return {
 		success: false,
 		message_id: "",
-		error: `当前适配器不支持按钮消息（已尝试 send_keyboard_msg 和 send_msg+markdown/keyboard 段）: ${errSummary}`
+		error: `当前适配器不支持按钮消息（已尝试 send_keyboard_message 和 send_message+markdown/keyboard 段）: ${errSummary}`
 	};
 }
 function buildForwardNodes(messages, userId, event) {
@@ -653,7 +653,7 @@ async function sendSegment(bot, event, segments, targetType, targetId) {
 		const [target] = resolveTarget(event, targetType, targetId);
 		return {
 			success: true,
-			message_id: responseMessageId(await bot.callApi("send_msg", {
+			message_id: responseMessageId(await bot.callApi("send_message", {
 				message: segments,
 				...target
 			})),
@@ -684,7 +684,7 @@ async function sendForward(bot, event, messages, userId, targetType, targetId) {
 		};
 		return {
 			success: true,
-			message_id: responseMessageId(await bot.callApi("send_group_forward_msg", {
+			message_id: responseMessageId(await bot.callApi("send_group_forward_message", {
 				group_id: groupId,
 				messages: nodes
 			})),
@@ -752,7 +752,7 @@ function resolveTarget(event, targetType, targetId, opts = {}) {
 	}, ""];
 	return [buildTargetParams(event, opts), extractMsgId(event)];
 }
-/** 从 OneBot API 返回里取 message_id（返回体形状由适配器决定，故按 unknown 收窄） */
+/** 从协议 API 返回里取 message_id（返回体形状由适配器决定，故按 unknown 收窄） */
 function responseMessageId(resp) {
 	if (resp && typeof resp === "object" && "message_id" in resp) {
 		const mid = resp.message_id;

@@ -19,7 +19,7 @@ function defaultWsFactory(url) {
 	return new ws(url);
 }
 /**
-* 钉钉翻译器：对运行时是 OneBot v11 服务，对钉钉是 Stream 客户端。
+* 钉钉翻译器：对运行时是运行时事件契约服务，对钉钉是 Stream 客户端。
 */
 var DingTalkTranslator = class DingTalkTranslator extends SandboxTranslator {
 	dingOpts;
@@ -46,7 +46,7 @@ var DingTalkTranslator = class DingTalkTranslator extends SandboxTranslator {
 		});
 		this.dingOpts = dingOpts;
 	}
-	/** 起长连接（OneBot 服务由父类 start 建立） */
+	/** 起长连接（网关服务由父类 start 建立） */
 	async start() {
 		await super.start();
 		this.stream = new DingTalkStreamClient({
@@ -287,7 +287,7 @@ var DingTalkTranslator = class DingTalkTranslator extends SandboxTranslator {
 		this.dingOpts.onLog?.(line);
 	}
 };
-/** 从 OneBot 动作参数里抽文本（`message` 可以是字符串或分段数组） */
+/** 从协议动作参数里抽文本（`message` 可以是字符串或分段数组） */
 function extractText(params) {
 	const m = params.message;
 	if (typeof m === "string") return m;

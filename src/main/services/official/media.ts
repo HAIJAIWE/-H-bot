@@ -69,16 +69,16 @@ async function computeFileDigests(filePath) {
 	};
 }
 /**
-* OneBot 媒体段类型 → 官方富媒体 file_type。
+* 媒体段类型 → 官方富媒体 file_type。
 *
 * 官方只有四个取值：**1 图片 / 2 视频 / 3 语音 / 4 文件**。
-* OneBot 侧同一件事有两个名字（`record` 与 `voice` 都是语音），这里一并收掉 ——
+* 网关侧同一件事有两个名字（`record` 与 `voice` 都是语音），这里一并收掉 ——
 * 漏了 `voice` 的话语音段会被判成"无法映射"而进 `unsupported`（用户看到"语音发不出去"）。
 *
 * 认不出的类型返回 `null`，由调用方明确报错，**不猜**（猜成图片会发出一个打不开的文件）。
 */
-function mediaFileTypeOf(oneBotType) {
-	switch (String(oneBotType ?? "").trim()) {
+function mediaFileTypeOf(segmentType) {
+	switch (String(segmentType ?? "").trim()) {
 		case "image": return 1;
 		case "video": return 2;
 		case "record":

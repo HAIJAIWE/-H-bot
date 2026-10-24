@@ -22,7 +22,7 @@ function defaultWsFactory$1(url) {
 	return new ws(url);
 }
 /**
-* 飞书翻译器：对运行时是 OneBot v11 服务，对飞书是长连接客户端。
+* 飞书翻译器：对运行时是运行时事件契约服务，对飞书是长连接客户端。
 */
 var LarkTranslator = class LarkTranslator extends SandboxTranslator {
 	larkOpts;
@@ -68,7 +68,7 @@ var LarkTranslator = class LarkTranslator extends SandboxTranslator {
 		});
 		this.larkOpts = larkOpts;
 	}
-	/** 起长连接（OneBot 服务由父类 start 建立） */
+	/** 起长连接（网关服务由父类 start 建立） */
 	async start() {
 		await super.start();
 		this.lark = new LarkWsClient({
@@ -419,7 +419,7 @@ var LarkTranslator = class LarkTranslator extends SandboxTranslator {
 		this.larkOpts.onLog?.(line);
 	}
 };
-/** 从 OneBot 动作参数里抽文本（`message` 可以是字符串或分段数组） */
+/** 从协议动作参数里抽文本（`message` 可以是字符串或分段数组） */
 function extractText$2(params) {
 	const m = params.message;
 	if (typeof m === "string") return m;

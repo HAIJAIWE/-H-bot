@@ -19,3 +19,4 @@ var ALL_ACTION_HANDLERS = {
 };
 
 export { ALL_ACTION_HANDLERS };
+export { LEGACY_ACTION_ALIASES, normalizeActionName } from "./aliases";

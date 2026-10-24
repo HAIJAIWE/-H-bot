@@ -9,27 +9,27 @@ import { PlatformIdSchema } from "./capabilities";
 * ## 它在整条管线里的位置（接线前必须清楚这一点）
 *
 * ```
-*   平台原始事件（QQ 官方 / 钉钉 / 飞书 / OneBot 网关 …）
+*   平台原始事件（QQ 官方 / 钉钉 / 飞书 / 网关 …）
 *        │
 *        │  ① 各适配器：平台字段 → StandardEvent（本文件的形状）
 *        ▼
 *   StandardEvent            ← 多平台在这里被抹平
 *        │
-*        │  ② 还需要**一层转换**：StandardEvent → OneBot v11 事件
+*        │  ② 还需要**一层转换**：StandardEvent → 运行时事件
 *        ▼
-*   FlowRuntime.handleMessage()   ← 运行时目前**只认 OneBot v11 形状**
+*   FlowRuntime.handleMessage()   ← 运行时目前**只认运行时事件契约形状**
 * ```
 *
-* ⚠️ 第 ② 层是**必需**的，不是多余的：`FlowRuntime` 现在按 OneBot v11 的
+* ⚠️ 第 ② 层是**必需**的，不是多余的：`FlowRuntime` 现在按运行时事件的
 * `post_type` / `message_type` / `sender` 等字段分发事件，全流程的节点、
 * 内置函数、触发器匹配都建立在这个形状上。想直接让运行时吃 `StandardEvent`，
 * 要动整条执行链（227 个节点的契约），风险远大于"在适配器边界做一次转换"。
 *
 * 所以多平台接入的现实路径是：
-*   平台 → StandardEvent（统一语义）→ OneBot v11（运行时契约）→ 执行
+*   平台 → StandardEvent（统一语义）→ 运行时事件契约（运行时契约）→ 执行
 *
 * 第 ② 层放在适配器里（而不是运行时里）：这样运行时**一行都不用改**，
-* 每接一个平台也只是多一个"翻译成 OneBot"的实现，而不是改核心。
+* 每接一个平台也只是多一个"翻译成运行时事件"的实现，而不是改核心。
 */
 var MessageSegmentSchema = z.discriminatedUnion("type", [
 	z.object({
@@ -75,7 +75,7 @@ var ParsedMessageSchema = z.object({
 * 这段逻辑原来只存在于 `lark/event.ts` 的私有函数里；接钉钉时再抄一遍就意味着
 * **同一个语义有两份实现**，以后改命令解析（比如支持别名、多前缀）必然漏一处。
 *
-* ## 命令约定（与 OneBot 语义一致）
+* ## 命令约定（与协议语义一致）
 *
 * 首个词带 `/` 前缀时作为 `command`，其余词进 `args`。
 *
@@ -119,7 +119,7 @@ var BaseEventSchema = z.object({
 	*
 	* 为什么必须在基类里：每个平台都有，但名字各不相同，且**缺了它会静默降级** ——
 	*   - QQ 官方：`author.username`
-	*   - OneBot v11：`sender.nickname`（群名片是另一个字段 `sender.card`）
+	*   - 运行时事件契约：`sender.nickname`（群名片是另一个字段 `sender.card`）
 	*   - 飞书：`event.user.name`
 	*
 	* 我们已经在 QQ 官方上踩过一次：解析层漏读 `username`，导致下游只能把
@@ -135,7 +135,7 @@ var BaseEventSchema = z.object({
 	* 不同应用下 `userId` 不同，但 `unionId` 相同。多平台合并同一玩家只能靠它。
 	*/
 	unionId: z.string().optional(),
-	/** 平台内的角色/权限（QQ 官方 `member_role`、OneBot `sender.role`） */
+	/** 平台内的角色/权限（QQ 官方 `member_role`、网关 `sender.role`） */
 	role: z.string().optional(),
 	/**
 	* 发送者是不是机器人（`user` / `bot`）。
@@ -266,7 +266,7 @@ var MetaEventSchema = BaseEventSchema.extend({
 *
 * ## 为什么需要它
 *
-* 前 4 种（`message` / `notice` / `request` / `meta`）**就是 OneBot v11 的
+* 前 4 种（`message` / `notice` / `request` / `meta`）**就是运行时事件的
 * `post_type`** —— 它们的语义是 **IM** 的：发消息、进群退群、加好友申请、生命周期。
 * 一个游戏绑定想推「boss 被击败」「副本通关」时，**塞不进这 4 种里的任何一种**
 * （塞进 `notice` 就得编一个假的 `notice_type`，下游 `switch` 还得认识它）。

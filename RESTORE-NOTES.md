@@ -9,18 +9,19 @@
 - 构建：`electron-vite build` 成功。清理掉恢复期 tsc 写进 `out/` 的 1558 个垃圾文件后，现在 `out/` 106 个文件（`out/main` 9 个）。
 - 启动：Electron 能起窗口，主进程无未捕获异常（只有 [errorMonitoring] 未配 SENTRY_DSN 的提示）。
 - 业务：左上项目下拉能选中项目；Bot 管理列出项目；「低代码」页能走「新建指令」向导 → 生成 2 节点 1 连线并落盘 `.qqbat/flow.json`；「布局」后节点不叠压；git 自动初始化并出现 `master (1 提交)`。
-- 规模：src 下 **812 个 .ts/.tsx（含 2 个 .d.ts）/ 182,837 行**（2026-10-24 清理死代码、重复翻译器、NapCat 全链路与 Python 旧栈后，逐文件计数）；`[[MISSING` 标记 0 处；**213 个文件首行带 `// @ts-nocheck`**（见「已知债」）。
-- 测试：**全绿**（2026-10-24 清掉 OneBot 用户可见面后复跑）。`vitest run --maxWorkers=2` → **231 文件 / 2933 例通过**，4 文件 / 10 例 skip（0 failed，2943 例）；guards 14 文件 / 101 通过。
+- 规模：src 下 **813 个 .ts/.tsx（含 2 个 .d.ts）/ 182,875 行**（2026-10-24 清理死代码、重复翻译器、NapCat 全链路与 Python 旧栈后，逐文件计数）；`[[MISSING` 标记 0 处；**213 个文件首行带 `// @ts-nocheck`**（见「已知债」）。
+- 测试：**全绿**（2026-10-24 清掉 OneBot 用户可见面后复跑）。`vitest run --maxWorkers=2` → **232 文件 / 2938 例通过**，4 文件 / 10 例 skip（0 failed，2948 例）；guards 14 文件 / 102 通过。
 - 类型检查（2026-10-24 **已清零**）：`node scripts/typecheck.mjs` → node **0 错**（原 161，全在 `tests/`）、web **0 错**（原 286）；`src/main` / `src/renderer` 均干净。注意树里仍有 213 个 `// @ts-nocheck` 文件（见「已知债 1」），闸门覆盖的是其余文件；`electron-vite build` 走 rolldown 不做类型检查，所以以该脚本为准。明细与修法见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 
 ## 恢复基准（2026-10-24 定）
 
 - **基准 = 打包客户端**（`D:\H Bot 制造`，2026-10-18 04:50 的 `resources/app.asar`）。源码行为以它为准；DSH 磁带里更晚 revision 的测试只作参考，不反过来驱动恢复。
 - 基准产物已随仓库保管：`_baseline/app.asar.bin`（74,277,199B，sha256 `9bf9e626…fb7b19`）+ `_baseline/out-bundle/`（25 文件 / 5,833,371B）+ `manifest.sha256`；`scripts/audit-baseline.mjs` 默认优先用它，缺了才回退 `D:/tmp/hbot-out`。
-- 覆盖率可复算：`node scripts/audit-baseline.mjs`（产物 594 个模块 / 树 812 文件覆盖 98.3%（584/594），缺的 10 个全部登记了理由；2026-10-24 又删掉 5 个无 importer 的 ops 副本、2 个重复翻译器副本、4 个 NapCat 遗留模块、12 个 Python 旧栈 .ts）；`--check` 会在出现未登记缺失时 exit 1。明细 `docs/restore/baseline-inventory.json`，报告 `docs/restore/baseline-alignment-2026-10-24.md`。
-- 树里另有 93 个模块**没进过这次构建**（= 10/18 之后的增量或更早的遗留），已分类但**不删**；`agent-core` / 插件内核 / presets 等增量按用户要求暂停推进。
+- 覆盖率可复算：`node scripts/audit-baseline.mjs`（产物 594 个模块 / 树 813 文件覆盖 98.3%（584/594），缺的 10 个全部登记了理由；2026-10-24 又删掉 5 个无 importer 的 ops 副本、2 个重复翻译器副本、4 个 NapCat 遗留模块、12 个 Python 旧栈 .ts）；`--check` 会在出现未登记缺失时 exit 1。明细 `docs/restore/baseline-inventory.json`，报告 `docs/restore/baseline-alignment-2026-10-24.md`。
+- 树里另有 94 个模块**没进过这次构建**（= 10/18 之后的增量或更早的遗留），已分类但**不删**；`agent-core` / 插件内核 / presets 等增量按用户要求暂停推进。
 - **TS-only 口径**：运行时是 `botManager` + `FlowRuntime` 进程内解释 `flow.json`（ADR-003），不 spawn Python。2026-10-24 已把 Python 旧栈（botProcess、pythonUtils/emitterV2、schemas/python*、旧手架/扫描、highcode 模板、nonebot 资产）整批删除，部署也改 Node 运行时；树里只剩 `pyToJs`/`safeEval` 这类**表达式语义兼容**与老项目存档字段。
 - **翻译器只有一套**：`src/main/services/runner/eventBus.ts`（`/runtime/ws`，10/18 基线的真实宿主）。恢复期另建的 `onebot-translator.ts` / `officialExtras.ts` 在基线里 0 region，已删除；`ipc/official.ts`、`ipc/runtime.ts`、`dashboardService.ts` 全部改接 eventBus。
+- **内部命名（2026-10-24）**：运行时事件契约与网关动作名全部改成项目自己的口径（`RuntimeEvent` / `RuntimeMessage` / `ROLE_LEVELS`，动作名 `send_message`、`send_group_message`、`delete_message` …），用户可见面再无第三方协议名。存量 `flow.json` 里的旧动作名（`send_msg` / `send_group_msg` / `delete_msg` 等 7 个）由 `src/main/services/translator/actions/aliases.ts` 的 `LEGACY_ACTION_ALIASES` 在网关入口归一化，不改磁盘数据。
 - 取舍：renderer 有 93 个组件取自 10/20 的 Vite 开发缓存（带类型的原版），比客户端新；优先级 缓存原版 > 产物 region > 磁带重放。
 
 ## 源码的四类来源（判断一个文件可信度先看头注释）
@@ -143,6 +144,6 @@ CodeEditor/Terminal/elk/editor.worker/i18n/index.html）齐平；main 少 16 个
 ## 下一步
 
 1. 清 @ts-nocheck（按 TS2304 → TS2339 顺序），把 `tsconfig.recover.json` 变成真闸门。
-2. ~~决策 tests：按新 API 修 or 重写~~ —— **已修完**：`node scripts/typecheck.mjs` node/web 双 0 错，全量 vitest 231 文件 / 2933 例通过；做法是「生产签名按真实契约放宽 + 测试补注解/元组 mock + 重建缺失共享类型」，明细见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
+2. ~~决策 tests：按新 API 修 or 重写~~ —— **已修完**：`node scripts/typecheck.mjs` node/web 双 0 错，全量 vitest 232 文件 / 2938 例通过；做法是「生产签名按真实契约放宽 + 测试补注解/元组 mock + 重建缺失共享类型」，明细见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 3. 收敛两套 codegen 栈。
 4. 之后才是功能。**注意：这棵树里已经带着 10/18 之前的 DSH 对齐成果**——`agent-core/scheduler.ts`（独占/并行工具组）、`plugins/kernel.ts`（Cordis-lite 内核）、`plugins/market.ts`（插件市场）、`ai/contextDigest.ts` + `ai/summaryLlm.ts`（模型摘要）都在；盘点基线读 `docs/ai/dsh-parity-2026-10-18.md`（14 层对照表）与 `docs/ai/agent-framework-porting.md`，别按旧记忆列待办。

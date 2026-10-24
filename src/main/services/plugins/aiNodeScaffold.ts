@@ -181,7 +181,7 @@ async function createAiNode(projectPathOrReq, funcNameArg, labelArg, summaryArg,
 		ok: true,
 		nodeKind,
 		pluginPath: pluginDir,
-		...dry.adapterOnlyApis.length > 0 ? { warning: `这个节点用了只在 NapCat 这类 OneBot 实现上有效的 API（${dry.adapterOnlyApis.join("、")}）——官方 QQ 适配器下运行会失败。` } : {}
+		...dry.adapterOnlyApis.length > 0 ? { warning: `这个节点用了只在 NapCat 这类 第三方桥接实现上有效的 API（${dry.adapterOnlyApis.join("、")}）——官方 QQ 适配器下运行会失败。` } : {}
 	};
 }
 /**

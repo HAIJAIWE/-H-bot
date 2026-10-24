@@ -771,7 +771,7 @@ function emitSystemLog(node: FlowNode, ctx: EmitContext, indent: number): string
 function emitCheckPermission(node: FlowNode, ctx: EmitContext, indent: number): string {
   const ind = indentStr(indent);
   const config = node.data?.config || {};
-  const permission = config.permission || 'send_msg';
+  const permission = config.permission || 'send_message';
   return `${ind}// 检查权限: ${permission}\n${ind}checkPermission('${permission}')`;
 }
 
@@ -988,7 +988,7 @@ function emitVariableMerge(node: FlowNode, ctx: EmitContext, indent: number): st
 /**
  * 消息段构造节点发射器。
  *
- * 与运行时 `builtinNodes/messageOp` 一致：按 segment_type 生成一个 OneBot v11 消息段对象，
+ * 与运行时 `builtinNodes/messageOp` 一致：按 segment_type 生成一个消息段对象，
  * 输出到 `segment` 变量供 `message_send(mode=segment)` 使用。
  */
 function emitMessageOp(node: FlowNode, ctx: EmitContext, indent: number): string {

@@ -4,14 +4,14 @@
  * matchTrigger(triggerNode, event) 返回触发输出端口字典或 null。
  */
 
-import type { OneBotEvent } from '../services/builtinNodes/builtinNodes';
+import type { RuntimeEvent } from '../services/builtinNodes/builtinNodes';
 
 /** ReDoS 防护常量 */
 const MAX_TEXT_LEN = 100_000;
 const MAX_PATTERN_LEN = 1_000;
 
-/** 事件扩展类型（OneBot 事件可能带更多字段） */
-export interface TriggerEvent extends OneBotEvent {
+/** 事件扩展类型（运行时事件可能带更多字段） */
+export interface TriggerEvent extends RuntimeEvent {
   request_type?: string;
   notice_type?: string;
   sub_type?: string;
@@ -130,7 +130,7 @@ export function matchTrigger(trigger: TriggerNode, event: TriggerEvent | null): 
     const target = (event as { __lifecycle_trigger__?: unknown } | null)?.__lifecycle_trigger__;
     if (target !== undefined && target !== null && target !== '' && trigger?.id !== target) return null;
     // 注意：**不要**把 on_startup 映射成 on_ready —— 它们是两个不同的时机
-    // （机器人进程启动 vs 连上 OneBot 就绪），映射会让两者互相顶替。
+    // （机器人进程启动 vs 连上网关就绪），映射会让两者互相顶替。
     const lifecycleAlias: Record<string, string> = {
       on_schedule: 'scheduled',
     };

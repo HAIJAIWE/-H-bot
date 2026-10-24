@@ -41,7 +41,7 @@ const CLAIMS: { row: string; anchors: string[] }[] = [
   { row: 'QQ 群管理', anchors: ['restrict_chat_setting', 'batch_remove_members'] },
   { row: '群成员 · 入群申请 · 消息审核事件', anchors: ['GROUP_MEMBER_ADD', 'GROUP_JOIN_REQUEST'] },
   { row: '自定义菜单 / 指令面板', anchors: ['/v2/menu', '/v2/panels'] },
-  { row: 'QQ 频道', anchors: ['send_channel_msg', 'AT_MESSAGE_CREATE'] },
+  { row: 'QQ 频道', anchors: ['send_channel_message', 'AT_MESSAGE_CREATE'] },
   // ── 台账：事件层 ──
   { row: '✅ 已翻译', anchors: ['C2C_MESSAGE_CREATE', 'GROUP_AT_MESSAGE_CREATE'] },
   {

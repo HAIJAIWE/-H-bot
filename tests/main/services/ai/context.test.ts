@@ -28,9 +28,15 @@ describe('buildSystemMessage', () => {
     expect(msg.content).toContain('可用节点')
     expect(msg.content).toContain('message_received')
     expect(msg.content).toContain('message_send')
-    // 旧名字不该再出现在目录里（改名后残留会误导模型写旧 kind）
+    // 旧名字不该再出现在目录里（改名后残留会误导模型写旧 kind）。
+    // 注意 `send_message` 不能当旧 kind 断言了：2026-10-24 内部动作名统一成
+    // `send_message` / `delete_message` 后，它是**协议动作名**，由 context.ts 的
+    // `describeProtocolApis()` 正当地写进提示；旧 v3 节点 kind 是 `send_message`，
+    // 与它同名 —— 所以这里只断言不撞名的旧 kind。
     expect(msg.content).not.toContain('on_message')
-    expect(msg.content).not.toContain('send_message')
+    expect(msg.content).not.toContain('if_branch')
+    expect(msg.content).not.toContain('switch_case')
+    expect(msg.content).not.toContain('ai_tool_call')
   })
 
   it('包含节点 summary（一句话说明）', async () => {

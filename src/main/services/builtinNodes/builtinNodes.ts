@@ -30,10 +30,10 @@ export interface HandlerResult {
   [key: string]: unknown;
 }
 
-/** OneBot 事件接口 */
-export interface OneBotEvent {
+/** 运行时事件接口 */
+export interface RuntimeEvent {
   message_type?: 'private' | 'group';
-  message: OneBotMessage;
+  message: RuntimeMessage;
   message_id?: number;
   user_id?: number;
   group_id?: number;
@@ -44,7 +44,7 @@ export interface OneBotEvent {
   data?: unknown;
 }
 
-export interface OneBotMessage {
+export interface RuntimeMessage {
   type: string;
   data: Record<string, unknown>;
 }
@@ -107,7 +107,7 @@ function shlexSplit(text: string): string[] {
 }
 
 /** 检查消息类型是否符合过滤要求 */
-function checkMessageType(event: OneBotEvent, messageType: string): boolean {
+function checkMessageType(event: RuntimeEvent, messageType: string): boolean {
   if (messageType === 'any' || messageType === 'both' || !messageType) return true;
   try {
     const eventType = event.message_type || '';
@@ -118,7 +118,7 @@ function checkMessageType(event: OneBotEvent, messageType: string): boolean {
 }
 
 /** 判断是否@机器人 */
-function matchAtMe(event: OneBotEvent): boolean {
+function matchAtMe(event: RuntimeEvent): boolean {
   try {
     if (event.is_tome && typeof event.is_tome === 'function') {
       return Boolean(event.is_tome());
@@ -203,7 +203,7 @@ async function matchRegex(rawMessage: string, pattern: string, flags: string): P
  */
 export async function messageReceived(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   match: 'any' | 'at_me' | 'command' | 'keyword' | 'regex' = 'any',
   message_type: 'any' | 'group' | 'private' | 'both' = 'any',
   command: string = '',
@@ -211,7 +211,7 @@ export async function messageReceived(
   keywords: unknown = null,
   pattern: string = '',
   flags: string = ''
-): Promise<{ event: OneBotEvent, raw_message: string, args: string[], matched: string, groups: string[] } | null> {
+): Promise<{ event: RuntimeEvent, raw_message: string, args: string[], matched: string, groups: string[] } | null> {
   const matchMode = String(match || 'any').toLowerCase();
   const msgType = String(message_type || 'any').toLowerCase();
 
@@ -281,7 +281,7 @@ export async function messageReceived(
 // 2. message_send - 发送消息（支持 4 模式 × 双目标）
 // ============================================================
 
-function buildTargetParams(event: OneBotEvent): Record<string, unknown> {
+function buildTargetParams(event: RuntimeEvent): Record<string, unknown> {
   if (event?.group_id) {
     return { message_type: 'group', group_id: String(event.group_id) };
   }
@@ -291,7 +291,7 @@ function buildTargetParams(event: OneBotEvent): Record<string, unknown> {
   return {};
 }
 
-function extractMsgId(event: OneBotEvent): string {
+function extractMsgId(event: RuntimeEvent): string {
   try {
     const msgId = event.get_message_id?.();
     return msgId ? String(msgId) : '';
@@ -300,7 +300,7 @@ function extractMsgId(event: OneBotEvent): string {
   }
 }
 
-function resolveTarget(event: OneBotEvent, targetType: string, targetId: string): [Record<string, unknown>, string] {
+function resolveTarget(event: RuntimeEvent, targetType: string, targetId: string): [Record<string, unknown>, string] {
   if (targetType === 'user' && targetId) {
     return [{ message_type: 'private', user_id: String(targetId) }, ''];
   }
@@ -310,7 +310,7 @@ function resolveTarget(event: OneBotEvent, targetType: string, targetId: string)
   return [buildTargetParams(event), extractMsgId(event)];
 }
 
-/** 从 OneBot API 返回里取 message_id（返回体形状由适配器决定，故按 unknown 收窄） */
+/** 从协议 API 返回里取 message_id（返回体形状由适配器决定，故按 unknown 收窄） */
 function responseMessageId(resp: unknown): string {
   if (resp && typeof resp === 'object' && 'message_id' in resp) {
     const mid = (resp as { message_id?: unknown }).message_id;
@@ -341,7 +341,7 @@ function keyboardToSegments(
   if (keyboard && keyboard.rows) {
     // content 必须是**对象**：翻译器与官方 API 都按 `{ rows: [...] }` 使用它。
     // 这里曾写成 JSON.stringify(keyboard)（字符串），下游 `'id' in keyboard` 会抛
-    // TypeError，导致 send_msg + keyboard 段的降级路径整条失效（静默退回纯文本）。
+    // TypeError，导致 send_message + keyboard 段的降级路径整条失效（静默退回纯文本）。
     segments.push({ type: 'keyboard', data: { content: keyboard } });
   }
   return segments;
@@ -362,7 +362,7 @@ function hasKeyboardRows(keyboard: KeyboardConfig | null | undefined): keyboard 
 
 async function sendKeyboard(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   markdown: unknown,
   keyboard: KeyboardConfig | null,
   targetType: string = '',
@@ -386,46 +386,46 @@ async function sendKeyboard(
   const mdStr = String(markdown);
   const errors: string[] = [];
 
-  // 方式 1: send_keyboard_msg（官方 API 翻译器）
+  // 方式 1: send_keyboard_message（官方 API 翻译器）
   try {
     const params: Record<string, unknown> = { markdown: mdStr, ...target };
     if (kb) params.keyboard = kb;
     if (msgId) params.msg_id = msgId;
     if (replyTo) params.reply_to = replyTo;
     if (isWakeup) params.is_wakeup = true;
-    console.info(`[message_send] ${modeLabel}模式-方式1: send_keyboard_msg, message_type=${target.message_type}`);
-    const resp = await bot.callApi('send_keyboard_msg', params);
+    console.info(`[message_send] ${modeLabel}模式-方式1: send_keyboard_message, message_type=${target.message_type}`);
+    const resp = await bot.callApi('send_keyboard_message', params);
     const mid = responseMessageId(resp);
     if (mid) {
       console.info(`[message_send] ${modeLabel}模式-方式1成功: message_id=${mid}`);
       return { success: true, message_id: mid, error: '' };
     }
-    errors.push('send_keyboard_msg 返回空 message_id');
+    errors.push('send_keyboard_message 返回空 message_id');
   } catch (e: unknown) {
     const err = e instanceof Error ? e : new Error(String(e));
     console.warn(`[message_send] ${modeLabel}模式-方式1不可用: ${err.name}: ${err.message}`);
-    errors.push(`send_keyboard_msg: ${err.message}`);
+    errors.push(`send_keyboard_message: ${err.message}`);
   }
 
-  // 方式 2: send_msg + markdown/keyboard 消息段（翻译器识别后路由到官方 keyboard API）
+  // 方式 2: send_message + markdown/keyboard 消息段（翻译器识别后路由到官方 keyboard API）
   try {
     const segments = keyboardToSegments(mdStr, kb);
     const params2: Record<string, unknown> = { message: segments, ...target };
     if (msgId) params2.msg_id = msgId;
     if (replyTo) params2.reply_to = replyTo;
     if (isWakeup) params2.is_wakeup = true;
-    console.info(`[message_send] ${modeLabel}模式-方式2: send_msg(markdown 段), message_type=${target.message_type}`);
-    const resp2 = await bot.callApi('send_msg', params2);
+    console.info(`[message_send] ${modeLabel}模式-方式2: send_message(markdown 段), message_type=${target.message_type}`);
+    const resp2 = await bot.callApi('send_message', params2);
     const mid2 = responseMessageId(resp2);
     if (mid2) {
       console.info(`[message_send] ${modeLabel}模式-方式2成功: message_id=${mid2}`);
       return { success: true, message_id: mid2, error: '' };
     }
-    errors.push('send_msg(markdown) 返回空 message_id');
+    errors.push('send_message(markdown) 返回空 message_id');
   } catch (e: unknown) {
     const err = e instanceof Error ? e : new Error(String(e));
     console.warn(`[message_send] ${modeLabel}模式-方式2不可用: ${err.name}: ${err.message}`);
-    errors.push(`send_msg(markdown): ${err.message}`);
+    errors.push(`send_message(markdown): ${err.message}`);
   }
 
   // 所有 Markdown 发送方式均失败，尝试纯文本降级
@@ -434,11 +434,11 @@ async function sendKeyboard(
   try {
     const wakeParam = isWakeup ? { is_wakeup: true } : {};
     if (target.message_type === 'group') {
-      await bot.callApi('send_group_msg', { group_id: target.group_id, message: String(markdown), ...wakeParam });
+      await bot.callApi('send_group_message', { group_id: target.group_id, message: String(markdown), ...wakeParam });
     } else if (target.message_type === 'private') {
-      await bot.callApi('send_private_msg', { user_id: target.user_id, message: String(markdown), ...wakeParam });
+      await bot.callApi('send_private_message', { user_id: target.user_id, message: String(markdown), ...wakeParam });
     } else {
-      await bot.callApi('send_msg', { message: String(markdown), ...target, ...wakeParam });
+      await bot.callApi('send_message', { message: String(markdown), ...target, ...wakeParam });
     }
     console.warn(`[message_send] ${modeLabel}发送失败，已降级为纯文本发送`);
     return { success: true, message_id: '', error: '' };
@@ -449,8 +449,8 @@ async function sendKeyboard(
     success: false,
     message_id: '',
     error: kb
-      ? `当前适配器不支持按钮消息（已尝试 send_keyboard_msg 和 send_msg+markdown/keyboard 段）: ${errSummary}`
-      : `当前适配器不支持 Markdown 消息（已尝试 send_keyboard_msg 和 send_msg+markdown 段）: ${errSummary}`
+      ? `当前适配器不支持按钮消息（已尝试 send_keyboard_message 和 send_message+markdown/keyboard 段）: ${errSummary}`
+      : `当前适配器不支持 Markdown 消息（已尝试 send_keyboard_message 和 send_message+markdown 段）: ${errSummary}`
   };
 }
 
@@ -483,7 +483,7 @@ function buildForwardNodes(messages: unknown, userId: string, event: unknown): [
   return [nodes, ''];
 }
 
-async function sendSegment(bot: BotInterface, event: OneBotEvent, segments: unknown, targetType: string, targetId: string, replyTo: string = ''): Promise<{ success: boolean; message_id: string; error: string }> {
+async function sendSegment(bot: BotInterface, event: RuntimeEvent, segments: unknown, targetType: string, targetId: string, replyTo: string = ''): Promise<{ success: boolean; message_id: string; error: string }> {
   if (!segments) return { success: false, message_id: '', error: 'segments 不能为空' };
   // 简化实现：实际需要根据 bot 类型构建消息
   try {
@@ -492,7 +492,7 @@ async function sendSegment(bot: BotInterface, event: OneBotEvent, segments: unkn
     const [target] = resolveTarget(event, targetType, targetId);
     const params: Record<string, unknown> = { message: segments, ...target };
     if (replyTo) params.reply_to = replyTo;
-    const resp = await bot.callApi('send_msg', params);
+    const resp = await bot.callApi('send_message', params);
     const mid = responseMessageId(resp);
     return { success: true, message_id: mid, error: '' };
   } catch (e: unknown) {
@@ -509,7 +509,7 @@ async function sendSegment(bot: BotInterface, event: OneBotEvent, segments: unkn
  */
 async function sendMedia(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   url: unknown,
   mediaType: unknown,
   fileName: unknown,
@@ -561,7 +561,7 @@ async function sendMedia(
  */
 async function sendStream(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   text: unknown,
   contentType: unknown,
   chunkSize: unknown,
@@ -613,7 +613,7 @@ async function sendStream(
       index,
     };
     if (streamMsgId) params.stream_msg_id = streamMsgId;
-    const resp = await bot.callApi('send_stream_msg', params);
+    const resp = await bot.callApi('send_stream_message', params);
     const id = responseMessageId(resp);
     if (id) streamMsgId = id;
     sent += 1;
@@ -644,7 +644,7 @@ async function sendStream(
   return { success: true, message_id: streamMsgId, error: '' };
 }
 
-async function sendForward(bot: BotInterface, event: OneBotEvent, messages: unknown, userId: string, targetType: string, targetId: string): Promise<{ success: boolean; message_id: string; error: string }> {
+async function sendForward(bot: BotInterface, event: RuntimeEvent, messages: unknown, userId: string, targetType: string, targetId: string): Promise<{ success: boolean; message_id: string; error: string }> {
   try {
     const [nodes, err] = buildForwardNodes(messages, userId, event);
     if (err) return { success: false, message_id: '', error: err };
@@ -654,7 +654,7 @@ async function sendForward(bot: BotInterface, event: OneBotEvent, messages: unkn
     
     if (!groupId) return { success: false, message_id: '', error: '合并转发需要群聊目标' };
     
-    const resp = await bot.callApi('send_group_forward_msg', { group_id: groupId, messages: nodes });
+    const resp = await bot.callApi('send_group_forward_message', { group_id: groupId, messages: nodes });
     const mid = responseMessageId(resp);
     return { success: true, message_id: mid, error: '' };
   } catch (e: unknown) {
@@ -663,10 +663,10 @@ async function sendForward(bot: BotInterface, event: OneBotEvent, messages: unkn
   }
 }
 
-/** 发送一条消息，覆盖纯文本/Markdown文本/按钮UI/富媒体/消息段/合并转发 × 回复/推送 全部场景。 */
+/** 发送一条消息，覆盖纯文本/Markdown文本/按钮UI/富媒体/消息段/合并转发 × 回复/推送全部场景。 */
 export async function messageSend(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   text: string = '',
   mode: string = 'text',
   markdown: string = '',
@@ -798,17 +798,17 @@ export async function messageSend(
       // 简化实现
       const msg = renderTemplate(String(text));
       if (targetTypeStr === 'group') {
-        const resp = await bot.callApi('send_group_msg', { group_id: targetId, message: msg, ...replyParam });
+        const resp = await bot.callApi('send_group_message', { group_id: targetId, message: msg, ...replyParam });
         return { success: true, message_id: responseMessageId(resp), error: '' };
       } else {
-        const resp = await bot.callApi('send_private_msg', { user_id: targetId, message: msg, ...replyParam, ...wakeParam });
+        const resp = await bot.callApi('send_private_message', { user_id: targetId, message: msg, ...replyParam, ...wakeParam });
         return { success: true, message_id: responseMessageId(resp), error: '' };
       }
     }
     // 回复当前会话：必须**带上来源事件的目标**（user_id / group_id）。
-    // OneBot 的 send_msg 只给 message 时，适配器无法反查 openid → 官方 API 直接
+    // 运行时的 send_message 只给 message 时，适配器无法反查 openid → 官方 API 直接
     // 400「请求的资源不存在(用户/群已注销)」（真机实测：准备发送 UID=0, openid=0）。
-    await bot.callApi('send_msg', {
+    await bot.callApi('send_message', {
       message: renderTemplate(String(text)),
       ...buildTargetParams(event),
       ...replyParam,
@@ -825,11 +825,11 @@ export async function messageSend(
 // 3. message_recall - 撤回消息
 // ============================================================
 
-export async function messageRecall(bot: BotInterface, event: OneBotEvent, messageId: number = 0): Promise<{ success: boolean; error: string }> {
+export async function messageRecall(bot: BotInterface, event: RuntimeEvent, messageId: number = 0): Promise<{ success: boolean; error: string }> {
   const mid = messageId || event?.message_id || 0;
   if (!mid) return { success: false, error: 'message_id 不能为空' };
   try {
-    await bot.callApi('delete_msg', { message_id: mid });
+    await bot.callApi('delete_message', { message_id: mid });
     return { success: true, error: '' };
   } catch (e: unknown) {
         const err = e instanceof Error ? e : new Error(String(e));
@@ -846,7 +846,7 @@ export async function messageRecall(bot: BotInterface, event: OneBotEvent, messa
 
 export async function messageEdit(
   bot: BotInterface,
-  _event: OneBotEvent | null = null,
+  _event: RuntimeEvent | null = null,
   messageId: string = '',
   newText: string = ''
 ): Promise<{ success: boolean; error: string }> {
@@ -854,7 +854,7 @@ export async function messageEdit(
   if (!newText) return { success: false, error: 'new_text 为空' };
 
   try {
-    await bot.callApi('edit_msg', { message_id: messageId, message: newText });
+    await bot.callApi('edit_message', { message_id: messageId, message: newText });
     return { success: true, error: '' };
   } catch (e: unknown) {
         const err = e instanceof Error ? e : new Error(String(e));
@@ -888,7 +888,7 @@ export function noticeReceived(): void {
 
 export function variableSet(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   value: unknown = null,
   varName: string = 'x'
 ): { result: unknown; var_name: string; error: string } {
@@ -910,7 +910,7 @@ export function variableSet(
 
 export async function variableMerge(
   _bot: BotInterface,
-  _event: OneBotEvent,
+  _event: RuntimeEvent,
   mode: 'dict' | 'list' | 'concat' = 'dict',
   v1: unknown = null,
   v2: unknown = null,
@@ -955,7 +955,7 @@ export async function variableMerge(
 
 export async function onRequest(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   action: string = ''
 ): Promise<{ success: boolean; error: string }> {
   console.info(`[on_request] action=${action}`);
@@ -968,7 +968,7 @@ export async function onRequest(
 
 export async function onNotice(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   noticeType: string = ''
 ): Promise<{ success: boolean; error: string }> {
   console.info(`[on_notice] noticeType=${noticeType}`);
@@ -981,7 +981,7 @@ export async function onNotice(
 
 export async function onButtonClick(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   action: string = ''
 ): Promise<{ success: boolean; error: string }> {
   console.info(`[on_button_click] action=${action}`);
@@ -1042,7 +1042,7 @@ export function onStartup(): void {
 
 export async function memoryAdd(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   key: string = '',
   _value: unknown = null
 ): Promise<{ success: boolean; error: string }> {
@@ -1056,7 +1056,7 @@ export async function memoryAdd(
 
 export async function memorySearch(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   query: string = '',
   limit: number = 10
 ): Promise<{ results: unknown[]; count: number; error: string }> {
@@ -1070,7 +1070,7 @@ export async function memorySearch(
 
 export async function memoryClear(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   pattern: string = '*'
 ): Promise<{ success: boolean; count: number; error: string }> {
   console.info(`[memory_clear] pattern=${pattern}`);
@@ -1083,7 +1083,7 @@ export async function memoryClear(
 
 export async function memoryList(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   limit: number = 100
 ): Promise<{ items: unknown[]; count: number; error: string }> {
   console.info(`[memory_list] limit=${limit}`);
@@ -1096,7 +1096,7 @@ export async function memoryList(
 
 export async function agentChat(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   prompt: string = '',
   _systemPrompt: string = '',
   _model: string = '',
@@ -1241,11 +1241,11 @@ export async function performHttpRequest(
 
 export async function apiCall(
   bot: BotInterface,
-  _event: OneBotEvent,
+  _event: RuntimeEvent,
   action: string = '',
   params: unknown = null,
 ): Promise<{ success: boolean; result: unknown; data: unknown; error: string }> {
-  // api_call 的目录契约是「调用 OneBot API」：端口只有 `action` + `params`（**没有 url**）。
+  // api_call 的目录契约是「调用协议 API」：端口只有 `action` + `params`（**没有 url**）。
   // 历史实现把它当成 http_request 的别名（读 url/method/…）—— 于是 url 永远是空字符串，
   // 这个节点 100% 报「url 不能为空」，用户按面板填的 action/params 一次都没生效过。
   const api = String(action || '').trim();
@@ -1304,8 +1304,8 @@ function permissionResult(
   return { success, hasPermission, passed: hasPermission, error };
 }
 
-/** OneBot `get_group_member_info` 返回的 role → 层级（返回别的值一律按最低处理） */
-const ONEBOT_ROLE_LEVELS: Record<string, number> = { member: 1, admin: 2, owner: 3 };
+/** 网关 `get_group_member_info` 返回的 role → 层级（返回别的值一律按最低处理） */
+const ROLE_LEVELS: Record<string, number> = { member: 1, admin: 2, owner: 3 };
 
 /** 机器人主人名单：环境变量 `SUPER_ADMIN_IDS`，逗号分隔。每次读，便于测试注入。 */
 function superAdminIds(): string[] {
@@ -1317,7 +1317,7 @@ function superAdminIds(): string[] {
 
 export async function checkPermission(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   role: string = 'admin'
 ): Promise<{ success: boolean; hasPermission: boolean; passed: boolean; error: string }> {
   // 历史：这个函数曾经直接 `return { hasPermission: true }` —— 任何权限检查都无条件放行，
@@ -1375,7 +1375,7 @@ export async function checkPermission(
     );
   }
 
-  const haveLevel = ONEBOT_ROLE_LEVELS[memberRole] ?? 0;
+  const haveLevel = ROLE_LEVELS[memberRole] ?? 0;
   const needLevel = PERMISSION_LEVELS[need];
   return permissionResult(true, haveLevel >= needLevel, '');
 }
@@ -1397,7 +1397,7 @@ export async function delay(
 
 export async function embedding(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   text: string = '',
   _model: string = ''
 ): Promise<{ embedding: number[]; error: string }> {
@@ -1498,7 +1498,7 @@ export interface GetContextOptions {
 }
 
 /** 把消息段数组里的文本拼起来（message_text 模式用） */
-function messageTextOf(event: OneBotEvent): string {
+function messageTextOf(event: RuntimeEvent): string {
   const msg: unknown = (event as { message?: unknown }).message;
   if (typeof msg === 'string') return msg;
   if (Array.isArray(msg)) {
@@ -1521,8 +1521,8 @@ function messageTextOf(event: OneBotEvent): string {
   return '';
 }
 
-/** 取消息段数组（兼容 OneBot v11 的 array 格式与单个段对象） */
-function segmentsOf(event: OneBotEvent): Array<{ type?: string; data?: Record<string, unknown> }> {
+/** 取消息段数组（兼容运行时事件的 array 格式与单个段对象） */
+function segmentsOf(event: RuntimeEvent): Array<{ type?: string; data?: Record<string, unknown> }> {
   const msg: unknown = (event as { message?: unknown }).message;
   if (Array.isArray(msg)) return msg as Array<{ type?: string; data?: Record<string, unknown> }>;
   if (msg && typeof msg === 'object') {
@@ -1546,7 +1546,7 @@ function segmentsOf(event: OneBotEvent): Array<{ type?: string; data?: Record<st
  *   · 卡片 —— 由 `ark_data` 合成 `json` 段。
  */
 function normalizedPartsOf(
-  event: OneBotEvent,
+  event: RuntimeEvent,
 ): Array<{ type?: string; data?: Record<string, unknown> }> {
   const parts = [...segmentsOf(event)];
   const ev = event as unknown as Record<string, unknown>;
@@ -1560,7 +1560,7 @@ function normalizedPartsOf(
 }
 
 /** 指令参数解析：`/禁言 @某人 600` → ['@某人', '600']（去掉指令名与前缀） */
-function commandArgsOf(event: OneBotEvent): string[] {
+function commandArgsOf(event: RuntimeEvent): string[] {
   const raw = String(
     (event as { raw_message?: unknown }).raw_message ?? messageTextOf(event) ?? '',
   ).trim();
@@ -1582,7 +1582,7 @@ function commandArgsOf(event: OneBotEvent): string[] {
  */
 export async function getContext(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   options: GetContextOptions | string = {},
 ): Promise<{
   success: boolean;
@@ -1670,7 +1670,7 @@ export async function getContext(
         // 游标必须传下去：大群一次只回一页，不透传的话流程永远只能看到前 N 人
         if (opts.cursor) params.cursor = String(opts.cursor);
         const members = await bot.callApi('get_group_member_list', params);
-        // 两种回包形态都收：数组（OneBot 标准）与 { members, next_cursor }（官方分页接口）
+        // 两种回包形态都收：数组（协议标准）与 { members, next_cursor }（官方分页接口）
         const page = !Array.isArray(members) && members && typeof members === 'object'
           ? (members as { members?: unknown; next_cursor?: unknown })
           : null;
@@ -1694,7 +1694,7 @@ export async function getContext(
         });
         const card = String((info as { card?: string })?.card ?? '');
         const nickname = String((info as { nickname?: string })?.nickname ?? '');
-        // 群名片优先（群里显示的是名片），但两个出口都要给：下游可能要做「@名片 而不是 @昵称」
+        // 群名片优先（群里显示的是名片），但两个出口都要给：下游可能要做「@名片而不是 @昵称」
         const name = card || nickname;
         if (!name) return fail('获取昵称失败：接口未返回昵称');
         return ok(name, { card, nickname });
@@ -1813,7 +1813,7 @@ export async function getContext(
 
 export async function httpRequest(
   _bot: BotInterface,
-  _event: OneBotEvent,
+  _event: RuntimeEvent,
   url: string = '',
   method: string = 'GET',
   headers: Record<string, string> = {},
@@ -1838,7 +1838,7 @@ export async function httpRequest(
 
 export async function intentClassify(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   text: string = '',
   _intents: string[] = []
 ): Promise<{ intent: string; confidence: number; error: string }> {
@@ -2127,7 +2127,7 @@ export function listOp(
 
 export async function llmChat(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   prompt: string = '',
   _systemPrompt: string = '',
   _model: string = '',
@@ -2201,7 +2201,7 @@ export function persistentStore(): void {
 
 export async function queryFn(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   mode: 'list' | 'sort' | 'filter' | 'aggregate' = 'list',
   keyPattern: string = '*',
   _scope: string = 'global',
@@ -2563,7 +2563,7 @@ export async function tryCatch(
 
 export async function waitInput(
   _bot: BotInterface,
-  _event: OneBotEvent,
+  _event: RuntimeEvent,
   timeout: number = 30000,
   prompt: string = ''
 ): Promise<{ success: boolean; input: string; timeout: boolean; error: string }> {
@@ -2649,7 +2649,7 @@ const MAX_PERSIST_TTL = 86400; // 24 hours
 
 export async function variablePersist(
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   mode: 'save' | 'load' | 'delete' | 'exists' | 'load_or_default' | 'increment' | 'batch_load' | 'batch_save' | 'batch_update' | 'list_append' | 'compare_update' = 'load',
   key: string = '',
   value: unknown = null,
@@ -2753,7 +2753,7 @@ export async function variablePersist(
 
     switch (mode) {
       case 'compare_update': {
-        // D3 · 原子条件更新（防超卖）：读 → 判断条件 → 变更 在一次原子操作里完成。
+        // D3 · 原子条件更新（防超卖）：读 → 判断条件 → 变更在一次原子操作里完成。
         // 两个并发请求里只有一个能成功；没成功的走「条件不满足」出口，不是错误。
         const cmp = await persistentStoreModule.compareAndUpdate(key, scope, event, {
           op: String(compareOp || '>='),

@@ -31,7 +31,7 @@ var OfficialConfigSchema = BaseAdapterConfigSchema.extend({
 	/** 预设群组 */
 	presetGuilds: z.array(z.string()).optional()
 });
-/** QQ 网关（OneBot v11：NapCat / Lagrange / 本项目内置桥） */
+/** QQ 网关（运行时事件契约：NapCat / Lagrange / 本项目内置桥） */
 var QqGatewayConfigSchema = BaseAdapterConfigSchema.extend({
 	platform: z.literal("qq-gateway"),
 	/** 网关地址，如 ws://127.0.0.1:8080/runtime/ws */

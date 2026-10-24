@@ -29,7 +29,7 @@ import { getNodeRegistry } from '@main/nodes/registry';
 import { registerAllBuiltinNodes } from '@main/nodes/builtin';
 import { getHandler } from '@main/runtime/handlerRegistry';
 import { ExecContext } from '@main/runtime/ExecContext';
-import type { BotInterface, OneBotEvent } from '../builtinNodes/builtinNodes';
+import type { BotInterface, RuntimeEvent } from '../builtinNodes/builtinNodes';
 import { logger } from '../infra/logger';
 
 export interface BotToolSpec {
@@ -231,7 +231,7 @@ export async function runBotTool(
   spec: BotToolSpec,
   args: Record<string, unknown>,
   bot: BotInterface,
-  event: OneBotEvent,
+  event: RuntimeEvent,
   projectPath: string,
 ): Promise<ToolRunOutcome> {
   const handler = getHandler(spec.kind);

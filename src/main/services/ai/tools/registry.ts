@@ -414,7 +414,7 @@ var REGISTERED_HANDLERS = {
 				统计: report.counts
 			} };
 		} catch (e) {
-			return { result: `能力自检没能执行：${e instanceof Error ? e.message : String(e)}\n两种常见原因：① 这个项目用的是 **NapCat 等 OneBot 实现**（本自检只适用于官方协议端）；② 还没在项目里配置 AppID / AppSecret。
+			return { result: `能力自检没能执行：${e instanceof Error ? e.message : String(e)}\n两种常见原因：① 这个项目用的是 **NapCat 等 第三方桥接实现**（本自检只适用于官方协议端）；② 还没在项目里配置 AppID / AppSecret。
 这种情况请改看系统提示里「可用协议端 API」那一节的标注（带 \\* 的名字在官方适配器下不可用），**不要据此认定某个能力可用或不可用**。` };
 		}
 	},

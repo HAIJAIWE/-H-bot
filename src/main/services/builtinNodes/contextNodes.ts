@@ -226,7 +226,7 @@ function messageTextOf(event) {
 	}
 	return "";
 }
-/** 取消息段数组（兼容 OneBot v11 的 array 格式与单个段对象） */
+/** 取消息段数组（兼容运行时事件的 array 格式与单个段对象） */
 function segmentsOf(event) {
 	const msg = event.message;
 	if (Array.isArray(msg)) return msg;

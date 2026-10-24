@@ -134,7 +134,7 @@ function generateInner(graph, debugMode, errors) {
 * 生成生命周期/定时触发器基础设施（模块级代码）：
 * - APScheduler 调度器实例（schedule 触发器装饰器使用）
 * - 模拟事件类（schedule/on_ready/on_startup 链中下游节点需要 event 参数）
-* - 调度器的启动/关闭钩子（挂到 NoneBot driver 生命周期）
+* - 调度器的启动/关闭钩子（挂到机器人进程的生命周期）
 *
 * 修复前：@scheduler.scheduled_job(...) 装饰器生成后，scheduler 从未定义，
 * 生成的 Python 模块在 import 时抛 NameError；datetime.now() 也从未导入。
@@ -311,7 +311,7 @@ function findFirstNodes(trigger, graph) {
 *   旧实现只有 at_me/command 有专门 matcher，keyword/regex/message_type 全部
 *   退化为裸 on_message(priority=10)——关键词/正则/消息类型过滤完全失效。
 * - on_button_click: NapCat 路径通过消息内容精确匹配 button_data（QQ 官方
-*   interaction 事件由运行时适配器处理，生成代码无法用 NoneBot matcher 表达）。
+*   interaction 事件由运行时适配器处理，生成代码无法用代码生成的 matcher 表达）。
 */
 function generateMatcherDef(trigger, ctx) {
 	const kind = trigger.data.nodeKind;

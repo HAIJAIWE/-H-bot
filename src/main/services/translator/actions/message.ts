@@ -61,17 +61,17 @@ var sendMsg = async (host, { params, echo, responder }) => {
 	* 频道消息（guild）的回复：目标是 **channel_id**，没有 uid 可反查（频道不是"人"）。
 	*
 	* 2026-10-05 补：此前这里一律要求 user_id/group_id → 「频道消息触发 → 直接回复」必然报
-	* 「send_msg 缺少目标」✗，用户只能改成"填死目标"的频道推送模式。
+	* 「send_message 缺少目标」✗，用户只能改成"填死目标"的频道推送模式。
 	*/
 	const isChannel = msgType === "channel";
 	const channelId = isChannel ? String(params.channel_id ?? "").trim() : "";
 	const uid = Number(msgType === "group" ? params.group_id || 0 : params.user_id || 0);
 	if (isChannel && !channelId) {
-		responder.fail(echo, "send_msg 频道消息缺少 channel_id（\"回复当前会话\"应从频道事件里带上）");
+		responder.fail(echo, "send_message 频道消息缺少 channel_id（\"回复当前会话\"应从频道事件里带上）");
 		return;
 	}
 	if (!isChannel && !uid) {
-		responder.fail(echo, "send_msg 缺少目标：需要 user_id / group_id（频道消息用 channel_id）；\"回复当前会话\"请带上来源事件的目标");
+		responder.fail(echo, "send_message 缺少目标：需要 user_id / group_id（频道消息用 channel_id）；\"回复当前会话\"请带上来源事件的目标");
 		return;
 	}
 	const openid = isChannel ? channelId : host.getOpenidByUid(uid) || String(uid);
@@ -93,7 +93,7 @@ var sendMsg = async (host, { params, echo, responder }) => {
 				ctx.msgSeq = ctx.msgSeq + 1 & 2147483647;
 			}
 		}
-		emitSystemLog(host.projectPath, "send_msg 检测到按钮消息段，路由到 keyboard API: chatType=" + chatType + ", openid=" + openid);
+		emitSystemLog(host.projectPath, "send_message 检测到按钮消息段，路由到 keyboard API: chatType=" + chatType + ", openid=" + openid);
 		const kRes = await sendOfficialMessage(host.projectPath, chatType, openid, "", kOpts);
 		emitSystemLog(host.projectPath, "发送结果: ok=" + kRes.ok + ", id=" + (kRes.data?.id || "无"));
 		const kSentId = kRes.data?.id || "";
@@ -234,7 +234,7 @@ var sendStreamMsg = async (host, { params, echo, responder }) => {
 var deleteMsg = async (host, { params, echo, responder }) => {
 	const dMsgId = String(params.message_id || "");
 	if (!dMsgId) {
-		responder.fail(echo, "delete_msg 缺少 message_id 参数");
+		responder.fail(echo, "delete_message 缺少 message_id 参数");
 		return;
 	}
 	const ctxInfo = host.messageIdToContext.get(dMsgId);
@@ -248,14 +248,14 @@ var deleteMsg = async (host, { params, echo, responder }) => {
 	} else responder.fail(echo, "撤回消息失败（API 返回失败或会话已断开）");
 };
 var messageActions = {
-	send_private_msg: sendPrivateMsg,
+	send_private_message: sendPrivateMsg,
 	send_input_notify: sendInputNotify,
-	send_msg: sendMsg,
-	send_group_msg: sendGroupMsg,
-	send_keyboard_msg: sendKeyboardMsg,
+	send_message: sendMsg,
+	send_group_message: sendGroupMsg,
+	send_keyboard_message: sendKeyboardMsg,
 	send_media: sendMedia,
-	send_stream_msg: sendStreamMsg,
-	delete_msg: deleteMsg
+	send_stream_message: sendStreamMsg,
+	delete_message: deleteMsg
 };
 
 export { sendPrivateMsg, sendInputNotify, sendMsg, sendGroupMsg, sendKeyboardMsg, sendMedia, sendStreamMsg, deleteMsg, messageActions };

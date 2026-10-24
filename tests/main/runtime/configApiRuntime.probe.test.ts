@@ -130,7 +130,7 @@ describe('配置表绑定在 TS 运行时的取值', () => {
       event: { raw_message: '/技能', message: '/技能', get_message: () => '/技能' },
     })
 
-    const sent = r.actions.filter((a) => a.api === 'send_msg').map((a) => a.params.message)
+    const sent = r.actions.filter((a) => a.api === 'send_message').map((a) => a.params.message)
     console.log('[探针] 实际发出的内容 =', JSON.stringify(sent))
     console.log('[探针] 变量快照 =', JSON.stringify(r.variables))
     expect(sent).toEqual(['技能=火球术'])

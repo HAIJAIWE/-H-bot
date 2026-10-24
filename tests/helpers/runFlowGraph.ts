@@ -64,7 +64,7 @@ export interface RunFlowGraphOptions {
 /**
  * 默认事件。
  *
- * 与 previewRunner.synthesizeEvent 形状一致（OneBot v11 消息事件），但数值固定成
+ * 与 previewRunner.synthesizeEvent 形状一致（运行时消息事件），但数值固定成
  * 测试里用得最多的那组：get_context 的 user_id=12345 / group_id=67890 /
  * message_text="/测试" / message_ref=1 都依赖它们。
  */
@@ -106,7 +106,7 @@ function stubResponse(api: string, params: Record<string, unknown>): unknown {
     return { user_id: Number(params.user_id) || 0, nickname: '测试用户', role: 'member' }
   }
   if (api.includes('group_member_list')) return []
-  if (api.includes('get_msg')) {
+  if (api.includes('get_message')) {
     return { message_id: params.message_id ?? 1, message: '测试消息', sender: { user_id: 12345 } }
   }
   if (api.includes('send')) {

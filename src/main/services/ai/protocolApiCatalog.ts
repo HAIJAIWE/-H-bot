@@ -9,22 +9,22 @@ var PROTOCOL_APIS = [
 	{
 		group: "发消息",
 		apis: [
-			api("send_msg"),
-			api("send_private_msg"),
-			api("send_group_msg"),
-			api("send_channel_msg"),
-			api("send_group_forward_msg", "官方 API 没有「合并转发」能力（富媒体只有图片/语音/视频/文件）"),
-			api("send_keyboard_msg"),
+			api("send_message"),
+			api("send_private_message"),
+			api("send_group_message"),
+			api("send_channel_message"),
+			api("send_group_forward_message", "官方 API 没有「合并转发」能力（富媒体只有图片/语音/视频/文件）"),
+			api("send_keyboard_message"),
 			api("send_media"),
-			api("send_stream_msg"),
+			api("send_stream_message"),
 			api("send_input_notify")
 		]
 	},
 	{
 		group: "消息操作",
 		apis: [
-			api("delete_msg"),
-			api("edit_msg", "官方 API 不支持编辑已发送的消息（每回合重发一条是官方建议的做法）"),
+			api("delete_message"),
+			api("edit_message", "官方 API 不支持编辑已发送的消息（每回合重发一条是官方建议的做法）"),
 			api("set_essence_msg")
 		]
 	},
@@ -74,7 +74,7 @@ function describeProtocolApis() {
 		"**下面这些是本项目内部用过的（写节点时优先从这里挑）：**",
 		...lines,
 		"",
-		"⚠️ **带 \\* 的名字只在 NapCat 这类 OneBot 实现上有效** —— 官方（QQ 开放平台）适配器没有这些能力，",
+		"⚠️ **带 \\* 的名字只在 NapCat 这类 第三方桥接实现上有效** —— 官方（QQ 开放平台）适配器没有这些能力，",
 		"用它写出来的节点在官方适配器下**运行时会失败**：",
 		...unsupportedLines,
 		"",

@@ -823,7 +823,7 @@ function mockNodeOutput(
       // read 模式：返回模拟文本内容
       return { outputs: { result: '{"key": "value"}', success: 'true', path: fp, error: '' } }
     }
-    case 'edit_msg': {
+    case 'edit_message': {
       return { outputs: { success: 'true', error: '' }, message: `✏️ 已编辑消息` }
     }
     case 'group_op': {

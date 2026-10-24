@@ -54,7 +54,7 @@
 
 ### 2.3 频道（QQ 频道）
 
-- 发送端点：`POST /channels/{channel_id}/messages`（走 `send_channel_msg`）
+- 发送端点：`POST /channels/{channel_id}/messages`（走 `send_channel_message`）
 - 频道的发送侧支持 `ark` / `embed` 卡片；**单聊与群聊的发送接口明确没有这两个字段**
   （所以本地会直接拒绝并提示改用 Markdown / 按钮）
 - 收到频道消息：`AT_MESSAGE_CREATE`（@机器人，intent `1<<30` 默认有权限）；
@@ -76,7 +76,7 @@
 | QQ 群管理 | ✅ | 禁言 `restrict_chat_setting`、批量移除 `batch_remove_members`、入群审批策略、黑名单 | restrict_chat_setting / batch_remove_members |
 | 群成员 · 入群申请 · 消息审核事件 | ✅ | `GROUP_MEMBER_ADD` / `GROUP_JOIN_REQUEST` / `MESSAGE_AUDIT_PASS` / `MESSAGE_AUDIT_REJECT` | GROUP_MEMBER_ADD / GROUP_JOIN_REQUEST |
 | 自定义菜单 / 指令面板 | ✅ | `GET|PUT|DELETE /v2/menu`、`/v2/panels`（列表必须传 scope；一个机器人最多 20 个面板） | /v2/menu / /v2/panels |
-| QQ 频道 | ✅ | `send_channel_msg` 发送；`AT_MESSAGE_CREATE` / `MESSAGE_CREATE` 翻译成运行时的 guild 消息事件 | send_channel_msg / AT_MESSAGE_CREATE |
+| QQ 频道 | ✅ | `send_channel_message` 发送；`AT_MESSAGE_CREATE` / `MESSAGE_CREATE` 翻译成运行时的 guild 消息事件 | send_channel_message / AT_MESSAGE_CREATE |
 
 > 「8 个接口」指前 8 行；后面 5 行是随 QQ 群 / 频道一起接进来的扩展能力，同样有实现锚点。
 
@@ -170,7 +170,7 @@
 
 ## 9. 官方没有、或我们明确不做的
 
-- 合并转发（`send_forward_msg` / `send_group_forward_msg`）：官方发送侧只有文本 / Markdown / 富媒体，只能逐条发
+- 合并转发（`send_forward_msg` / `send_group_forward_message`）：官方发送侧只有文本 / Markdown / 富媒体，只能逐条发
 - 「按 QQ 号查资料」（`get_stranger_info`）：官方是 openid 体系，只有共同会话里出现过的用户才有 openid
 - 主动加好友（`set_friend_add_request`）：好友关系只能由用户在客户端发起，我们能监听 `FRIEND_ADD`
 - 群精华消息（`delete_essence_msg`）：精华只在频道场景存在，频道请用 `pin_remove`

@@ -84,7 +84,7 @@ export interface IncomingFingerprint {
 /**
  * 从运行时事件里提取匹配指纹（解释器在 dispatchEvent 入口调用）。
  *
- * 字段名按 OneBot v11 事件约定，全部做容错（缺字段不抛错）：
+ * 字段名按运行时事件约定，全部做容错（缺字段不抛错）：
  * user_id（私聊/群聊发送者；通知事件用 operator_id 回退）、message_type / group_id。
  */
 export function fingerprintFromEvent(projectPath: string, event: unknown): IncomingFingerprint {
@@ -105,7 +105,7 @@ export function fingerprintFromEvent(projectPath: string, event: unknown): Incom
 /**
  * 从事件里取出用户回复的文本（解释器恢复等待时写入 `reply` 输出端口）。
  *
- * OneBot v11 的 `raw_message` 是字符串；适配层也可能给数组式 `message` 段，
+ * 运行时事件的 `raw_message` 是字符串；适配层也可能给数组式 `message` 段，
  * 这里统一拍平成文本，取不到就返回空串（由调用方决定怎么处理）。
  */
 export function messageTextFromEvent(event: unknown): string {
