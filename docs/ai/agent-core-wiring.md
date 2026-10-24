@@ -659,8 +659,8 @@ roleNote 透传与预设覆盖）、`tests/main/services/ai/presets.test.ts`（r
 
 `schema` 收着 `planFirst` / `fullAccess` / `images` / `activeFilePath` 四个字段（注释就写着
 「少收一个字段就等于静默丢功能」），而 `aiAgentCore.ts` 的 handler **一个都没读过** ——
-界面按下去没反应，主进程照旧跑。这一节记补上的两个；`images`（要动 provider 消息格式）与
-`activeFilePath`（代码上下文）仍待办。
+界面按下去没反应，主进程照旧跑。这一节记补上的两个；`images` 与 `activeFilePath` 见 §26
+（同一族问题的第二批，外加预设的 `permissionMode`）。
 
 | 开关 | 落点 | 语义 |
 |---|---|---|
@@ -690,4 +690,82 @@ roleNote 透传与预设覆盖）、`tests/main/services/ai/presets.test.ts`（r
 - `tests/main/services/agent-core/runTurn.test.ts`：工具表被裁后提示只广告裁过的那些、
   越界工具得到「未知工具」且文件没被写；`planOnly` 的提示里不再出现 `write_file`。
 
-**还没做**：`images`、`activeFilePath`；界面上仍然看不出「完全权限已生效」与「预设裁掉了哪些工具」。
+**还没做**：界面上仍然看不出「完全权限已生效」与「预设裁掉了哪些工具」（`images` /
+`activeFilePath` 已在 §26 补齐）。
+
+## 26. 剩下那三处「传了没读」（2026-10-25）
+
+§25 补的是两个**开关**，这一节补剩下三处**数据**：贴图、当前打开的文件、预设的审批口径。
+共同点是同一族问题：渲染层一路传到了 IPC、schema 也收着，断在主进程 handler 这一环。
+
+| 字段 | 断在哪 | 现在落到哪 |
+|---|---|---|
+| `images` | `aiAgentCore` 从来没读过；循环的消息类型里也根本没有"图"这个位 | `ChatTurn.images` → `modelAdapter` → `ChatMessage.images` → provider 的 `apiContentOf` |
+| `activeFilePath` | 只有助手链路（`services/ai/index.ts`）读了 | 循环的 `roleNote` 末尾（`activeFileHintFor`） |
+| `AgentPreset.permissionMode` | schema / preload / 渲染层都有，**服务层类型里没有这个字段** | `presets.ts` 读写归一 + `approval` 的 `effectiveFullAccess` |
+
+### 贴图：provider 早就支持，断在 ChatTurn 这一层
+
+这一条值得单独说，因为**它不缺逻辑、缺的是类型**：`shared/types/ai-provider.ts` 的
+`apiContentOf` 本来就会把 `ChatMessage.images` 翻成多段 content（`text` + `image_url`），
+`tokenBudget` 也早把每张图按 1000 token 计入。唯独循环自己的 `ChatTurn` 没有 `images`
+这个字段 —— 于是 `runTurn` 收到 `input.images` 也无处安放，只能默默丢掉。
+
+所以这一轮的改动是**一路加位**而不是加逻辑：
+
+- `ChatTurn.images?: readonly string[]`（`agent-core/core.ts`）；
+- `RunTurnInput.images` → 只放进**第一轮**的 user 回合（`runTurn.ts`）；
+- `modelAdapter` 原样转给 `ChatMessage`（空数组不写这个键 —— 写了等于告诉 provider
+  "每条消息都带图"）；
+- `contextGate.estimateTurns` 把图按 1000 token/张计入（与 `ai/tokenBudget` 同口径，
+  但**不 import** 那个模块：循环不该为了一个常数把助手链路整包拉进来）。
+
+**图只属于那一句**。循环里排队进来的下一句、或者插话续跑的那一轮，都不该把上一张图再发
+一遍：贵（1000 token/张）而且会误导模型"新问题也配着这张图"。所以 handler 里是
+`let pendingImages = images` + 每轮开头 `turnImages = pendingImages; pendingImages = undefined`。
+
+记忆里只留一句（`withImageNote`，与助手链路逐字一致）：`（附了 N 张图，仅那一轮可见）`。
+图本身**不落盘** —— 一张截图 base64 就几 MB，会撑爆 1MB 上限的 JSONL。
+
+### 当前打开的文件：只对 coder / duo 说
+
+`activeFileHintFor` 从 `services/ai/index.ts` 搬到了 `services/ai/promptHints.ts`（连同
+`withImageNote`），原因是**加载面**：循环入口要它俩，而 import `services/ai/index.ts`
+会把工具注册表 → 流程解释器 → 提案校验整条链拉进循环和它的单测。
+
+规则没变（低代码/创作角色返回空串；空、绝对路径、带 `..`、含换行/反引号、>300 字符、
+磁盘上不存在 —— 一律返回空串：提示里宁可不提，也不能提错）。
+
+### 预设的 permissionMode：显式表态优先
+
+`effectiveFullAccess = fullAccess ?? (preset?.permissionMode === 'full')`。
+
+- **调用方显式 true/false 优先**，只有 `undefined` 才让预设补位。渲染层那边配合的正是这一条：
+  界面开关关着时传 `undefined` 而不是 `false`（aiStore 的注释写过这个意图，只是主进程没接）。
+- 语义与开关完全一致：只对**这一次运行**有效，不写 `allowRules`、不跨会话，
+  并且仍然排在角色写域闸**之后**（预设不能把角色边界关掉）。
+
+### 顺带查出的一个 zod 坑：不声明就是静默丢
+
+`aiSavePresetsSchema` 里的 preset 对象**没有声明 `role` / `prompt`** —— zod 的 object 默认是
+`strip`，于是渲染层把 role 一起传上来、schema 校验通过、服务层收到的对象里**没有这个字段**，
+存盘后"预设绑定的角色"凭空消失，全程零报错。这一轮补上 `role` / `prompt` 两行。
+
+教训：**IPC 载荷 schema 里的对象是白名单，不是过滤器** —— 新增字段只改类型不改 schema，
+等于让主进程继续拿着旧对象跑。
+
+### 测试
+
+- `tests/main/ipc/aiAgentCore-ipc.test.ts`：图交给循环且在记忆里只留一句（断言 JSONL 里
+  没有 `base64`）；非 data URL / 超 4 张被 schema 拒；代码页的 `roleNote` 含打开的文件、
+  低代码页不含；预设 `permissionMode:'full'` 不弹窗，而显式 `fullAccess:false` 仍然弹。
+- `tests/main/services/ai/promptHints.test.ts`：两个函数的"该加 / 不该加"清单（空、绝对路径、
+  `..`、换行、反引号、超长、文件不存在）。
+- `tests/main/services/agent-core/modelAdapter.test.ts`：`ChatTurn.images` → `ChatMessage.images`，
+  无图的回合不写这个键。
+- `tests/main/services/agent-core/contextGate.test.ts`：`estimateTurns` 每张图 +1000。
+- `tests/main/services/ai/presets.test.ts`：`permissionMode` 读写归一（`'yolo'` 当没写）。
+
+**还没做**：压缩发生时的界面提示（要先在 `agentCoreEventContract` 登记事件）、预设的表单化编辑
+（现在仍然只能改 JSON）、以及"角色已生效"的界面痕迹。
+

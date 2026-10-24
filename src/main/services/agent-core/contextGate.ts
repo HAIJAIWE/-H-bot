@@ -29,6 +29,15 @@ const MAX_SUMMARY_ITEM_CHARS = 400
 /** 模型摘要回来的上限（再长就不像"备忘录"了） */
 export const MAX_SUMMARY_CHARS = 1200
 
+/**
+ * 一张图按多少 token 估。
+ *
+ * 与 ai/tokenBudget 的 IMAGE_TOKENS 同一个口径（1024×1024 一档约 1000），
+ * 但**不 import 过来**：那个模块是助手链路的一整包（预算/测量/日志），
+ * 循环入口只想要一个常数。两处数字若哪天分叉，注释会指路。
+ */
+const IMAGE_TOKENS = 1000
+
 export const COMPACTION_NOTE_HEAD = '【本轮上下文已压缩（摘要非原文，需要细节请重读文件）】'
 
 /**
@@ -52,7 +61,10 @@ export function estimateTokens(text: string): number {
 /** 一段对话的 token 估算（逐条相加，留一点每条的结构开销） */
 export function estimateTurns(turns: readonly ChatTurn[]): number {
   let total = 0
-  for (const turn of turns) total += estimateTokens(turn.content ?? '') + 4
+  for (const turn of turns) {
+    // 图片按张估（base64 长度当文字算会把预算判断成爆表）
+    total += estimateTokens(turn.content ?? '') + 4 + (turn.images?.length ?? 0) * IMAGE_TOKENS
+  }
   return total
 }
 

@@ -47,7 +47,15 @@ export function createModelFn(
     const messages: ChatMessage[] = turns.map((t) =>
       t.role === 'tool'
         ? { role: 'user', content: '[工具 ' + String(t.name ?? '') + ']\n' + t.content }
-        : { role: t.role, content: t.content },
+        : {
+            role: t.role,
+            content: t.content,
+            /**
+             * 图只可能出现在 user 回合（循环不产图）。交出去之后由 provider 层的
+             * apiContentOf 改成多段 content —— 那张 map 早就在，只是循环以前没把图递过去。
+             */
+            ...(t.images && t.images.length > 0 ? { images: [...t.images] } : {}),
+          },
     );
     let text = '';
     let calls: AiToolCall[] = [];

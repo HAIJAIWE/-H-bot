@@ -37,6 +37,14 @@ describe('★ token 估算', () => {
   it('逐条相加时带一点结构开销', () => {
     expect(estimateTurns([turn('user', ascii(40))])).toBe(14)
   })
+
+  it('★ 贴图按张计 1000 token（不算的话贴图的人以为还有余量）', () => {
+    const withImages: ChatTurn = { role: 'user', content: ascii(40), images: ['data:image/png;base64,AA'] }
+    expect(estimateTurns([withImages])).toBe(14 + 1000)
+    expect(estimateTurns([{ ...withImages, images: ['a', 'b'] }])).toBe(14 + 2000)
+    // 没图的回合不多算
+    expect(estimateTurns([turn('user', ascii(40))])).toBe(14)
+  })
 })
 
 describe('★ 压哪一段', () => {

@@ -60,6 +60,22 @@ describe('★ 模型适配器（注入 call，不 mock 模块）', () => {
     expect(reply.text).toBe('你好');
   });
 
+  it('★ 图随 user 回合交给 provider（循环以前把 images 丢了）', async () => {
+    let seen: any[] = [];
+    const fake = (async (_c: unknown, m: any, _t: unknown, cb: any) => {
+      seen = m;
+      cb.onComplete('看到了');
+    }) as never;
+    const png = 'data:image/png;base64,AAAA';
+    await createModelFn(config, { call: fake })([
+      { role: 'user', content: '这是怎么回事', images: [png] },
+      { role: 'assistant', content: '看起来是连线断了' },
+    ]);
+    expect(seen[0].images).toEqual([png]);
+    // 没图的回合不能被写成 images: []（provider 会以为每条消息都带图）
+    expect('images' in seen[1]).toBe(false);
+  });
+
   it('工具结果按 user 消息回灌（带工具名前缀）', async () => {
     let seen: any[] = [];
     const fake = (async (_c: unknown, m: any, _t: unknown, cb: any) => {

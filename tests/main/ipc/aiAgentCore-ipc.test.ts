@@ -9,6 +9,9 @@
 // 为什么不复用 ai-ipc.test.ts：那个文件 mock 了整套助手服务（720 行），
 // 这一条通道**不经过**那些服务 —— 塞进去只会让两边的 mock 互相干扰。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 type Handler = (event: unknown, args: unknown) => Promise<unknown>;
 
@@ -233,5 +236,94 @@ describe('ai:agentCoreRun 接线', () => {
     expect(second).toContain('只动流程');
     // 预设的 role 真的盖过了页面推出的角色（否则两段说明会一模一样）
     expect(second).not.toBe(note);
+  });
+
+  it('★ 贴图真交给循环，而且记忆里只留一句「附了 N 张图」（图不落盘）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-img-'));
+    try {
+      const png = 'data:image/png;base64,iVBORw0KGgo=';
+      await invoke({ projectPath: dir, requirement: '你看这是怎么回事', images: [png] });
+      const passed = h.runAgentTurn.mock.calls[0][0] as { images?: string[] };
+      expect(passed.images).toEqual([png]);
+
+      // 记忆 == .qqbat 下那份 JSONL；图本身不进去，只有一句说明
+      const raw = readFileSync(join(dir, '.qqbat', 'ai-history.jsonl'), 'utf-8');
+      expect(raw).toContain('附了 1 张图');
+      expect(raw).not.toContain('base64');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+
+    h.runAgentTurn.mockClear();
+    await invoke({ projectPath: 'D:/p', requirement: '没图' });
+    // 没贴图就不带这个键（循环按纯文本走）
+    expect('images' in (h.runAgentTurn.mock.calls[0][0] as Record<string, unknown>)).toBe(false);
+  });
+
+  it('★ 贴图的格式与张数由 schema 兜底（界面可以被绕过）', async () => {
+    // 非 data URL 的串不该被当真送进 provider
+    const bad = (await invoke({
+      projectPath: 'D:/p',
+      requirement: 'x',
+      images: ['https://example.invalid/a.png'],
+    })) as { ok: boolean; error?: string };
+    expect(bad.ok).toBe(false);
+    expect(bad.error).toContain('参数校验失败');
+
+    const tooMany = (await invoke({
+      projectPath: 'D:/p',
+      requirement: 'x',
+      images: Array.from({ length: 5 }, () => 'data:image/png;base64,AAAA'),
+    })) as { ok: boolean };
+    expect(tooMany.ok).toBe(false);
+    expect(h.runAgentTurn).not.toHaveBeenCalled();
+  });
+
+  it('★ 代码页把「当前打开的文件」写进提示；低代码页不写（不引它去动源码）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-file-'));
+    try {
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n');
+
+      await invoke({ projectPath: dir, requirement: '改这个', agentMode: 'code', activeFilePath: 'src/a.ts' });
+      const note = (h.runAgentTurn.mock.calls[0][0] as { roleNote: string }).roleNote;
+      expect(note).toContain('src/a.ts');
+      expect(note).toContain('不要再反问');
+
+      h.runAgentTurn.mockClear();
+      // 低代码页（builder）拿到同一个字段也不该用
+      await invoke({ projectPath: dir, requirement: '改这个', activeFilePath: 'src/a.ts' });
+      const builder = (h.runAgentTurn.mock.calls[0][0] as { roleNote: string }).roleNote;
+      expect(builder).not.toContain('src/a.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('★ 预设的 permissionMode:full 真的补位（调用方没表态时）', async () => {
+    h.readPreset.mockResolvedValue({ name: '无人值守', permissionMode: 'full' });
+    await invoke({ projectPath: 'D:/p', requirement: '放开来做', agentMode: 'code', preset: '无人值守' });
+    const approval = (h.runAgentTurn.mock.calls[0][0] as {
+      approval: (req: unknown) => Promise<boolean>;
+    }).approval;
+
+    // coder 的写域内：不弹窗直接过
+    await expect(approval({ kind: 'write', summary: 'src/a.ts' })).resolves.toBe(true);
+    expect(h.requestApproval).not.toHaveBeenCalled();
+
+    // 但显式 false 要盖过预设（界面开关是显式表态）
+    h.runAgentTurn.mockClear();
+    await invoke({
+      projectPath: 'D:/p',
+      requirement: '还是问我',
+      agentMode: 'code',
+      preset: '无人值守',
+      fullAccess: false,
+    });
+    const second = (h.runAgentTurn.mock.calls[0][0] as {
+      approval: (req: unknown) => Promise<boolean>;
+    }).approval;
+    await expect(second({ kind: 'write', summary: 'src/a.ts' })).resolves.toBe(true);
+    expect(h.requestApproval).toHaveBeenCalledTimes(1);
   });
 });

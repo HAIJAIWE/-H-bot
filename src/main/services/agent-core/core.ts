@@ -24,6 +24,13 @@ export { MAX_TOOL_OUTPUT_CHARS, clampToolOutput } from './toolOutput';
 export interface ChatTurn {
   role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
+  /**
+   * 用户贴的图（data URL，只有 user 回合会带）。
+   *
+   * 循环自己从不产生图片 —— 它只负责把这一轮的要求原样带过去；真正把它们
+   * 翻成 provider 的多段 content 是 modelAdapter（见 apiContentOf）。
+   */
+  images?: readonly string[];
   name?: string;
 }
 /**

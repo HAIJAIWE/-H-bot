@@ -25,6 +25,13 @@ import { estimateTokens, type CompactionOptions, type CompactionOutcome } from '
 export interface RunTurnInput {
   projectPath: string;
   requirement: string;
+  /**
+   * 这一轮贴的图（data URL）。只进**这一轮的 user 回合** —— 不落记忆、不进系统提示。
+   *
+   * 不传 = 纯文字（脚本/测试/没贴图的默认）。模型不支持看图时是厂商 400，
+   * 渲染层的 classifyAiError 会把它翻成"这个模型看不了图"，不在循环里猜能力。
+   */
+  images?: readonly string[];
   config: LlmConfig;
   /** 审批：默认一律拒绝（写盘必须显式放开） */
   approval?: (req: ApprovalRequest, signal?: AbortSignal) => Promise<boolean>;
@@ -163,7 +170,11 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
           (input.historyNote ? '\n\n' + input.historyNote : ''),
       },
       ...(input.history ?? []).map((h) => ({ role: h.role, content: h.content })),
-      { role: 'user', content: input.requirement },
+      {
+        role: 'user',
+        content: input.requirement,
+        ...(input.images && input.images.length > 0 ? { images: input.images } : {}),
+      },
     ],
     model,
     // 不传 = 注册表全量（脚本/测试的默认）；传了就**只有**这些进调用表

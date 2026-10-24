@@ -290,3 +290,4 @@ src/main/vendor/dsh/
 | 2026-10-24（三次） | **S1 落地**：循环内上下文压缩（`agent-core/contextGate.ts`，提交 `f7a869e`）—— 对照见 `agent-core-wiring.md` §23 |
 | 2026-10-24（四次） | **S2 落地**：角色进循环 + 预设字段（`role`/`prompt`）对齐 `agent-preset` 语义 —— 对照见 `agent-core-wiring.md` §24 |
 | 2026-10-25 | **S3 落地**：循环入口接通 `planFirst` / `fullAccess`，预设工具表真正交给循环，系统提示只广告实际可用的工具 —— 对照见 `agent-core-wiring.md` §25 |
+| 2026-10-25 | **S4 落地**：贴图 / 当前打开的文件 / 预设 `permissionMode` 三处"传了没读"补齐；顺带查出 `aiSavePresetsSchema` 没声明 `role`/`prompt` 导致 zod 静默 strip —— 对照见 `agent-core-wiring.md` §26 |

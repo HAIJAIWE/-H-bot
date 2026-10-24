@@ -4,6 +4,14 @@
 
 import { z } from 'zod';
 import { LLM_PRESET_IDS } from '@shared/types/llm-presets';
+/**
+ * 一张图片的 data URL（助手链路与智能体循环共用）。
+ *
+ * 为什么抽成一个常量：两条链路的**上限必须一致** —— 否则会出现「助手能贴、
+ * 循环被拒」这种只在某条路上才撞得到的问题，而且两处各写一遍迟早漂移。
+ * `.max(6e6)` 是**单张**上限（约 6MB 的 base64），张数上限在各自字段上给。
+ */
+const imageDataUrlSchema = z.string().regex(/^data:image\/(png|jpeg|webp|gif);base64,/).max(6e6);
 var aiChatSchema = z.object({
 	/**
 	* 项目路径。**允许为空** —— 空 = 「开荒模式」（还没有任何项目）。
@@ -53,7 +61,7 @@ var aiChatSchema = z.object({
 	* 两道上限都在这里拦：**张数**与**单张体积** —— 界面侧也会先缩图，
 	* 但界面可以被绕过（老版本 / 手搓调用），主进程这道是兜底。
 	*/
-	images: z.array(z.string().regex(/^data:image\/(png|jpeg|webp|gif);base64,/).max(6e6)).max(4).optional(),
+	images: z.array(imageDataUrlSchema).max(4).optional(),
 	/**
 	* **用户当前在代码编辑器里打开的文件**（项目内相对路径，2026-10-15 P1-5）。
 	*
@@ -191,7 +199,14 @@ var aiAgentCoreRunSchema = z.object({
 	allowedTools: z.array(z.string().min(1)).optional(),
 	preset: z.string().min(1).max(120).optional(),
 	agentMode: z.enum(["blocks", "code", "duo", "creator"]).optional(),
-	images: z.array(z.string()).optional(),
+	/**
+	* 用户贴的图片（data URL）。与助手链路同一套上限：单张 ≤6e6 字符、最多 4 张。
+	*
+	* 此前这里是裸的 `z.array(z.string())` —— 张数与格式一概不查，任何字符串
+	* （包括非 data URL 的 URL、超长 base64）都会被原样送进 provider 换一个 400。
+	* 主进程是兜底那道（界面侧也会先缩图/限张数），所以按助手的口径对齐。
+	*/
+	images: z.array(imageDataUrlSchema).max(4).optional(),
 	activeFilePath: z.string().max(500).optional()
 });
 /** 插话：把一句话塞进正在跑的那一轮（step = 本步之前，turn = 本轮结束后排队） */
@@ -208,6 +223,16 @@ var aiSavePresetsSchema = z.object({
 		allowedTools: z.array(z.string().min(1)).optional(),
 		plugins: z.array(z.string().min(1)).optional(),
 		permissionMode: z.enum(["ask", "full"]).optional(),
+		/**
+		* 角色（builder / coder / duo / creator）。
+		*
+		* ⚠️ **不声明就等于静默丢**：zod 的 object 默认是 strip —— 渲染层把
+		* role 一起传上来，不写这一行，服务层收到的预设里就没有这个字段，
+		* 存盘后「预设绑定的角色」凭空消失，而且全程没有任何报错。
+		*/
+		role: z.enum(["builder", "coder", "duo", "creator"]).optional(),
+		/** 追加到这个角色的提示尾部的自定义要求（长度上限与 services/ai/presets.ts 的 PROMPT_MAX 对齐） */
+		prompt: z.string().max(2000).optional(),
 		description: z.string().max(500).optional()
 	}))
 });

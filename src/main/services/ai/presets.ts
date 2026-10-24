@@ -2,9 +2,10 @@
 //
 // **会话预设**（2026-10-19）：`.qqbat/agent-presets.json` —— 名字 → 这一轮怎么跑。
 //
-// 最初只有工具白名单；2026-10-24 对齐 DSH 的 `agent-preset` 语义后多两件事：
-//   · `role`   —— 这一轮用哪个**角色**（缺省 = 跟着页面走，见 shared/ai/roleDomains.ts）；
-//   · `prompt` —— 这个预设的**附加要求**（拼进系统提示的角色强调句之后）。
+// 最初只有工具白名单；2026-10-24 对齐 DSH 的 `agent-preset` 语义后多三件事：
+//   · `role`           —— 这一轮用哪个**角色**（缺省 = 跟着页面走，见 shared/ai/roleDomains.ts）；
+//   · `prompt`         —— 这个预设的**附加要求**（拼进系统提示的角色强调句之后）；
+//   · `permissionMode` —— 这一轮的**审批口径**（`'full'` = 无人值守，只这一次，不落规则）。
 //
 // 仍然是"约束这一轮"，不存模型参数：模型是用户在设置里选的，预设不该偷偷换掉它。
 // 工具表依旧是**权限边界**（提示词里写"别用某工具"是劝告，不是边界）——
@@ -12,7 +13,7 @@
 //
 // 文件格式（数组，容错读取）：
 //   [{ "name": "只读巡检", "role": "coder", "prompt": "只读不改",
-//      "allowedTools": ["read_file", "list_dir"], "description": "..." }]
+//      "allowedTools": ["read_file", "list_dir"], "permissionMode": "ask", "description": "..." }]
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import type { AgentRole } from '@shared/ai/roleDomains';
@@ -31,6 +32,18 @@ export interface AgentPreset {
   role?: AgentRole;
   /** 附加要求（进系统提示；只在提示层，不是权限边界） */
   prompt?: string;
+  /**
+   * 这一轮的审批口径：
+   * · `'full'` = 不再逐个问人（等价于界面上那个「完全权限」开关，但**由预设声明**）；
+   * · `'ask'`（或没写）= 每次动作都问。
+   *
+   * ⚠️ 两处语义边界：
+   * · **只对这一轮生效**，不写 allowRules、不跨会话 —— 界面上那句文案是「本次运行」；
+   * · **调用方显式表态优先**：`ai:agentCoreRun` 带了 `fullAccess: true/false` 就用它，
+   *   只有 `undefined` 时才让预设补位（关着开关 ≠ 明确要问，也可能是没人碰过）。
+   *   这条规则的另一半在渲染层：aiStore 只在开时才传 true，关着传 undefined。
+   */
+  permissionMode?: 'ask' | 'full';
   /** 工具名白名单；缺省 = 不限制（等价于不传 allowedTools） */
   allowedTools?: string[];
   /**
@@ -51,6 +64,11 @@ function presetsPath(projectPath: string): string {
 /** 角色字段容错：不认识的值当没写（拼错不该让整条预设失效，但也不能猜） */
 function normalizeRole(value: unknown): AgentRole | undefined {
   return ROLES.find((r) => r === value);
+}
+
+/** 审批口径容错：只认 ask / full，其余（拼错、老数据、数字）一律当没写 */
+function normalizePermission(value: unknown): 'ask' | 'full' | undefined {
+  return value === 'ask' || value === 'full' ? value : undefined;
 }
 
 /** 附加要求容错：去空白、截断到上限；空串当没写 */
@@ -81,10 +99,12 @@ export async function readPresets(projectPath: string): Promise<AgentPreset[]> {
         : undefined;
       const role = normalizeRole(m.role);
       const prompt = normalizePrompt(m.prompt);
+      const permissionMode = normalizePermission(m.permissionMode);
       out.push({
         name,
         ...(role ? { role } : {}),
         ...(prompt ? { prompt } : {}),
+        ...(permissionMode ? { permissionMode } : {}),
         ...(tools && tools.length > 0 ? { allowedTools: [...new Set(tools)] } : {}),
         ...(plugins && plugins.length > 0 ? { plugins: [...new Set(plugins)] } : {}),
         ...(typeof m.description === 'string' ? { description: m.description } : {}),
@@ -128,10 +148,12 @@ export async function writePresets(
     if (!name || name.length > NAME_MAX) continue;
     const role = normalizeRole(p.role);
     const prompt = normalizePrompt(p.prompt);
+    const permissionMode = normalizePermission(p.permissionMode);
     byName.set(name, {
       name,
       ...(role ? { role } : {}),
       ...(prompt ? { prompt } : {}),
+      ...(permissionMode ? { permissionMode } : {}),
       ...(p.allowedTools && p.allowedTools.length > 0
         ? { allowedTools: [...new Set(p.allowedTools.filter((t) => typeof t === 'string' && t))] }
         : {}),

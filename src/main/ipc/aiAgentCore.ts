@@ -53,6 +53,7 @@ import {
   type AgentRole,
 } from '@shared/ai/roleDomains';
 import { AGENT_ROLE_HINT } from '@shared/ai/roleHints';
+import { activeFileHintFor, withImageNote } from '../services/ai/promptHints';
 import { summarizeDroppedHistory } from '../services/ai/contextDigest';
 import type { ApprovalRequest } from '../services/agent-core/contracts';
 import { logger } from '../services/infra/logger';
@@ -141,14 +142,17 @@ export function registerAiAgentCoreIpc(): void {
     }
     const { projectPath, requirement, maxRounds } = parsed.data;
     /**
-     * 两个以前「传了但没读」的开关（2026-10-25 补接）：
-     *   · planFirst —— 先计划：只给查询类工具，写/命令物理上不在表里；
-     *   · fullAccess —— 完全权限：不再逐个问人（**不**越过角色的写域闸）。
+     * 四个以前「传了但没读」的字段（2026-10-25 补接）：
+     *   · planFirst      —— 先计划：只给查询类工具，写/命令物理上不在表里；
+     *   · fullAccess     —— 完全权限：不再逐个问人（**不**越过角色的写域闸）；
+     *   · images         —— 贴图：只作用于这一轮（图不进记忆，见 promptHints.withImageNote）；
+     *   · activeFilePath —— 用户当前在代码编辑器里打开的文件（只对代码页/双向有意义）。
      *
      * schema 一直收着它们，注释还写着「少收一个字段就等于静默丢功能」，
      * 而 handler 从来没读过 —— 界面按了没反应，是最难被当成 bug 报的那种静默。
+     * 渲染层这四项早就一路传到了 IPC（见 aiStore.runAgentCoreTurn），断在主进程这一环。
      */
-    const { planFirst, fullAccess } = parsed.data;
+    const { planFirst, fullAccess, images, activeFilePath } = parsed.data;
     /**
      * 线程：与助手共用同一个选择器 —— 传了就这条线程的记忆，不传 = 默认那份。
      * `threadFile` 负责把 id 收敛成安全路径（`../../etc/passwd` 只会得到无害文件名），
@@ -313,6 +317,12 @@ export function registerAiAgentCoreIpc(): void {
        */
       const role: AgentRole = preset?.role ?? ROLE_OF_MODE[parsed.data.agentMode ?? 'blocks'];
       /**
+       * **审批口径**：调用方显式表态（true/false）优先，只有 `undefined` 才让预设补位。
+       * 界面上那个开关关着时传的是 undefined 而不是 false，正是为了留这个口子
+       * （否则"预设声明了无人值守"永远不可能生效）。
+       */
+      const effectiveFullAccess = fullAccess ?? (preset?.permissionMode === 'full');
+      /**
        * 四段强调句是按**助手链路的工具名**写的（write_code / add_node…），
        * 而循环手上是通用文件工具（write_file / run_command…）。不补这一句，
        * 模型会以为 write_file 根本不存在，或者反过来不知道自己还有写域限制。
@@ -320,7 +330,12 @@ export function registerAiAgentCoreIpc(): void {
       const LOOP_ROLE_GATE_NOTE =
         '（本轮是智能体循环：写盘按**路径**判作用域 —— 「.qqbat/flow.json」与面板/模板 = 界面域，' +
         '「src/」「plugins/」与代码文件 = 代码域。越界的写在弹审批之前就会被拒，别换个路径再试。）';
-      const roleNote = [AGENT_ROLE_HINT[role], LOOP_ROLE_GATE_NOTE, preset?.prompt]
+      /**
+       * 「用户当前打开的文件」：只对代码页/双向有意义，且**文件真在磁盘上**才写。
+       * 空串是常态（低代码页、没开文件、路径不合规），filter(Boolean) 会把它滤掉。
+       */
+      const fileNote = activeFileHintFor(role, projectPath, activeFilePath);
+      const roleNote = [AGENT_ROLE_HINT[role], LOOP_ROLE_GATE_NOTE, fileNote, preset?.prompt]
         .filter(Boolean)
         .join('\n\n');
       const scoped = scopeToolsByPlugins(listTools(), pluginOwnedTools(), preset?.plugins);
@@ -331,14 +346,32 @@ export function registerAiAgentCoreIpc(): void {
             ? scoped
             : undefined;
       let currentRequirement = requirement;
+      /**
+       * 贴图只属于**这一句**（用户说"你看这是怎么回事"附的图）：
+       * 排队进来的下一句、或者插话续跑的那一轮，都不该把上一张图再发一遍 ——
+       * 既贵（一张按 1000 token 估）又会让模型以为新问题也带着同一张图。
+       */
+      let pendingImages = images;
       let last: RunTurnResult | null = null;
       /** 当前轮次 id（trace 带它，轮次投影才归得了组；beginTurn 之前是 undefined） */
       let traceTurnId: string | undefined;
       for (;;) {
-        // 每轮开始都要把这一轮的要求记进记忆（顺序与以前一致：先读历史、再记要求）
+        const turnImages = pendingImages;
+        pendingImages = undefined;
+        /**
+         * 每轮开始都要把这一轮的要求记进记忆（顺序与以前一致：先读历史、再记要求）。
+         * 图本身不落盘（一张截图 base64 就几 MB，会撑爆 JSONL），只在记忆里留一句
+         * 「（附了 N 张图，仅那一轮可见）」—— 与助手链路同一个口径（promptHints）。
+         */
         await appendHistoryEntries(
           projectPath,
-          [{ ts: new Date().toISOString(), role: 'user', content: currentRequirement }],
+          [
+            {
+              ts: new Date().toISOString(),
+              role: 'user',
+              content: withImageNote(currentRequirement, turnImages?.length ?? 0),
+            },
+          ],
           memoryFile,
         );
         streamed = false;
@@ -384,8 +417,9 @@ export function registerAiAgentCoreIpc(): void {
           /**
            * **完全权限**：跳过「问人」，但**不**跳过角色的写域闸（上面那段在它之前），
            * 也不写 allowRules —— 它只对这一次运行有效（界面文案就是「本次运行」）。
+           * 口径可能是调用方开关，也可能是预设的 permissionMode，所以判 effectiveFullAccess。
            */
-          if (fullAccess) return true;
+          if (effectiveFullAccess) return true;
           const match = matchOf(req);
           const ruleKind = ruleKindOf(req.kind);
           // ① 本轮内说过"别再问" ② 以前点过"以后别再问" → 都直接放行（不再弹窗）
@@ -436,6 +470,8 @@ export function registerAiAgentCoreIpc(): void {
          */
         ...(turnTools ? { tools: turnTools } : {}),
         ...(planFirst ? { planOnly: true } : {}),
+        // 图只进第一轮的用户回合（见上面的 pendingImages）
+        ...(turnImages && turnImages.length > 0 ? { images: turnImages } : {}),
         ...(roleNote ? { roleNote } : {}),
         ...(historyNote ? { historyNote } : {}),
         ...(maxRounds ? { maxRounds } : {}),

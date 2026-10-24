@@ -60,6 +60,26 @@ describe('★ 会话预设（.qqbat/agent-presets.json）', () => {
     expect(list[1]).toEqual({ name: 'b' });
   });
 
+  it('★ permissionMode：只认 ask / full，写读两处都归一（拼错的不猜）', async () => {
+    const dir = await project();
+    await writePresets(dir, [
+      { name: '无人值守', permissionMode: 'full' },
+      { name: '还是问我', permissionMode: 'ask' },
+      { name: '写错', permissionMode: 'yolo' as never },
+      { name: '没写' },
+    ]);
+    const byName = new Map((await readPresets(dir)).map((p) => [p.name, p]));
+    expect(byName.get('无人值守')).toMatchObject({ permissionMode: 'full' });
+    expect(byName.get('还是问我')).toMatchObject({ permissionMode: 'ask' });
+    // 不认识的口径当没写：不能猜成 full（那等于把审批关了）
+    expect(byName.get('写错')).toEqual({ name: '写错' });
+    expect(byName.get('没写')).toEqual({ name: '没写' });
+
+    // 手写的坏值同理（读路径也要归一）
+    const hand = await project([{ name: 'h', permissionMode: 1 }]);
+    expect((await readPresets(hand))[0]).toEqual({ name: 'h' });
+  });
+
   it('resolvePresetTools：找不到 / 没白名单 → undefined；找到 → 白名单', async () => {
     const dir = await project([
       { name: '只读', allowedTools: ['read_file'] },
