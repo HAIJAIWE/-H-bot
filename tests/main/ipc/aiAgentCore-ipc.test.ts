@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   runAgentTurn: vi.fn(),
   requestApproval: vi.fn(),
   appendTrace: vi.fn(),
+  readPreset: vi.fn(),
+  resolvePresetTools: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -35,6 +37,11 @@ vi.mock('@main/services/ai/appAiConfig', () => ({ resolveAuthorAiConfig: h.resol
 vi.mock('@main/services/ai/trace', () => ({ appendTrace: h.appendTrace }));
 vi.mock('@main/services/ai/toolApproval', () => ({ requestApproval: h.requestApproval }));
 vi.mock('@main/services/agent-core/runTurn', () => ({ runAgentTurn: h.runAgentTurn }));
+vi.mock('@main/services/ai/presets', () => ({
+  readPreset: h.readPreset,
+  resolvePresetTools: h.resolvePresetTools,
+  writePresets: vi.fn(),
+}));
 vi.mock('@main/services/infra/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -64,6 +71,8 @@ describe('ai:agentCoreRun 接线', () => {
     h.runAgentTurn.mockReset().mockResolvedValue(RESULT);
     h.requestApproval.mockReset().mockResolvedValue('allow');
     h.appendTrace.mockReset();
+    h.readPreset.mockReset().mockResolvedValue(undefined);
+    h.resolvePresetTools.mockReset().mockResolvedValue(undefined);
   });
 
   it('★ 载荷过 schema：缺 requirement 直接拒，不往下跑', async () => {
@@ -119,7 +128,8 @@ describe('ai:agentCoreRun 接线', () => {
   });
 
   it('★ 审批接到现有弹窗：写盘问 write_file、跑命令问 run_command，allow 才算同意', async () => {
-    await invoke({ projectPath: 'D:/p', requirement: '改一下' });
+    // 用 coder（代码页）：下面写的是 src/，builder 会被角色的写域闸先拒掉
+    await invoke({ projectPath: 'D:/p', requirement: '改一下', agentMode: 'code' });
     const approval = (h.runAgentTurn.mock.calls[0][0] as {
       approval: (req: unknown) => Promise<boolean>;
     }).approval;
@@ -142,5 +152,48 @@ describe('ai:agentCoreRun 接线', () => {
       toolName: 'run_command',
       args: { command: 'pnpm test' },
     });
+  });
+
+  it('★ 角色的写域闸：builder 写 src/ 直接拒，连弹窗都不弹（点"允许"不能绕过角色边界）', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '改源码' }); // 缺省 = builder
+    const approval = (h.runAgentTurn.mock.calls[0][0] as {
+      approval: (req: unknown) => Promise<boolean>;
+    }).approval;
+
+    // 真机上 `GateRequest.path` 就是**绝对路径**（core.ts:274 → 适配成 summary），
+    // 所以这里按绝对路径断言；顺手再测一次相对路径（手工调用/测试的常见写法）
+    await expect(approval({ kind: 'write', summary: 'D:/p/src/a.ts' })).rejects.toThrow(/src\/a\.ts/);
+    await expect(approval({ kind: 'write', summary: 'src/b.ts' })).rejects.toThrow(/不能写它/);
+    expect(h.requestApproval).not.toHaveBeenCalled();
+
+    // 同一角色的界面域照常问（拒绝的是越界，不是"这个角色不许写盘"）
+    await expect(approval({ kind: 'write', summary: 'D:/p/.qqbat/flow.json' })).resolves.toBe(true);
+    expect(h.requestApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('★ coder 反过来：界面域被拒（读不分域，只是不许写）', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '改源码', agentMode: 'code' });
+    const approval = (h.runAgentTurn.mock.calls[0][0] as {
+      approval: (req: unknown) => Promise<boolean>;
+    }).approval;
+
+    await expect(approval({ kind: 'write', summary: 'D:/p/.qqbat/flow.json' })).rejects.toThrow(
+      /界面/,
+    );
+    expect(h.requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('★ 角色说明进系统提示：agentMode 推角色；预设的 role 覆盖它、prompt 接在后面', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: 'x', agentMode: 'code' });
+    const note = (h.runAgentTurn.mock.calls[0][0] as { roleNote: string }).roleNote;
+    expect(note).toBeTruthy();
+
+    h.runAgentTurn.mockClear();
+    h.readPreset.mockResolvedValue({ name: '夜巡', role: 'builder', prompt: '只动流程' });
+    await invoke({ projectPath: 'D:/p', requirement: 'x', agentMode: 'code', preset: '夜巡' });
+    const second = (h.runAgentTurn.mock.calls[0][0] as { roleNote: string }).roleNote;
+    expect(second).toContain('只动流程');
+    // 预设的 role 真的盖过了页面推出的角色（否则两段说明会一模一样）
+    expect(second).not.toBe(note);
   });
 });

@@ -678,7 +678,7 @@
       "presetTitle": "Session presets (tool and role limits for this turn)",
       "presetEdit": "Presets…",
       "presetEditTitle": "Edit session presets",
-      "presetEditHint": "Edit .qqbat/agent-presets.json directly: name required; id / role / allowedTools / plugins / permissionMode optional. id defaults to name (sessions store the id); without role the role follows the page. The four builtin ids (builder / coder / duo / creator) are the role boundaries and cannot be overridden here. Unknown tools and unloaded plugins only warn.",
+      "presetEditHint": "Edit .qqbat/agent-presets.json directly: name required; id / role / prompt / allowedTools / plugins / permissionMode optional. id defaults to name (sessions store the id); without role the role follows the page, with role it is pinned for the turn — the role decides both the system prompt and which files may be written (builder cannot edit code, coder cannot edit flows). prompt is this turn’s extra requirement, appended after the role text (prompt only, not a permission boundary). The four builtin ids (builder / coder / duo / creator) are the role boundaries and cannot be overridden here. Unknown tools and unloaded plugins only warn.",
       "presetInvalidJson": "Invalid JSON: {message}",
       "presetMustBeArray": "Presets file must be an array, e.g. [{ \"name\": \"read-only\" }]",
       "presetNone": "No tool limits",

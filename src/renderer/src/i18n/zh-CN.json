@@ -678,7 +678,7 @@
       "presetTitle": "会话预设（限制这一轮能用的工具与角色）",
       "presetEdit": "预设…",
       "presetEditTitle": "编辑会话预设",
-      "presetEditHint": "直接编辑 .qqbat/agent-presets.json：name 必填；id / role / allowedTools / plugins / permissionMode 可选。id 缺省 = name（会话存的是 id）；role 缺省 = 角色跟着页面走。四个预置 id（builder / coder / duo / creator）是角色的权限边界，文件里不能覆盖。保存时未知工具与未装载插件只给警告，不拒绝。",
+      "presetEditHint": "直接编辑 .qqbat/agent-presets.json：name 必填；id / role / prompt / allowedTools / plugins / permissionMode 可选。id 缺省 = name（会话存的是 id）；role 缺省 = 角色跟着页面走，写死则这一轮固定用它 —— 角色同时决定系统提示和能改哪些文件（builder 不许改代码、coder 不许改流程）。prompt 是这一轮的附加要求，接在角色说明后面（只影响提示，不是权限边界）。四个预置 id（builder / coder / duo / creator）是角色的权限边界，文件里不能覆盖。保存时未知工具与未装载插件只给警告，不拒绝。",
       "presetInvalidJson": "JSON 解析失败：{message}",
       "presetMustBeArray": "预设文件必须是数组，例如 [{ \"name\": \"只读巡检\" }]",
       "presetNone": "不限制工具",

@@ -589,3 +589,67 @@ splice 语义），所以有完整历史、能回放、能校验"同一 id 不�
 
 **还没做**：压缩发生时界面上没有提示（现在只有主进程日志）。要做就得开一个新事件并在
 `tests/guards/agentCoreEventContract.test.ts` 的 emit 清单里登记，别偷偷加。
+
+## 24. 角色进循环（2026-10-24，对齐 DSH 的 agent-preset）
+
+**此前这里有个断层**：界面上四个角色按钮（流程助手 / 代码助手 / 双向 / 创作）只对**助手链路**
+（`services/ai/index.ts`）生效，而项目一打开、正常的对话全走**循环链路** ——
+于是"切了角色"在循环里等于没切：界面在演，主进程没接。
+
+现在两条链路共用同一份映射（`src/shared/ai/roleDomains.ts` 是唯一真源），角色在这一轮干两件事：
+
+| 层 | 落点 | 说明 |
+|---|---|---|
+| 提示 | `runTurn` 的 `roleNote` | 角色强调句 + 预设附加要求，插在 `planOnly` 之后、历史交代之前 |
+| 写域 | `approval` 回调最前面的闸 | 按**路径**判，不按工具名 |
+| 预设 | `.qqbat/agent-presets.json` 的 `role` / `prompt` | 预设显式写死优先于"跟着页面走" |
+
+### 为什么写域按路径判，不能套工具白名单
+
+循环的工具表是**通用文件族**（`read_file` / `write_file` / `run_command` / `validate_flow` /
+`list_dir` / `search_text`）—— 拿 `AGENT_TOOLS` 那张按名字列的白名单来滤，会把整张表滤空。
+所以边界落在**写盘的路径**上：`domainOfProjectPath` 把项目内相对路径归到与能力层同一套词
+（界面 / 代码 / 数据 / 对外 / 观测 / 内部 / 工程），再由 `mayRoleWritePath` 判。
+
+- `builder`：能写 `.qqbat/flow.json`、面板/模板、`data/`、工程文件；**不能**写 `src/`、`plugins/`、代码扩展名；
+- `coder`：反过来 —— 能写代码，**不能**写 `.qqbat/flow.json` 与面板/模板；
+- `duo` / `creator`：两边都放行。
+
+归类刻意**粗**：新增一类目录时宁可先落进"工程"（共享），也不要造一张永远对不齐的大表。
+
+### 越界为什么是 throw，不是 return false
+
+`scheduler.ts` 的 `executeToolCall` 会 `catch` 所有异常并变成 `[工具失败] <message>` 回灌给模型；
+而 `return false` 只得到一句"未通过闸门"。前者能带上"这是谁的活、怎么才能做"
+（`rolePathBoundaryMessage`，含"不要换个路径再试"），模型才有可执行的下一步。
+
+同理，越界**连弹窗都不弹**：让用户点"允许"来绕过角色边界，等于边界不存在。
+
+### 四段强调句是给助手链路写的，循环里要补一句
+
+`AGENT_ROLE_HINT` 的原文按**助手链路的工具名**写（`write_code` / `add_node` / `connect_nodes`…）：
+「不要改源码文件（write_code / write_file 不在你的工具里）」。循环手上却是通用文件工具 ——
+不补一句，模型要么以为 `write_file` 根本不存在，要么反过来不知道自己还有写域限制。
+
+所以循环在角色说明与预设 `prompt` 之间还插一句 `LOOP_ROLE_GATE_NOTE`（`ipc/aiAgentCore.ts`）：
+界面域 = `.qqbat/flow.json` 与面板/模板，代码域 = `src/` / `plugins/` / 代码文件，越界在弹审批前就被拒。
+
+### 预设字段
+
+`.qqbat/agent-presets.json` 在原有的 `allowedTools` / `plugins` 之外多两个字段：
+
+- `role`：写死这一轮的角色（缺省 = 跟着页面走）。值不认识就当没写 —— 拼错不该让整条预设失效，也不能猜；
+- `prompt`：这一轮的附加要求，接在角色说明后面（`PROMPT_MAX=2000`，超长截断）。
+
+⚠️ 预设**只在循环链路解析**（`ai:agentCoreRun` 的 `preset` 参数）。助手链路（`ai:chat`）不读
+`agent-presets.json`：它按页面角色 + 调用方传的 `allowedTools` 跑。这个差异是**有意的** ——
+但界面上预设下拉在两条链路都显示，所以用户切了预设却发现助手那条没反应是可能的。
+哪天要合，得先给 `ai:chat` 载荷加 `preset` 字段（那是 IPC 契约变更，要同步 preload / 渲染层 / 契约测试）。
+  **只在提示层**，不是权限边界 —— 边界看 `allowedTools` / `plugins` / 角色写域三道闸。
+
+测试：`tests/shared/ai/roleDomains.test.ts`（路径归类表 + 四角色矩阵 + 越界说明）、
+`tests/main/ipc/aiAgentCore-ipc.test.ts`（builder 写 `src/` 被拒且不弹窗、coder 写流程被拒、
+roleNote 透传与预设覆盖）、`tests/main/services/ai/presets.test.ts`（role/prompt 读写归一）。
+
+**还没做**：`roleNote` 只进系统提示，界面上没有"当前角色已生效"的痕迹 —— 用户切了角色，
+唯一能感知的地方是他自己读提示词。要补得先在 `agentCoreEventContract` 登记新事件。

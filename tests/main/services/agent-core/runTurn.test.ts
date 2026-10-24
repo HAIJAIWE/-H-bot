@@ -65,6 +65,28 @@ describe('★ 总入口：模型 → 工具 → 落盘（默认拒绝写）', ()
     expect(first[3].content).toBe('这一轮继续');
   });
 
+  it('★ 角色说明进系统提示，且排在历史交代之前（先"你是谁"再"你看不到什么"）', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'));
+    let first: any[] = [];
+    const call = (async (_c: unknown, m: any, _t: unknown, cb: any) => {
+      first = m;
+      cb.onComplete('ok');
+    }) as never;
+    await runAgentTurn({
+      projectPath: ws,
+      requirement: '加个夜巡签到',
+      config,
+      call,
+      maxRounds: 1,
+      roleNote: '你是搭建者：只能改流程，不许改源码。',
+      historyNote: '更早的 2 条已省略',
+    });
+    const sys = first[0].content as string;
+    expect(sys).toContain('你是搭建者');
+    expect(sys.indexOf('你是搭建者')).toBeLessThan(sys.indexOf('更早的 2 条已省略'));
+    expect(first[1]).toEqual({ role: 'user', content: '加个夜巡签到' });
+  });
+
   it('★ 先计划：写/命令在这一轮**工具列表里不存在**，且提示交代了计划阶段', async () => {
     const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'));
     let first: any[] = [];

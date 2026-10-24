@@ -53,6 +53,13 @@ export interface RunTurnInput {
   /** 历史被裁掉时的交代（describeDropped）：拼进系统提示，别让模型以为自己什么都没忘 */
   historyNote?: string;
   /**
+   * **这一轮的角色说明**（角色强调句 + 会话预设的附加要求）：拼进系统提示。
+   *
+   * 与 historyNote 分开是因为语义不同：那条是"你看不到的东西是什么"，
+   * 这条是"你现在是谁、该干什么"。混成一条字符串后，加角色就得改历史那边。
+   */
+  roleNote?: string;
+  /**
    * **先计划**（2026-10-18，对齐 DSH 的 plan 阶段）：只给只读工具，产出一份计划。
    *
    * 两层约束，缺一不可：系统提示说明"这一轮要什么"，工具集**物理上**裁掉写/命令 ——
@@ -139,6 +146,7 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
         content:
           buildSystemPrompt(input.projectPath) +
           (input.planOnly ? '\n\n' + PLAN_ONLY_NOTE : '') +
+          (input.roleNote ? '\n\n' + input.roleNote : '') +
           (input.historyNote ? '\n\n' + input.historyNote : ''),
       },
       ...(input.history ?? []).map((h) => ({ role: h.role, content: h.content })),

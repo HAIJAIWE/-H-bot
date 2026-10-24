@@ -163,3 +163,57 @@ export function roleBoundaryMessage(role: AgentRole, capabilityId: string): stri
     `这类改动是${ROLE_LABEL[other]}的活 —— 让用户切到那一页，或者换一个不越界的做法。`
   );
 }
+
+/**
+ * **项目里的路径 → 作用对象**（与 DOMAIN_BY_NAMESPACE 同一套词：界面 / 代码 / 数据 / 对外 / 观测 / 内部 / 工程）。
+ *
+ * 为什么要它：能力层已经有 `domainOfCapability`（按命名空间），但**循环链路**的写工具是
+ * 通用文件写（write_file），没有"命名空间"可查 —— 只有路径。两套口径不统一，
+ * 同一个角色就会出现"文件能写、提案被拦"，或者反过来的自相矛盾。
+ *
+ * 只判**写**：读不分域（与文件头那条原则一致）—— 两个角色都能读流程和代码，那是自检要用的。
+ *
+ * 归类规则刻意**粗**（宁可少几档，不要一个永远对不齐的大表）：
+ *   · `.qqbat/flow.json`、`.qqbat` 下的面板/模板/按钮 → **界面**（低代码页的产物）
+ *   · `data/` → **数据**；`src/`、`plugins/` 与代码扩展名 → **代码**
+ *   · `.env` / docker / compose / yml → **对外**（部署面）；日志/历史 → **观测**
+ *   · 其余（含 package.json、docs、未知路径）→ **工程**
+ */
+const CODE_EXT = /\.(?:ts|tsx|js|jsx|mjs|cjs|py)$/i;
+
+export function domainOfProjectPath(relPath: string): string {
+  const p = relPath.replace(/\\/g, '/').replace(/^\.\//, '').trim();
+  if (!p) return '工程';
+  if (p === '.qqbat/flow.json') return '界面';
+  if (p.startsWith('.qqbat/')) {
+    const name = p.slice('.qqbat/'.length);
+    if (/^(?:panel|template|button)/i.test(name)) return '界面';
+    if (/\.(?:jsonl|log)$/i.test(name)) return '观测';
+    return '内部';
+  }
+  if (p.startsWith('data/')) return '数据';
+  if (p.startsWith('src/') || p.startsWith('plugins/')) return '代码';
+  if (CODE_EXT.test(p)) return '代码';
+  if (/^(?:\.env|\.env\.)|^(?:Dockerfile|docker-compose|compose)/i.test(p)) return '对外';
+  if (/\.ya?ml$/i.test(p)) return '对外';
+  return '工程';
+}
+
+/** 当前角色能不能**写**这个项目文件（读不受限） */
+export function mayRoleWritePath(role: AgentRole, relPath: string): boolean {
+  return ROLE_WRITE_DOMAINS[role].includes(domainOfProjectPath(relPath));
+}
+
+/**
+ * 越界时的说明：与 `roleBoundaryMessage` 同一要求 —— **要能指导下一步**。
+ * 循环链路里这句会变成工具失败的原因回灌给模型，所以必须给"怎么才能做"。
+ */
+export function rolePathBoundaryMessage(role: AgentRole, relPath: string): string {
+  const domain = domainOfProjectPath(relPath);
+  const other: AgentRole = role === 'coder' ? 'builder' : 'coder';
+  return (
+    `「${relPath}」属于「${domain}」作用域，当前是${ROLE_LABEL[role]}，不能写它。` +
+    `这类改动是${ROLE_LABEL[other]}的活 —— 让用户切到那一页/换「双向」模式，或者换一个不越界的做法；` +
+    '不要换个路径再试。'
+  );
+}

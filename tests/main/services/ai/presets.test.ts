@@ -34,6 +34,32 @@ describe('★ 会话预设（.qqbat/agent-presets.json）', () => {
     expect(await readPresets(missing)).toEqual([]);
   });
 
+  it('★ role / prompt：写时归一（不认识的角色当没写、附加要求去空白并截断）', async () => {
+    const dir = await project();
+    await writePresets(dir, [
+      { name: '巡检', role: 'coder', prompt: '  只读不改  ' },
+      { name: '瞎写', role: 'nope' as never, prompt: 42 as never },
+      { name: '超长', prompt: 'x'.repeat(2100) },
+      { name: '空附加', prompt: '   ' },
+    ]);
+    const byName = new Map((await readPresets(dir)).map((p) => [p.name, p]));
+    expect(byName.get('巡检')).toMatchObject({ role: 'coder', prompt: '只读不改' });
+    // 拼错的角色不能猜，也不能让整条预设失效
+    expect(byName.get('瞎写')).toEqual({ name: '瞎写' });
+    expect(byName.get('超长')?.prompt).toHaveLength(2000);
+    expect(byName.get('空附加')).toEqual({ name: '空附加' });
+  });
+
+  it('★ 读也归一：手写的坏 role / 坏 prompt 只丢字段，不丢整条预设', async () => {
+    const dir = await project([
+      { name: 'a', role: 'Builder', prompt: ' 帮我  ' },
+      { name: 'b', role: ['coder'], prompt: { text: 'x' } },
+    ]);
+    const list = await readPresets(dir);
+    expect(list[0]).toEqual({ name: 'a', prompt: '帮我' });
+    expect(list[1]).toEqual({ name: 'b' });
+  });
+
   it('resolvePresetTools：找不到 / 没白名单 → undefined；找到 → 白名单', async () => {
     const dir = await project([
       { name: '只读', allowedTools: ['read_file'] },

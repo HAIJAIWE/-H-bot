@@ -46,6 +46,13 @@ import { scopeToolsByPlugins } from '../services/plugins/scoping';
 import { resolveSummaryLlm } from '../services/ai/summaryLlm';
 import { makeTurnSummarizer } from '../services/agent-core/contextGate';
 import { AUTHOR_PROFILE } from '@shared/agent/policy';
+import {
+  ROLE_OF_MODE,
+  mayRoleWritePath,
+  rolePathBoundaryMessage,
+  type AgentRole,
+} from '@shared/ai/roleDomains';
+import { AGENT_ROLE_HINT } from '@shared/ai/roleHints';
 import { summarizeDroppedHistory } from '../services/ai/contextDigest';
 import type { ApprovalRequest } from '../services/agent-core/contracts';
 import { logger } from '../services/infra/logger';
@@ -284,6 +291,29 @@ export function registerAiAgentCoreIpc(): void {
        * 空表也照交：循环仍能跑纯对话，只是没有工具可用。
        */
       const preset = parsed.data.preset ? await readPreset(projectPath, parsed.data.preset) : undefined;
+      /**
+       * ── 角色（2026-10-24）──────────────────────────────────────────────
+       *
+       * 循环链路以前**完全不看角色**：界面上的四个按钮只影响助手链路，
+       * 项目一打开、话全走循环，于是"切了角色"实际没生效 —— 界面在演，主进程没接。
+       *
+       * 现在两条链路同一个映射（roleDomains 是唯一真源）：
+       *   · 预设里写死的 `role` 优先（预设是"这一轮怎么跑"的显式声明）；
+       *   · 否则按页面推（低代码页 = builder，代码页 = coder，缺省 builder）。
+       * 角色同时决定两件事：系统提示里的强调句、**写盘的作用域**（见下面的审批闸）。
+       */
+      const role: AgentRole = preset?.role ?? ROLE_OF_MODE[parsed.data.agentMode ?? 'blocks'];
+      /**
+       * 四段强调句是按**助手链路的工具名**写的（write_code / add_node…），
+       * 而循环手上是通用文件工具（write_file / run_command…）。不补这一句，
+       * 模型会以为 write_file 根本不存在，或者反过来不知道自己还有写域限制。
+       */
+      const LOOP_ROLE_GATE_NOTE =
+        '（本轮是智能体循环：写盘按**路径**判作用域 —— 「.qqbat/flow.json」与面板/模板 = 界面域，' +
+        '「src/」「plugins/」与代码文件 = 代码域。越界的写在弹审批之前就会被拒，别换个路径再试。）';
+      const roleNote = [AGENT_ROLE_HINT[role], LOOP_ROLE_GATE_NOTE, preset?.prompt]
+        .filter(Boolean)
+        .join('\n\n');
       const scoped = scopeToolsByPlugins(listTools(), pluginOwnedTools(), preset?.plugins);
       const turnTools =
         allowedToolNames && allowedToolNames.length > 0
@@ -324,6 +354,24 @@ export function registerAiAgentCoreIpc(): void {
          * 重复的 callId 会把**上一次**的等待按拒绝收掉）。
          */
         approval: async (req, signal) => {
+          /**
+           * **角色的写域闸**（2026-10-24）：越界的写**先拒**，连弹窗都不弹 ——
+           * 让用户点"允许"来绕过角色边界，等于边界不存在。
+           *
+           * 拒绝用 throw 而不是 return false：调度器会把异常变成
+           * `[工具失败] <原因>` 回灌给模型，原因里带"这是谁的活、怎么才能做"，
+           * 模型才有可执行的下一步；return false 只会得到一句"未通过闸门"。
+           */
+          if (req.kind === 'write') {
+            const rel = relative(projectPath, req.summary);
+            const inside = rel && !rel.startsWith('..') && !isAbsolute(rel);
+            const relPath = (inside ? rel : req.summary).split('\\').join('/');
+            if (!mayRoleWritePath(role, relPath)) {
+              const message = rolePathBoundaryMessage(role, relPath);
+              logger.warn('[ipc/aiAgentCore] 角色写域拒绝：' + message);
+              throw new Error(message);
+            }
+          }
           const match = matchOf(req);
           const ruleKind = ruleKindOf(req.kind);
           // ① 本轮内说过"别再问" ② 以前点过"以后别再问" → 都直接放行（不再弹窗）
@@ -367,6 +415,7 @@ export function registerAiAgentCoreIpc(): void {
         // 写盘前记 before（turnJournal 在没有进行中的轮次时会静默跳过）
         onBeforeWrite: (relPath) => recordFileBefore(projectPath, relPath),
         history,
+        ...(roleNote ? { roleNote } : {}),
         ...(historyNote ? { historyNote } : {}),
         ...(maxRounds ? { maxRounds } : {}),
         /**
