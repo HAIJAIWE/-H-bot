@@ -884,8 +884,10 @@ export const ChatPanel = React.memo(function ChatPanel() {
        * DSH 的会话页顶上是"会话标题 + 在场智能体 + 运行中"；我们这边先给
        * 项目名 + 消息/轮次计数 + 运行指示。都是已有数据，不新增采集。
        */}
-      <div className="mx-3 mt-2 flex items-center gap-2 border-b border-zinc-800 pb-1.5 text-xs">
-        <span className="truncate font-medium text-zinc-200" title={projectPath ?? ''}>
+      {/* 窄右栏（180px）下「消息数 + 界面插件」两个 shrink-0 小字会把项目名挤成 0 宽 →
+          允许换行，项目名 flex-1 占第一行，小字不够宽就落到第二行（信息都在，只有行数变多）。 */}
+      <div className="mx-3 mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-zinc-800 pb-1.5 text-xs">
+        <span className="min-w-16 flex-1 truncate font-medium text-zinc-200" title={projectPath ?? ''}>
           {projectPath
             ? (projectPath.split(/[\\/]/).filter(Boolean).pop() ?? '')
             : t('ai.chat.session')}
@@ -914,7 +916,8 @@ export const ChatPanel = React.memo(function ChatPanel() {
          */}
         <button
           type="button"
-          className="ml-auto shrink-0 text-zinc-500 hover:text-zinc-300"
+          // 极窄右栏（<220px）下这一串会被挤成独占一行，先让位给项目名/消息数（插件清单的设置页仍有入口）
+          className="ml-auto hidden shrink-0 text-zinc-500 hover:text-zinc-300 @min-[220px]:inline"
           onClick={() => setPluginsOpen(true)}
           title={t('ai.chat.pluginsTitle')}
         >

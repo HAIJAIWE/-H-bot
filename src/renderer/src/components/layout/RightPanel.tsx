@@ -82,8 +82,10 @@ export function RightPanel() {
     // `overflow-hidden` 的裁剪当"终点"，于是里面的消息区永远拿不到有界高度、
     // 滚动条永远不出现（实测：aside clientHeight 1601 / 外层 813，全应用没有一个可滚动元素）。
     // 左边那栏（LeftPanel）一直有 min-h-0，右边少了 —— 2026-10-06 用 CDP 实测定位。
+    // 加上 @container：右栏宽度从 180px 到 600px 都能拖，子组件用容器查询按"栏宽"取舍，
+    // 而不是按视口断点（视口很宽时右栏也可能只有 180px）。
     <aside
-      className="flex-1 min-h-0 border-l border-zinc-800 bg-zinc-950 flex flex-col"
+      className="@container flex-1 min-h-0 border-l border-zinc-800 bg-zinc-950 flex flex-col"
       aria-label={t('panel.right.title')}
     >
       {/* Tab 栏 */}
