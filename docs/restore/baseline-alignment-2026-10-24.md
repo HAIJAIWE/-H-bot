@@ -22,12 +22,12 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 | --------------------------------- | --------------------------------------------------------- |
 | 打包产物 js                       | 25 个 / 5.6 MB（main 24 + renderer index）                |
 | 产物模块清单（region 去重）       | **594 个**                                                |
-| 恢复树 `src/*.ts(x)`              | 813 个（2026-10-24 依次清理 5 个 ops 副本、2 个翻译器、4 个 NapCat 模块、12 个 Python 旧栈 .ts 后；另新增 `translator/actions/aliases.ts` 旧动作名兼容表） |
+| 恢复树 `src/*.ts(x)`              | 816 个（2026-10-24 依次清理 5 个 ops 副本、2 个翻译器、4 个 NapCat 模块、12 个 Python 旧栈 .ts 后；另新增 `translator/actions/aliases.ts` 旧动作名兼容表、`services/infra/sqlite.ts` + `nodeSqliteFallback.ts` 的 SQLite 统一入口、`components/launch/HomePanel.tsx` 主页面） |
 | 产物模块在树里的覆盖率            | **98.3%（584/594）**                                      |
 | 缺失                              | 10 个，**全部已登记理由**（未登记 0）                     |
-| 树里有、产物里没有 region         | 210 个（其中 33 个是纯类型/再导出，构建后本就不留模块名） |
-| 这 210 里，导出符号能在产物中搜到 | 83 个（被内联或改名，不是缺）                             |
-| 真的没进过这次构建                | **94 个**                                                 |
+| 树里有、产物里没有 region         | 213 个（其中 33 个是纯类型/再导出，构建后本就不留模块名） |
+| 这 213 里，导出符号能在产物中搜到 | 83 个（被内联或改名，不是缺）                             |
+| 真的没进过这次构建                | **97 个**                                                 |
 
 缺的 10 个（`--check` 里逐条写明了理由，`MISSING_OK`）：
 
@@ -131,7 +131,7 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 
 | 闸门                                | 结果                                                               |
 | ----------------------------------- | ------------------------------------------------------------------ |
-| `vitest run --maxWorkers=2`（全量） | 238 文件通过 / 3046 例通过 / 10 skip（4 文件），0 failed           |
+| `vitest run --maxWorkers=2`（全量） | 240 文件通过 / 3070 例通过 / 10 skip（4 文件 / 3080 例），0 failed |
 | `tests/guards`                      | 15 文件 / 107 通过（含写闸门序列调用正控、NapCat/OneBot/Python 栈删除守卫） |
 | `node scripts/typecheck.mjs`        | node **0 错** / web **0 错**                                       |
 | `electron-vite build`               | EXIT=0（main/preload/renderer 三入口）                             |
@@ -139,9 +139,16 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 
 测试口径（写进 `RESTORE-NOTES.md`）：测试比客户端晚 → 旧 API 漂移改测试；客户端没有的功能 skip/归档并留证；安全类缺口补实现。
 
+当天晚间修掉的三处**启动级**故障与主页面（2026-10-24）：
+
+- **SQLite 原生模块 ABI 让窗口根本不出来**：五个 store 曾在模块顶层 `import Database from "better-sqlite3"`，而该 addon 在首次 `new Database()` 才真正加载 —— ABI 不匹配时主进程在 import 阶段就抛异常退出。现统一走 `src/main/services/infra/sqlite.ts` 的懒加载 `openSqlite()`（失败时包成带重建提示的错误）+ `nodeSqliteFallback` 回退 `node:sqlite`；bootstrap 打一行「SQLite 引擎：better-sqlite3 / node:sqlite」。`scripts/ensure-sqlite.js` 的探针也改成真的建内存库（原来只 `require`，测不出懒加载的 ABI）。
+- **玩家浏览 / 数据模板整页报 `Cannot read properties of undefined (reading 'join')`**：`dataTemplateService.ts`、`playerSchemaService.ts`、`uidMappingService.ts` 写成 `import { fs } from "fs"` / `import { path } from "path"` —— node 内建模块没有名为 fs/path 的具名导出，拿到 undefined。改命名空间导入后两页恢复（写闸门也因此第一次看见这三处写入，已按真实目标登记）。
+- **最近项目里全是死路径**：仓库从 `E:\qqbat-restored` 改名成 `E:\H Bot 制造` 后 `recent.json` 仍指旧路径，列表能返回、点开才报「路径越界 / ENOENT」。`listRecentProjects()` 现在按 `<项目>/.qqbat/project.json` 过滤死条目并回写，同时只扫一层工作区把真实项目补回来；`project:open` 打开即记入最近并注册到 botManager（以前只有新建/克隆会写 recent.json）。
+- **主页面**：新增 `src/renderer/src/components/launch/HomePanel.tsx`（当前项目卡 + 5 个快捷入口 + 最近项目列表），`launchTab` 默认 `home` 并对老存档做 v1 迁移；浏览器模式下点中心页签现在会同时切回开发模式（基线实现里点了没反应，属基线自带缺陷）。
+
 ## 五、剩余债（与本基准相关）
 
-1. **93 个没进过 10/18 构建的模块**：分类已给出，但「哪些该留、哪些该删」需要你拍板；删是不可逆的。
+1. **97 个没进过 10/18 构建的模块**：分类已给出，但「哪些该留、哪些该删」需要你拍板；删是不可逆的。
 2. ~~`botProcess.ts` + `ipc/runtime.ts` 的 Python 通道~~ —— **已解决**：`botProcess.ts` 已删，`runtime:*` 只剩观测（batchLog / executeNode / injectTestMessage）。
 3. ~~部署模板按 `bot.py` 写~~ —— **已解决**：docker/ssh 都改成 Node 运行时（`services/deploy/runtimeBundle.ts`）。
 4. `tests/` 侧 185 行 tsc 诊断（历史 revision 漂移，运行期已绿）。

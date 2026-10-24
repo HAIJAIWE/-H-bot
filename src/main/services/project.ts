@@ -2,7 +2,7 @@
 //
 // ⚠️ 这份**不是运行时实现**：serviceContainer.ts:7 取的是恢复副本
 // `services/project/project.ts`（10/18 产物还原，带 activeProjectRegistry / 端口段公式）。
-// 2026-10-24 踩过一次：在��文件里改「最近项目剪掉死路径」，界面上毫无变化，
+// 2026-10-24 踩过一次：在这份文件里改「最近项目剪掉死路径」，界面上毫无变化，
 // 因为运行时根本没加载它。要改项目服务的行为，改 `project/project.ts`。
 // 保留这份是为了后续收敛：它的注释/类型更干净，等恢复副本被它替换后删掉副本。
 import { mkdir, writeFile, readFile, readdir, rm, cp } from 'fs/promises';

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T02:33:58.023Z",
+  "generatedAt": "2026-10-24T06:00:59.136Z",
   "baseline": {
     "kind": "packaged-client",
     "bundle": "_baseline/out-bundle",
@@ -8,7 +8,7 @@
     "regions": 594
   },
   "tree": {
-    "files": 813
+    "files": 816
   },
   "missing": {
     "total": 10,
@@ -83,9 +83,9 @@
     }
   ],
   "delta": {
-    "total": 210,
+    "total": 213,
     "symbolHit": 83,
-    "unshipped": 94,
+    "unshipped": 97,
     "unshippedFiles": [
       "src/main/ipc/aiAgentCore.ts",
       "src/main/ipc/aiAllowRules.ts",
@@ -121,6 +121,8 @@
       "src/main/services/benchmark.ts",
       "src/main/services/configTemplateService.ts",
       "src/main/services/flow/turnProjection.ts",
+      "src/main/services/infra/nodeSqliteFallback.ts",
+      "src/main/services/infra/sqlite.ts",
       "src/main/services/messageQueue.ts",
       "src/main/services/plugins/aiPluginLoader.ts",
       "src/main/services/plugins/builtinHostPlugins.ts",
@@ -160,6 +162,7 @@
       "src/renderer/src/components/blocks/HttpActionEditor.tsx",
       "src/renderer/src/components/editor/MetricsPanel.tsx",
       "src/renderer/src/components/launch/characterFields.ts",
+      "src/renderer/src/components/launch/HomePanel.tsx",
       "src/renderer/src/components/settings/PluginMarket.tsx",
       "src/renderer/src/components/ui/codeHighlight.tsx",
       "src/renderer/src/components/ui/ZoomableImage.tsx",
