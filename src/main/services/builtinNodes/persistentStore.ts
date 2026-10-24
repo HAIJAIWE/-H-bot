@@ -1004,12 +1004,21 @@ export async function batchUpdateValues(
 }
 
 // 列表追加（原子）
+/**
+ * 往列表末尾追加一项。
+ *
+ * @param options.save 是否落盘（默认 true）。`variable_persist` 的 autoSave=关 时传 false ——
+ *   历史缺陷：本函数**无条件** saveValue，variable_persist 外层那个 "autoSave 才写回" 的判断因此形同虚设，
+ *   "只算不写" 的用法会静默落盘，而且同一次调用写两遍（外层还写一次）。
+ * @param options.ttl  落盘时的过期秒数（与 save 同一事务内生效，避免外层再补一次写）
+ */
 export function listAppendValue(
   key: string,
   item: unknown,
   scope: 'user' | 'group' | 'global',
   maxLength: number,
-  event: StoreEvent
+  event: StoreEvent,
+  options: { save?: boolean; ttl?: number } = {}
 ): { result: unknown[]; length: number; new: boolean; error: string } {
   // 历史实现是空壳：直接 return { result: [item], length: 1 }，**根本没读写数据库** ——
   // variable_persist 的 list_append 模式因此永远只返回一个单元素列表，背包/名单类流程全废。
@@ -1030,8 +1039,14 @@ export function listAppendValue(
     if (maxLength > 0 && list.length > maxLength) {
       list = list.slice(list.length - maxLength);
     }
-    const saved = saveValue(key, list, scope, event, 0);
-    return { result: list, length: list.length, new: saved, error: saved ? '' : '写入失败' };
+    const shouldSave = options.save !== false;
+    const saved = shouldSave ? saveValue(key, list, scope, event, options.ttl ?? 0) : false;
+    return {
+      result: list,
+      length: list.length,
+      new: saved,
+      error: shouldSave && !saved ? '写入失败' : '',
+    };
   } catch (e: unknown) {
     const err = e instanceof Error ? e : new Error(String(e));
     return { result: [], length: 0, new: false, error: err.message };

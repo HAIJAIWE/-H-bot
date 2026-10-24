@@ -3,7 +3,7 @@
 import { BASE_DATA_PREFIX } from "../../../shared/persist/baseKeys";
 import { makeKey, persistentStore } from "./persistentStore";
 
-function jsonOp(mode, data = "", path = "", value = null) {
+function jsonOp(mode: string, data: any = "", path: any = "", value: any = null) {
 	try {
 		let obj;
 		if (typeof data === "string") try {
@@ -149,12 +149,12 @@ function jsonOp(mode, data = "", path = "", value = null) {
 * 归一化只做一件事：去掉开头的 `$` / `$.` / 前导点号 —— 其余路径语义一字未改
 * （`a.b` 还是 `a.b`，`''` / `'$'` 仍然是"整个对象"）。
 */
-function splitJsonPath(path) {
+function splitJsonPath(path: string) {
 	const trimmed = path.trim();
 	if (!trimmed || trimmed === "$" || trimmed === ".") return [];
 	return trimmed.replace(/^\$\.?/, "").split(".").filter((k) => k.length > 0);
 }
-function listOp(mode, list = [], value = null, index = null, start = 0, end = 10, keyField = "", countField = "count", delta = 1) {
+function listOp(mode: string, list: any = [], value: any = null, index: any = null, start: any = 0, end: any = 10, keyField: string = "", countField: string = "count", delta: any = 1) {
 	const arr = asList$1(list);
 	const total = arr.length;
 	const clamp = (i, max) => Math.max(0, Math.min(Math.floor(Number(i) || 0), max));
@@ -305,7 +305,7 @@ function listOp(mode, list = [], value = null, index = null, start = 0, end = 10
 * 面板/片段存的经常是 JSON 字符串（片段「添加物品」的 inventory 默认值就是 `'[]'`），
 * 旧实现遇到字符串直接当空数组，等于把已有数据丢掉。
 */
-function asList$1(input) {
+function asList$1(input: any) {
 	if (Array.isArray(input)) return [...input];
 	if (typeof input === "string") {
 		const trimmed = input.trim();
@@ -318,7 +318,7 @@ function asList$1(input) {
 	}
 	return [];
 }
-function random(mode, min = 0, max = 1, list = []) {
+function random(mode: string, min: any = 0, max: any = 1, list: any = []) {
 	try {
 		const arr = asRandomList(list);
 		switch (mode) {
@@ -559,7 +559,7 @@ function formatDate(date, fmt, timezone) {
 	for (const [token, value] of Object.entries(map)) out = out.split(token).join(value);
 	return out;
 }
-function variableSet(bot, event, value = null, varName = "x") {
+function variableSet(bot: any, event: any, value: any = null, varName: string = "x") {
 	if (!varName || !VAR_NAME_RE.test(varName)) return {
 		result: value,
 		var_name: varName,
@@ -571,7 +571,7 @@ function variableSet(bot, event, value = null, varName = "x") {
 		error: ""
 	};
 }
-async function variableMerge(_bot, _event, mode = "dict", v1 = null, v2 = null, v3 = null, v4 = null, v5 = null, v6 = null, keyNames = "[]") {
+async function variableMerge(_bot: any, _event: any, mode: string = "dict", v1: any = null, v2: any = null, v3: any = null, v4: any = null, v5: any = null, v6: any = null, keyNames: any = "[]") {
 	const values = [
 		v1,
 		v2,
@@ -821,16 +821,21 @@ async function variablePersist(bot, event, mode = "load", key = "", value = null
 				break;
 			}
 			case "list_append": {
-				const appended = persistentStore.listAppendValue(key, item, scope, Number(maxLength) || 0, event);
+				// 落盘开关与 ttl 交给存储层（它本来就在写）—— 这里再写一次是历史遗留的重复写，
+				// 而且外层那个 autoSave 判断因为存储层无条件写而完全无效。
+				const appended = persistentStore.listAppendValue(key, item, scope, Number(maxLength) || 0, event, {
+					save: autoSave !== false,
+					ttl: Number(ttl) || 0
+				});
 				if (appended.error) {
 					result.error = appended.error;
 					break;
 				}
-				if (autoSave !== false) persistentStore.saveValue(key, appended.result, scope, event, ttl);
 				result.success = true;
 				result.result = appended.result;
 				result.old_value = appended.result.slice(0, -1);
-				result.new = true;
+				// 没落盘就不算"新增"（下游常拿 new 决定要不要发提示）
+				result.new = appended.new;
 				result.values = { [key]: appended.result };
 				result.count = appended.length;
 				result.length = appended.length;

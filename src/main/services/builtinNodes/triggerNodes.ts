@@ -8,7 +8,7 @@ import { runRegexBounded } from "../../codegen/typescriptUtils";
 * match 模式：any/at_me/command/keyword/regex
 * 返回：匹配成功返回 { event, raw_message, args, matched, groups }，失败返回 null
 */
-async function messageReceived(bot, event, match = "any", message_type = "any", command = "", prefix = "/", keywords = null, pattern = "", flags = "") {
+async function messageReceived(bot: any, event: any, match: string = "any", message_type: string = "any", command: string = "", prefix: string = "/", keywords: any = null, pattern: string = "", flags: string = "") {
 	const matchMode = String(match || "any").toLowerCase();
 	if (!checkMessageType(event, String(message_type || "any").toLowerCase())) return null;
 	if (matchMode === "at_me") {
@@ -143,7 +143,7 @@ function matchCommand(rawMessage, command, prefix) {
 	return null;
 }
 /** 检查关键词 */
-function matchKeyword(rawMessage, keywords) {
+function matchKeyword(rawMessage: string, keywords: unknown) {
 	if (!keywords) return false;
 	let kwList = [];
 	if (typeof keywords === "string") try {
