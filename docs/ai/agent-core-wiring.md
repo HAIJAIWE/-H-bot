@@ -883,8 +883,56 @@ emit('ai:compact', { projectPath, dropped, tokensBefore, tokensAfter })
   保留 `id`/`legacyNote`、清空字段删键、未勾工具不写 `allowedTools`、空名字与重名拒存、删除后少一条、
   有 warnings 不关窗但 `onSaved` 已触发、坏文件进 JSON 模式改好可存、JSON 解析失败不吞输入、
   没有 `projectPath` 时明说没地方存且保存禁用、不读盘。
-- `tests/renderer/components/ai/PresetSelect.test.tsx`（5 例）：键用 name（写 id 也没用）、同名去重、
-  未知 `role`/`permissionMode` 只丢字段不连坐整条、名字两端空白归一、非数组当空表。
+- `tests/renderer/components/ai/PresetSelect.test.tsx`（7 例）：键用 name（写 id 也没用）、同名去重、
+  未知 `role`/`permissionMode` 只丢字段不连坐整条、名字两端空白归一、非数组当空表、
+  白名单/插件只留非空字符串并去重、**空数组当没写**（空集=不限制，不能让界面显示成「工具只留 0 个」）。
 
-**还没做**：预设「现在生效了什么」的界面回显（角色按钮已有一半：选带 `role` 的预设会联动高亮），
-以及 `plugins` 的表单化 —— 等运行时插件（`plugin.listHost()` 里可停用那些）真的会有第三方贡献工具再说。
+**还没做**：`plugins` 的表单化 —— 等运行时插件（`plugin.listHost()` 里可停用那些）真的会有第三方贡献工具再说。
+
+## 29. 「本轮边界」一行：让主进程真正生效的边界在界面上留痕（2026-10-25）
+
+### 问题：边界只活在主进程里
+
+这一轮的权限边界由三处拼出来：
+
+| 来源                                                            | 给了什么                             |
+| --------------------------------------------------------------- | ------------------------------------ |
+| 页面推断的角色（`resolveAgentMode(centerTab, override)`）       | 系统提示 + 写域闸                    |
+| 会话预设 `role` / `allowedTools` / `plugins` / `permissionMode` | 角色、工具白名单、插件限定、审批口径 |
+| 输入框菜单的「先计划」「完全权限」                              | 只读一轮 / 跳过问人                  |
+
+界面上原来只有**角色按钮**会跟着预设高亮（`presetMeta.role → setAgentModeOverride`）。剩下的全都看不见：
+预设把工具收窄到 2 个、预设授予完全放行、这一轮只读 —— 用户看到的是「我什么都没改」，
+模型那边却拿着另一套权限。与 §26「传了没读」同一族，只是方向反过来：**主进程做了、界面没说**。
+
+### 做法：只在「跟默认不一样」时出现
+
+`src/renderer/src/components/ai/TurnBoundary.tsx` 是个纯组件（props 进、文字出，不做权限判断），
+默认态（跟随页面 + 全部工具 + 逐次问 + 不是先计划）**直接返回 `null`** —— 常态下不留噪音。
+一旦有差异就逐条列出来，用 `·` 分隔：
+
+```
+角色：代码助手（预设「只读巡检」）· 工具只留 2 个 · 插件限定 1 个 · 审批：完全放行（预设）· 先计划：本轮只读
+```
+
+- **角色来源三种**：跟随页面 / 手动 / 预设「名字」。主进程的优先级是 `preset.role ?? ROLE_OF_MODE[agentMode]`，
+  所以界面这里也按同一顺序判（有 `presetMeta.role` 就是预设定的）。
+- **审批三档**：`fullAccess ? 'full' : presetMeta?.permissionMode === 'full' ? 'full-preset' : 'ask'`。
+  与主进程 `fullAccess ?? (preset?.permissionMode === 'full')` 一一对应（界面传的是 `true` / `undefined`，
+  不传 `false`，见 §26）。「本次」和「预设」分开说，是因为前者重启即失效、后者跟着文件走。
+- **工具数与插件数来自 `parsePresetOptions` 归一后的数组**（`PresetMeta.allowedTools` / `plugins`）。
+  空数组合并成 `undefined`：主进程里空集=不限制，界面若显示「0 个」刚好说反。
+- **先计划**多一条「本轮只读」：那一轮 `runTurn` 只把 `category === 'query'` 的工具交出去。
+
+### 为什么不做成「设置面板」
+
+边界是**这一轮**的属性，不是全局配置：换个预设、点一下「先计划」它就变。放在输入框正上方（角色 chips 下面）
+才是它该在的位置 —— 写这句话的时候就能看见这句话会以什么权限被执行。
+
+### 测试
+
+`tests/renderer/components/ai/TurnBoundary.test.tsx`（4 例）：默认态不渲染（`queryByRole('status')` 为 null）、
+预设三件事都说出来且不说「逐次问」、手动 + 先计划说对手动与只读且不说「完全放行」、
+工具数 0 与 `undefined` 都不显示而 `n=3` / 插件 `n=2` 显示。
+
+**还没做**：预设编辑器里的「预览这份预设会放开什么」（要拉一遍注册表 + 角色写域，见 §28）。

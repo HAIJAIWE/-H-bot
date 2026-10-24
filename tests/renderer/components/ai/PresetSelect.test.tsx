@@ -44,4 +44,19 @@ describe('parsePresetOptions', () => {
     expect(parsePresetOptions(null)).toEqual({ options: [], meta: {} })
     expect(parsePresetOptions('nope')).toEqual({ options: [], meta: {} })
   })
+
+  it('工具白名单与插件限定按主进程同一条规则归一：只留非空字符串、去重', () => {
+    const { meta } = parsePresetOptions([
+      { name: 'a', allowedTools: ['read_file', 'read_file', '', 3, null, 'list_dir'] },
+      { name: 'b', plugins: ['market-clock', ' '] },
+    ])
+    expect(meta.a.allowedTools).toEqual(['read_file', 'list_dir'])
+    expect(meta.b.plugins).toEqual(['market-clock'])
+  })
+
+  it('★ 空数组当"没写"（主进程里空集=不限制，界面不能显示成"工具只留 0 个"）', () => {
+    const { meta } = parsePresetOptions([{ name: 'a', allowedTools: [], plugins: [] }])
+    expect(meta.a.allowedTools).toBeUndefined()
+    expect(meta.a.plugins).toBeUndefined()
+  })
 })

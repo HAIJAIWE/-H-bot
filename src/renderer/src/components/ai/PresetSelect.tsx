@@ -28,6 +28,10 @@ export interface PresetMeta {
   permissionMode?: 'ask' | 'full'
   /** 这个预设以哪个角色为底（未声明 = 角色跟着页面走） */
   role?: AgentRole
+  /** 工具白名单（已归一：非空字符串、去重；空 = 不限制，与主进程 readPresets 同义） */
+  allowedTools?: string[]
+  /** 运行时插件限定（同上：空 = 不限定） */
+  plugins?: string[]
 }
 
 /** 下拉里一项（value 就是预设名：主进程按名字查预设，界面必须发同一个值） */
@@ -43,6 +47,20 @@ export interface PresetOption {
  *   · 同名只留第一条（主进程写盘时同名后者覆盖前者，界面不该列出两个一样的）；
  *   · 未知的 role / permissionMode 丢掉那一项，**不连坐整条预设**。
  */
+/**
+ * 白名单字段归一：只留非空字符串、去重（与 main/services/ai/presets.ts 的 readPresets 同规则）。
+ * 额外把纯空白项 trim 掉 —— 主进程那边它只会匹配不到任何工具，而界面会把它算进
+ * 「工具只留 N 个」，数字就说大了。
+ */
+function nameList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const names = value
+    .filter((v): v is string => typeof v === 'string')
+    .map(v => v.trim())
+    .filter(v => v.length > 0)
+  return [...new Set(names)]
+}
+
 export function parsePresetOptions(data: unknown): {
   options: PresetOption[]
   meta: Record<string, PresetMeta>
@@ -52,7 +70,13 @@ export function parsePresetOptions(data: unknown): {
   if (!Array.isArray(data)) return { options, meta }
   for (const item of data) {
     if (!item || typeof item !== 'object') continue
-    const m = item as { name?: unknown; permissionMode?: unknown; role?: unknown }
+    const m = item as {
+      name?: unknown
+      permissionMode?: unknown
+      role?: unknown
+      allowedTools?: unknown
+      plugins?: unknown
+    }
     const name = typeof m.name === 'string' ? m.name.trim() : ''
     if (!name) continue
     if (meta[name]) continue
@@ -64,6 +88,10 @@ export function parsePresetOptions(data: unknown): {
       ...(m.role === 'builder' || m.role === 'coder' || m.role === 'duo' || m.role === 'creator'
         ? { role: m.role }
         : {}),
+      // 空数组在主进程里等于"没写"（不限制），这里也归一成 undefined —— 否则界面会显示
+      // 「工具只留 0 个」，而实际是全放行，刚好说反。
+      ...(nameList(m.allowedTools).length > 0 ? { allowedTools: nameList(m.allowedTools) } : {}),
+      ...(nameList(m.plugins).length > 0 ? { plugins: nameList(m.plugins) } : {}),
     }
   }
   return { options, meta }

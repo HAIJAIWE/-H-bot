@@ -645,6 +645,19 @@
       "creator": "Create",
       "creatorHint": "Add features to this app itself (enter the framework workspace first; every write is backed up and rollback-able)"
     },
+    "boundary": {
+      "role": "Role: {role} ({source})",
+      "sourcePreset": "preset “{name}”",
+      "sourcePresetNoName": "preset",
+      "sourceManual": "manual",
+      "sourcePage": "follows page",
+      "tools": "tools: {n} only",
+      "plugins": "plugins: {n}",
+      "approvalAsk": "approval: ask each time",
+      "approvalFull": "approval: full access (this run)",
+      "approvalFullPreset": "approval: full access (preset)",
+      "plan": "plan first: read-only turn"
+    },
     "turns": {
       "toggle": "Expand or collapse this turn",
       "meta": "{replies} replies · {tools} tool calls",

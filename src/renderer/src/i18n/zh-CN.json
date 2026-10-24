@@ -645,6 +645,19 @@
       "creator": "创作",
       "creatorHint": "给这个应用自己加功能（要先进入框架工作区；每次写都会先备份，可回滚）"
     },
+    "boundary": {
+      "role": "角色：{role}（{source}）",
+      "sourcePreset": "预设「{name}」",
+      "sourcePresetNoName": "预设",
+      "sourceManual": "手动",
+      "sourcePage": "跟随页面",
+      "tools": "工具只留 {n} 个",
+      "plugins": "插件限定 {n} 个",
+      "approvalAsk": "审批：逐次问",
+      "approvalFull": "审批：完全放行（本次）",
+      "approvalFullPreset": "审批：完全放行（预设）",
+      "plan": "先计划：本轮只读"
+    },
     "turns": {
       "toggle": "展开或收起这一轮",
       "meta": "{replies} 条回复 · {tools} 次工具",

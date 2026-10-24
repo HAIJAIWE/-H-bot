@@ -39,6 +39,7 @@ import { AI_TURN_NOTE_PREFIX } from '@shared/types/ai';
 import { MAX_IMAGES, clipboardImageToDataUrl, imagesFromClipboard } from './clipboardImage';
 import { MODE_OF_ROLE } from '@shared/ai/roleDomains';
 import { RoleChips } from './RoleChips';
+import { TurnBoundary } from './TurnBoundary';
 import { creatorWorkspaceStatus, useFrameworkDevStore } from '../../stores/frameworkDevStore';
 
 /* 角色按钮表已抽到 ./agentModes（渲染层唯一那处枚举）+ ./RoleChips（纯组件）——
@@ -1101,6 +1102,16 @@ export const ChatPanel = React.memo(function ChatPanel() {
             }
           />
         </div>
+        {/* 本轮边界：主进程真正生效的那几件事（角色来源/收窄/审批/先计划）——默认态自己不渲染 */}
+        <TurnBoundary
+          mode={effectiveAgentMode}
+          source={presetMeta?.role ? 'preset' : agentModeOverride ? 'manual' : 'page'}
+          presetName={preset}
+          toolCount={presetMeta?.allowedTools?.length ?? null}
+          pluginCount={presetMeta?.plugins?.length ?? null}
+          approval={fullAccess ? 'full' : presetMeta?.permissionMode === 'full' ? 'full-preset' : 'ask'}
+          planFirst={planFirst}
+        />
         {/* 待发送的图：贴进来先看得见，能逐张撤掉 */}
         {images.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
