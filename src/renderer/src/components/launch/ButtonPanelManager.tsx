@@ -165,19 +165,20 @@ export function ButtonPanelManager() {
   };
 
   return (
-    <div className="flex h-full">
-      {/* 左侧：面板列表 */}
-      <div className="w-72 border-r border-zinc-800 flex flex-col shrink-0">
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
-          <div className="flex items-center gap-1.5">
+    <div className="@container flex h-full flex-col @2xl:flex-row">
+      {/* 左侧：面板列表。容器窄时改成上下堆叠 —— 否则右侧详情会被挤成一条竖排文字。 */}
+      <div className="w-full @2xl:w-72 border-b @2xl:border-b-0 @2xl:border-r border-zinc-800 flex flex-col shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
             <LayoutTemplate className="w-4 h-4 text-zinc-400" />
             <span className="text-sm text-zinc-200 font-medium">{t('launch.panel.library')}</span>
             <span className="text-xs text-zinc-500">({panels.length})</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1 shrink-0">
             <Button
               variant="ghost"
               size="sm"
+              className="whitespace-nowrap"
               onClick={openCreate}
               title={t('launch.panel.newPanel')}
               leftIcon={<Plus className="w-3.5 h-3.5" />}
@@ -187,6 +188,7 @@ export function ButtonPanelManager() {
             <Button
               variant="ghost"
               size="sm"
+              className="whitespace-nowrap"
               onClick={async () => {
                 const res = await window.qqbat.buttonPanel.listBuiltin();
                 if (res.ok && res.data) {
@@ -204,7 +206,7 @@ export function ButtonPanelManager() {
             </Button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 min-h-0 overflow-auto @2xl:max-h-none max-h-64">
           {loading ? (
             <div className="flex items-center justify-center h-24 gap-2">
               <Spinner size="sm" />

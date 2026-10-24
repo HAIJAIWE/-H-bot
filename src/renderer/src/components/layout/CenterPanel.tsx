@@ -463,45 +463,50 @@ export function CenterPanel() {
         >
           {t('launch.nav.browser')}
         </Button>
-        <div className="w-px h-5 bg-zinc-800 mx-1" />
-        {mode === 'launch'
-          ? [
-              ...LAUNCH_TABS,
-              ...registeredPanels.map((p) => ({ id: p.panelId as LaunchTab, label: p.label })),
-            ].map((t) => (
-              <Button
-                key={t.id}
-                variant="ghost"
-                size="md"
-                className={`h-full whitespace-nowrap ${launchTab === t.id ? 'border-b-2 border-blue-500' : ''}`}
-                onClick={() => setLaunchTab(t.id)}
-              >
-                {t.label}
-              </Button>
-            ))
-          : visibleTabs.map((t) => (
-              <Button
-                key={t.id}
-                variant="ghost"
-                size="md"
-                className={`h-full whitespace-nowrap ${tab === t.id ? 'border-b-2 border-blue-500' : ''}`}
-                onClick={() => {
-                  // 这排页签在浏览器模式下也显示（与开发模式共用一行）。只改 centerTab
-                  // 的话内容区还在渲染 BrowserPanel，点了像没反应 —— 必须同时切回开发模式。
-                  if (mode !== 'dev') setMode('dev');
-                  setTab(t.id);
-                }}
-              >
-                {t.label}
-              </Button>
-            ))}
+        <div className="w-px h-5 bg-zinc-800 mx-1 shrink-0" />
+        {/* 页签数量会随项目里注册的管理面板增长，中栏窄的时候必须能横向滚动，
+            否则后面的页签直接被裁掉、点都点不到（之前就只剩到「控制台」可见）。 */}
+        <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex h-10 items-center">
+            {mode === 'launch'
+              ? [
+                  ...LAUNCH_TABS,
+                  ...registeredPanels.map((p) => ({ id: p.panelId as LaunchTab, label: p.label })),
+                ].map((t) => (
+                  <Button
+                    key={t.id}
+                    variant="ghost"
+                    size="md"
+                    className={`h-full whitespace-nowrap ${launchTab === t.id ? 'border-b-2 border-blue-500' : ''}`}
+                    onClick={() => setLaunchTab(t.id)}
+                  >
+                    {t.label}
+                  </Button>
+                ))
+              : visibleTabs.map((t) => (
+                  <Button
+                    key={t.id}
+                    variant="ghost"
+                    size="md"
+                    className={`h-full whitespace-nowrap ${tab === t.id ? 'border-b-2 border-blue-500' : ''}`}
+                    onClick={() => {
+                      // 这排页签在浏览器模式下也显示（与开发模式共用一行）。只改 centerTab
+                      // 的话内容区还在渲染 BrowserPanel，点了像没反应 —— 必须同时切回开发模式。
+                      if (mode !== 'dev') setMode('dev');
+                      setTab(t.id);
+                    }}
+                  >
+                    {t.label}
+                  </Button>
+                ))}
+          </div>
+        </div>
         {mode === 'launch' && projectPath && (
           <>
-            <div className="flex-1" />
             <Button
               variant="ghost"
               size="sm"
-              className="h-full font-medium hover:bg-zinc-800/50 text-blue-400 hover:text-blue-300"
+              className="h-full shrink-0 font-medium hover:bg-zinc-800/50 text-blue-400 hover:text-blue-300"
               onClick={() => setAdapterConfigOpen(true)}
               title={t('launch.adapter.title')}
               leftIcon={<span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}

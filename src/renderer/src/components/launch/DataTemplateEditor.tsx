@@ -382,7 +382,7 @@ export const DataTemplateEditor = React.memo(function DataTemplateEditor({
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
+    <div className="@container h-full flex flex-col bg-zinc-950">
       {/* 顶部工具栏 */}
       <TemplateToolbar
         groupCount={template.groups.length}
@@ -392,11 +392,11 @@ export const DataTemplateEditor = React.memo(function DataTemplateEditor({
         onSave={handleSave}
       />
 
-      {/* 主体：左右分栏 */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* 主体：宽屏左右分栏；中栏挤窄时改成上下堆叠，否则两栏都只剩几十像素、文字变竖排 */}
+      <div className="flex-1 flex flex-col @2xl:flex-row overflow-hidden">
         {/* 左侧：分组列表 */}
-        <div className="w-[30%] min-w-[200px] border-r border-zinc-800 flex flex-col">
-          <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
+        <div className="w-full @2xl:w-[30%] @2xl:min-w-[200px] max-h-40 @2xl:max-h-none border-b @2xl:border-b-0 @2xl:border-r border-zinc-800 flex flex-col shrink-0">
+          <div className="px-3 py-2 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">
               {t('data.common.groupList')}
             </span>

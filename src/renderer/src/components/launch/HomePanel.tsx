@@ -232,7 +232,8 @@ export const HomePanel = memo(function HomePanel() {
 
         <section>
           <h2 className="mb-2 text-xs font-medium text-zinc-500">{t('launch.home.quickStart')}</h2>
-          <div className="grid grid-cols-2 gap-2 @md:grid-cols-3 @4xl:grid-cols-5">
+          {/* 固定 3 列起步：5 个入口用 2 列会剩一个孤零零的格子，3+2 更整齐 */}
+          <div className="grid grid-cols-3 gap-2 @4xl:grid-cols-5">
             {QUICK_ENTRIES.map((entry) => {
               const Icon = entry.icon;
               return (

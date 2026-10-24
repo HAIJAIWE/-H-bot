@@ -1151,11 +1151,12 @@ export const DataBrowserPanel = React.memo(function DataBrowserPanel() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
+    <div className="@container h-full flex flex-col bg-zinc-950">
       {/* 存档位置：一行可见 + 一键打开（玩家数据现在存在**项目内**，用户需要知道在哪） */}
       <PlayerStoreBar projectPath={projectPath} />
-      <div className="flex-1 flex min-h-0">
-        <div className="w-56 border-r border-zinc-800 flex flex-col">
+      {/* 宽屏左右分栏；中栏挤窄时上下堆叠，否则右侧详情只剩一条竖排文字 */}
+      <div className="flex-1 flex flex-col @3xl:flex-row min-h-0">
+        <div className="w-full @3xl:w-56 max-h-56 @3xl:max-h-none border-b @3xl:border-b-0 @3xl:border-r border-zinc-800 flex flex-col shrink-0">
           <div className="p-2 border-b border-zinc-800 relative">
             <div className="text-xs text-zinc-300 font-medium mb-1">{t('data.browser.search')}</div>
             <input

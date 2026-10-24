@@ -237,9 +237,10 @@ export const DashboardPanel = React.memo(function DashboardPanel() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-zinc-950 overflow-y-auto p-4 gap-4">
-      {/* 操作栏：启停按钮 + 连接配置 */}
-      <div className="flex items-center gap-2 bg-zinc-900 rounded-lg border border-zinc-800 px-4 py-2.5">
+    <div className="@container flex-1 flex flex-col bg-zinc-950 overflow-y-auto p-3 @md:p-4 gap-3 @md:gap-4">
+      {/* 操作栏：启停按钮 + 连接配置。
+          中栏可能只有 380px（两侧面板可拖宽），固定单行会把按钮压到互相重叠，窄的时候允许换行。 */}
+      <div className="flex flex-wrap items-center gap-2 bg-zinc-900 rounded-lg border border-zinc-800 px-3 @md:px-4 py-2.5">
         <div className="flex items-center gap-1.5">
           <Button
             variant="success"
@@ -260,8 +261,7 @@ export const DashboardPanel = React.memo(function DashboardPanel() {
             {t('launch.dashboard.stop')}
           </Button>
         </div>
-        <div className="flex-1" />
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="text-xs text-zinc-500">
             {adapterType === 'official'
               ? t('launch.dashboard.translatorPort', { port: String(translatorPort ?? '-') })
@@ -319,7 +319,7 @@ export const DashboardPanel = React.memo(function DashboardPanel() {
       )}
 
       {/* 状态卡片 */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 gap-3 @3xl:grid-cols-5">
         <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
           <div className="text-xs text-zinc-500 mb-1">{t('launch.dashboard.runtimeStatus')}</div>
           <div

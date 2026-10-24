@@ -267,8 +267,10 @@ export const CodePanel = memo(function CodePanel() {
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-800 bg-zinc-900/50 shrink-0">
+    <div className="@container h-full flex flex-col bg-zinc-950">
+      {/* 中栏被挤窄时（三栏最小宽度收敛到 380 左右）这一排按钮会互相压缩成竖排单字，
+          所以宁可换行：按钮一律 nowrap + 允许 wrap，次要提示按容器宽度隐藏。 */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5 @md:px-3 border-b border-zinc-800 bg-zinc-900/50 shrink-0">
         <Button
           variant={showExplorer ? 'secondary' : 'ghost'}
           size="sm"
@@ -276,12 +278,12 @@ export const CodePanel = memo(function CodePanel() {
           title={showExplorer ? t('editor.explorer.hide') : t('editor.explorer.show')}
           leftIcon="☰"
         />
-        <span className="text-xs text-zinc-500 font-mono">
+        <span className="text-xs text-zinc-500 font-mono whitespace-nowrap">
           {files.length > 0
             ? t('editor.count.files', { count: files.length })
             : t('editor.code.projectCode')}
         </span>
-        <div className="flex-1" />
+        <div className="flex-1 min-w-2" />
         {loading && (
           <span className="flex items-center text-xs text-zinc-500">
             <Spinner size="sm" />
@@ -291,11 +293,16 @@ export const CodePanel = memo(function CodePanel() {
         {saved && <span className="text-xs text-green-400">{t('editor.code.saved')}</span>}
         {error && <span className="text-xs text-red-400">{error}</span>}
         {!loading && !error && (
-          <span className="text-xs text-zinc-500">{t('editor.code.saveHint')}</span>
+          <span className="hidden @2xl:inline text-xs text-zinc-500 whitespace-nowrap">
+            {t('editor.code.saveHint')}
+          </span>
         )}
         {activeFile?.readOnly && (
           // 只读不能只是"改不动"—— 必须说明**为什么**（2026-10-02 用户反馈"不能编辑"）
-          <span className="text-xs text-amber-400" title={t('editor.code.readOnlyTitle')}>
+          <span
+            className="text-xs text-amber-400 whitespace-nowrap"
+            title={t('editor.code.readOnlyTitle')}
+          >
             🔒 {t('editor.code.readOnlyHint')}
           </span>
         )}
@@ -305,6 +312,7 @@ export const CodePanel = memo(function CodePanel() {
           <Button
             variant="secondary"
             size="sm"
+            className="shrink-0 whitespace-nowrap"
             title={t('editor.code.unlockHint')}
             onClick={() => {
               if (!activeFile) return;
@@ -318,6 +326,7 @@ export const CodePanel = memo(function CodePanel() {
         <Button
           variant="secondary"
           size="sm"
+          className="shrink-0 whitespace-nowrap"
           disabled={!projectPath}
           onClick={() => setShowNewNode(true)}
           title={t('editor.code.newNodeTitle')}
@@ -327,6 +336,7 @@ export const CodePanel = memo(function CodePanel() {
         <Button
           variant="secondary"
           size="sm"
+          className="shrink-0 whitespace-nowrap"
           onClick={() => setShowNodeGuide(true)}
           title={t('editor.code.nodeGuideTitle')}
         >
@@ -335,6 +345,7 @@ export const CodePanel = memo(function CodePanel() {
         <Button
           variant={botRunning ? 'success' : 'primary'}
           size="sm"
+          className="shrink-0 whitespace-nowrap"
           onClick={openTestDialog}
           title={botRunning ? t('editor.test.sendHint') : t('editor.test.openTitle')}
         >
@@ -343,6 +354,7 @@ export const CodePanel = memo(function CodePanel() {
         <Button
           variant={isDebugActive ? 'danger' : 'secondary'}
           size="sm"
+          className="shrink-0 whitespace-nowrap"
           disabled={!projectPath}
           onClick={async () => {
             if (isDebugActive) {
@@ -377,7 +389,7 @@ export const CodePanel = memo(function CodePanel() {
             projectPath={projectPath}
             onOpenFile={handleOpenFile}
             openFilePaths={files.map((f) => f.path)}
-            className="w-52 shrink-0"
+            className="w-28 @2xl:w-52 shrink-0"
           />
         )}
         {/* 编辑器主区域 */}

@@ -168,13 +168,13 @@ export function ConfigPanel() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
-      {/* 顶部工具栏 */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900/80 shrink-0">
-        <div>
+    <div className="@container h-full flex flex-col bg-zinc-950">
+      {/* 顶部工具栏：中栏变窄时换行，而不是把「当前机器人类型 / 刷新 / 适配器配置 / 新建表」压成竖排单字 */}
+      <div className="flex flex-wrap items-start justify-between gap-2 px-3 py-2 @md:px-4 border-b border-zinc-800 bg-zinc-900/80 shrink-0">
+        <div className="min-w-0">
           <div className="text-sm font-semibold text-zinc-200">{t('launch.config.title')}</div>
           {botType && (
-            <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-2">
+            <div className="text-xs text-zinc-500 mt-0.5 flex flex-wrap items-center gap-2">
               {t('launch.config.botTypeCurrent')}
               <Dropdown
                 value={botType}
@@ -187,7 +187,7 @@ export function ConfigPanel() {
                   label: t(`launch.botType.${o.value}`),
                 }))}
               />
-              <span className="text-zinc-600">{t('launch.config.botTypeHint')}</span>
+              <span className="hidden @2xl:inline text-zinc-600">{t('launch.config.botTypeHint')}</span>
               {botTypeError && <span className="text-red-400">{botTypeError}</span>}
             </div>
           )}
@@ -195,10 +195,11 @@ export function ConfigPanel() {
             <div className="text-xs text-zinc-500 mt-0.5">{t('launch.config.subtitle')}</div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
             variant="secondary"
             size="sm"
+            className="shrink-0 whitespace-nowrap"
             onClick={refreshCategories}
             title={t('launch.config.rescanTitle')}
             leftIcon={<span className="text-base leading-none">↻</span>}
@@ -208,6 +209,7 @@ export function ConfigPanel() {
           <Button
             variant="secondary"
             size="sm"
+            className="shrink-0 whitespace-nowrap"
             onClick={() => setAdapterConfigOpen(true)}
             title={t('launch.config.adapterTitle')}
             leftIcon={<span className="text-base leading-none">⚙</span>}
@@ -217,6 +219,7 @@ export function ConfigPanel() {
           <Button
             variant="primary"
             size="md"
+            className="shrink-0 whitespace-nowrap"
             onClick={() => setWizardOpen(true)}
             title={t('launch.config.newTableTitle')}
             leftIcon={<span className="text-base leading-none">+</span>}
@@ -235,7 +238,7 @@ export function ConfigPanel() {
             onChange={(e) => setSearchText(e.target.value)}
             placeholder={t('launch.config.searchPlaceholder')}
             aria-label={t('launch.config.searchAria')}
-            className={`w-72 ${inputForm} placeholder-zinc-600`}
+            className={`w-full @md:w-72 ${inputForm} placeholder-zinc-600`}
           />
           {searchText && (
             <>

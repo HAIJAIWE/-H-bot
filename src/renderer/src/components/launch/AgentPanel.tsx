@@ -384,12 +384,12 @@ export function AgentPanel() {
 
       {/* ── ① 全局智能体 ── */}
       <section className="mb-5 border border-zinc-700 rounded-lg bg-zinc-900/40">
-        <header className="px-3 py-2 border-b border-zinc-700 flex items-center justify-between">
-          <div>
+        <header className="px-3 py-2 border-b border-zinc-700 flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <h3 className="text-sm text-zinc-200">{t('agent.global.title')}</h3>
             <p className="text-xs text-zinc-500 mt-0.5">{t('agent.global.subtitle')}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <span className="text-xs text-zinc-400">{globalSummary}</span>
             {!editingGlobal && (
               <Button size="sm" variant="secondary" onClick={() => setEditingGlobal(true)}>
@@ -431,10 +431,11 @@ export function AgentPanel() {
               const open = editingProject === row.projectPath;
               return (
                 <li key={row.projectPath} className="border-b border-zinc-800 last:border-b-0">
-                  <div className="px-3 py-2 flex items-center gap-3">
+                  {/* 中栏窄时换行堆叠：模型名/Key/跟随状态各占固定宽度，挤在一起会变成竖排单字 */}
+                  <div className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <button
                       type="button"
-                      className="text-zinc-300 text-xs flex-1 text-left hover:text-zinc-100"
+                      className="text-zinc-300 text-xs flex-1 min-w-24 text-left hover:text-zinc-100 whitespace-nowrap"
                       onClick={() => {
                         setEditingProject(open ? null : row.projectPath);
                         setFormError('');
@@ -444,7 +445,7 @@ export function AgentPanel() {
                       {row.name}
                     </button>
 
-                    <span className="text-xs text-zinc-400 w-40 truncate">
+                    <span className="text-xs text-zinc-400 w-40 max-w-full truncate">
                       {row.effective
                         ? `${providerLabel(row.effective.provider)} · ${row.effective.model}`
                         : t('agent.notConfigured')}
@@ -481,7 +482,9 @@ export function AgentPanel() {
                         >
                           {t('agent.followGlobalAction')}
                         </Button>
-                        <span className="text-xs text-zinc-500">{t('agent.followGlobalHint')}</span>
+                        <span className="text-xs text-zinc-500 min-w-0 truncate">
+                          {t('agent.followGlobalHint')}
+                        </span>
                       </div>
                       <ConfigForm
                         value={row.own ?? data?.global ?? null}
