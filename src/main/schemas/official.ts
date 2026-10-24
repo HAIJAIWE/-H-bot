@@ -72,6 +72,10 @@ export const startOfficialTranslatorSchema = z.object({
   port: z.number().int().min(1).max(65535)
 })
 
-export const stopOfficialTranslatorSchema = z.object({})
+// 10/18 起必须带 projectPath —— 旧的 z.object({}) 会把路径 strip 掉，
+// handler 里再调无参 stopTranslator() 就成了「停掉全部项目的翻译器」。
+export const stopOfficialTranslatorSchema = z.object({
+  projectPath: z.string().min(1)
+})
 
 export const getOfficialTranslatorStatusSchema = z.object({})

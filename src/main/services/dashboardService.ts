@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import { getDb } from './dataService'
 import { getBotStatus } from './botProcess'
-import { getTranslatorStatus } from './onebot-translator'
+import { getTranslatorStatus } from './runner/eventBus'
 import type { DashboardStatus, TimelineItem, GroupInfo } from '@shared/types/launch'
 import { logger } from './logger'
 
@@ -37,7 +37,7 @@ export function getTimeline(projectPath: string): TimelineItem[] {
   // 优先从翻译器获取最近消息事件
   const translatorStatus = getTranslatorStatus(undefined, projectPath)
   if (translatorStatus?.running && translatorStatus.recentEvents?.length) {
-    return translatorStatus.recentEvents.map((e, i) => ({
+    return (translatorStatus.recentEvents as Array<{ time: string; content: string; type: string }>).map((e, i) => ({
       id: Date.now() - i,
       time: e.time,
       content: e.content,

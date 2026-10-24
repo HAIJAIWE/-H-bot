@@ -16,26 +16,30 @@ import {
   startOfficialTranslatorSchema, stopOfficialTranslatorSchema
 } from '../schemas/official'
 import { projectPathSchema } from '../schemas/project'
-import { startTranslator, stopTranslator, getTranslatorStatus, findFreePort } from '../services/onebot-translator'
-import { atomicWrite } from '../services/fileOps'
+import {
+  startTranslator, stopTranslator, getTranslatorStatus, resolveUsableTranslatorPort
+} from '../services/runner/eventBus'
+import { persistTranslatorPort } from '../services/project/translatorPort'
 import { tryIpc, tryIpcAsync } from './_shared'
 
-/** 获取或自动分配翻译器端口（独立于 NapCat 端口） */
+/**
+ * 获取或分配翻译器端口（translatorPort = 1000 + portBlock，专属段 43100–43199）。
+ *
+ * 与 10/18 产物一致：端口一律交给 `resolveUsableTranslatorPort` 决定 ——
+ * 旧实现回退 `findFreePort(8080)`，而 8080 极易被第三方软件占用（本机实测 Steam web helper），
+ * 会把运行时指向别人的服务。解析出的端口回写 project.json，避免下次漂移。
+ */
 async function getTranslatorPort(projectPath: string): Promise<number> {
+  const projectJsonPath = join(projectPath, '.qqbat', 'project.json')
+  let projectJson: Record<string, unknown> | null = null
   try {
-    const projectJsonPath = join(projectPath, '.qqbat', 'project.json')
-    const projectJson = JSON.parse(await readFile(projectJsonPath, 'utf-8'))
-    if (projectJson.translatorPort && projectJson.translatorPort > 0) {
-      return projectJson.translatorPort
-    }
-    // 自动分配并保存
-    const port = await findFreePort(8080)
-    projectJson.translatorPort = port
-    await atomicWrite(projectJsonPath, JSON.stringify(projectJson, null, 2))
-    return port
+    projectJson = JSON.parse(await readFile(projectJsonPath, 'utf-8')) as Record<string, unknown>
   } catch {
-    return findFreePort(8080)
+    projectJson = null
   }
+  const port = await resolveUsableTranslatorPort(projectJson, projectPath)
+  if (projectJson && projectJson.translatorPort !== port) await persistTranslatorPort(projectPath, port)
+  return port
 }
 
 export function registerOfficialIpc(): void {
@@ -60,10 +64,14 @@ export function registerOfficialIpc(): void {
     const parsed = startOfficialSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
     return tryIpcAsync(async () => {
-      await startOfficial(parsed.data.projectPath)
-      startTranslator(parsed.data.projectPath, await getTranslatorPort(parsed.data.projectPath)).catch((e) => {
-        logger.error('[official] 翻译器启动失败:', e)
-      })
+      const projectPath = parsed.data.projectPath
+      await startOfficial(projectPath)
+      // startTranslator 返回**实际绑定**端口：可能因端口被占换块，必须回写，否则下次又抢同一个号
+      startTranslator(projectPath, await getTranslatorPort(projectPath))
+        .then((actualPort) => persistTranslatorPort(projectPath, actualPort))
+        .catch((e) => {
+          logger.error('[official] 翻译器启动失败:', e)
+        })
       return null
     })
   })
@@ -180,14 +188,20 @@ export function registerOfficialIpc(): void {
   ipcMain.handle('official:startTranslator', async (_event, args: unknown) => {
     const parsed = startOfficialTranslatorSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
-    return tryIpcAsync(() => startTranslator(parsed.data.projectPath, parsed.data.port))
+    return tryIpcAsync(async () => {
+      const projectPath = parsed.data.projectPath
+      const requested = parsed.data.port
+      const actualPort = await startTranslator(projectPath, requested)
+      if (actualPort !== requested) await persistTranslatorPort(projectPath, actualPort)
+      return null
+    })
   })
 
   ipcMain.handle('official:stopTranslator', async (_event, args: unknown) => {
     const parsed = stopOfficialTranslatorSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
     return tryIpc(() => {
-      stopTranslator()
+      stopTranslator(parsed.data.projectPath)
       return null
     })
   })

@@ -71,11 +71,11 @@ const mocks = vi.hoisted(() => {
   const onNodeEvent = vi.fn(() => () => {})
   const onMetricData = vi.fn(() => () => {})
 
-  // onebot-translator 函数（runtime.ts 使用）
+  // 翻译器函数（runtime.ts 从 src/main/services/runner/eventBus 取，10/18 实现）
   const injectTestMessage = vi.fn()
   const getTranslatorStatus = vi.fn(() => ({ running: true, clients: 0, port: 8080 }))
-  const startTranslator = vi.fn(() => Promise.resolve())
-  const findFreePort = vi.fn(() => 8080)
+  const startTranslator = vi.fn(() => Promise.resolve(8080))
+  const resolveUsableTranslatorPort = vi.fn(async () => 8080)
 
   // metricsExport 函数
   const exportToCSV = vi.fn()
@@ -115,7 +115,7 @@ const mocks = vi.hoisted(() => {
     injectTestMessage,
     getTranslatorStatus,
     startTranslator,
-    findFreePort,
+    resolveUsableTranslatorPort,
     exportToCSV,
     exportToJSON,
     dialogShowSaveDialog,
@@ -180,11 +180,11 @@ vi.mock('@main/services/runtimeEvents', () => ({
   emitMetricData: vi.fn()
 }))
 
-vi.mock('@main/services/onebot-translator', () => ({
+vi.mock('@main/services/runner/eventBus', () => ({
   injectTestMessage: mocks.injectTestMessage,
   getTranslatorStatus: mocks.getTranslatorStatus,
   startTranslator: mocks.startTranslator,
-  findFreePort: mocks.findFreePort
+  resolveUsableTranslatorPort: mocks.resolveUsableTranslatorPort
 }))
 
 vi.mock('@main/services/resourceMonitor', () => ({
@@ -236,8 +236,8 @@ beforeEach(() => {
   mocks.onNodeEvent.mockReturnValue(() => {})
   mocks.onMetricData.mockReturnValue(() => {})
   mocks.getTranslatorStatus.mockReturnValue({ running: true, clients: 0, port: 8080 })
-  mocks.startTranslator.mockResolvedValue(undefined)
-  mocks.findFreePort.mockReturnValue(8080)
+  mocks.startTranslator.mockResolvedValue(8080)
+  mocks.resolveUsableTranslatorPort.mockResolvedValue(8080)
   mocks.browserWindowGetAllWindows.mockReturnValue([])
   mocks.browserWindowFromWebContents.mockReturnValue(null)
   mocks.readFileMock.mockRejectedValue(new Error('ENOENT'))

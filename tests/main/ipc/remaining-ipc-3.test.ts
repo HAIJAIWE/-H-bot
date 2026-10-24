@@ -58,13 +58,15 @@ const mocks = vi.hoisted(() => {
     loadOfficialConfig: vi.fn()
   }
 
-  // ---- onebot-translator ----
+  // ---- 翻译器（10/18 实现 = src/main/services/runner/eventBus.ts）----
   const translatorService = {
     startTranslator: vi.fn(),
     stopTranslator: vi.fn(),
     getTranslatorStatus: vi.fn(),
-    findFreePort: vi.fn(() => 8080)
+    resolveUsableTranslatorPort: vi.fn(async () => 43101)
   }
+  // 端口解析结果回写 project.json（10/18 语义：实际绑定端口可能与请求不同）
+  const persistTranslatorPort = vi.fn()
 
   // ---- fileOps ----
   const fileOps = { atomicWrite: vi.fn() }
@@ -165,6 +167,7 @@ const mocks = vi.hoisted(() => {
     napcatDownloader,
     officialService,
     translatorService,
+    persistTranslatorPort,
     fileOps,
     fsPromisesReadFile,
     pluginScanner,
@@ -202,7 +205,10 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('@main/services/official', () => mocks.officialService)
-vi.mock('@main/services/onebot-translator', () => mocks.translatorService)
+vi.mock('@main/services/runner/eventBus', () => mocks.translatorService)
+vi.mock('@main/services/project/translatorPort', () => ({
+  persistTranslatorPort: mocks.persistTranslatorPort
+}))
 vi.mock('@main/services/fileOps', () => mocks.fileOps)
 vi.mock('fs/promises', () => {
   const m = {
@@ -284,6 +290,7 @@ const allMockFns: Array<{ mockReset: () => void }> = [
   mocks.napcatDownloader.isNapcatDownloaded,
   ...Object.values(mocks.officialService),
   ...Object.values(mocks.translatorService),
+  mocks.persistTranslatorPort,
   mocks.fileOps.atomicWrite,
   mocks.fsPromisesReadFile,
   ...Object.values(mocks.pluginScanner),
@@ -312,16 +319,17 @@ beforeEach(() => {
 
   // 默认实现
   mocks.browserWindowFromWebContents.mockReturnValue(mockWin)
-  mocks.translatorService.startTranslator.mockResolvedValue(undefined)
+  mocks.translatorService.startTranslator.mockResolvedValue(43101)
   mocks.translatorService.getTranslatorStatus.mockReturnValue({ running: false, clients: 0, port: 0 })
+  mocks.translatorService.resolveUsableTranslatorPort.mockResolvedValue(43101)
   // AI 插件层默认「没这个插件」→ unload/setEnabled 回落到节点插件那条老路
   mocks.aiPluginLoader.aiPluginIdOf.mockImplementation((name: string) => `ai.${name}`)
   mocks.aiPluginLoader.unloadAiPluginByName.mockReturnValue(false)
   mocks.aiPluginLoader.setAiPluginEnabledByName.mockResolvedValue(false)
-  mocks.translatorService.findFreePort.mockReturnValue(8080)
+  mocks.persistTranslatorPort.mockResolvedValue(undefined)
   mocks.adapterRegistry.list.mockReturnValue(['napcat', 'official'])
   mocks.adapterRegistry.has.mockImplementation((type: string) => type === 'napcat' || type === 'official')
-  // official.ts 的 getTranslatorPort 调用 readFile，默认让其失败以走 findFreePort 分支
+  // official.ts 的 getTranslatorPort 调用 readFile；默认读不到 project.json → 端口全交给 resolveUsableTranslatorPort
   mocks.fsPromisesReadFile.mockRejectedValue(new Error('file not found'))
   // terminal.ts 的 BatchAccumulator 需要 mock 实例（用普通函数实现，支持 new 调用）
   mocks.BatchAccumulatorMock.mockImplementation(function (this: unknown) {
@@ -347,6 +355,9 @@ describe('official IPC', () => {
       const res = (await getHandler('official:start')(mockEvent, { projectPath: '/proj' })) as IpcResult
       expect(res.ok).toBe(true)
       expect(mocks.officialService.startOfficial).toHaveBeenCalledWith('/proj')
+      // 翻译器端口由 resolveUsableTranslatorPort 决定，不再回退 findFreePort(8080)
+      expect(mocks.translatorService.resolveUsableTranslatorPort).toHaveBeenCalled()
+      expect(mocks.translatorService.startTranslator).toHaveBeenCalledWith('/proj', 43101)
     })
 
     it('缺少 projectPath 返回 ok:false', async () => {
@@ -588,10 +599,20 @@ describe('official IPC', () => {
 
   describe('official:startTranslator', () => {
     it('正常路径返回 ok:true', async () => {
-      mocks.translatorService.startTranslator.mockResolvedValue(undefined)
+      mocks.translatorService.startTranslator.mockResolvedValue(9090)
       const res = (await getHandler('official:startTranslator')(mockEvent, { projectPath: '/proj', port: 9090 })) as IpcResult
       expect(res.ok).toBe(true)
+      expect(res.data).toBeNull()
       expect(mocks.translatorService.startTranslator).toHaveBeenCalledWith('/proj', 9090)
+      // 实际端口与请求一致 → 不需要回写
+      expect(mocks.persistTranslatorPort).not.toHaveBeenCalled()
+    })
+
+    it('实际端口与请求不同则回写 project.json', async () => {
+      mocks.translatorService.startTranslator.mockResolvedValue(43112)
+      const res = (await getHandler('official:startTranslator')(mockEvent, { projectPath: '/proj', port: 9090 })) as IpcResult
+      expect(res.ok).toBe(true)
+      expect(mocks.persistTranslatorPort).toHaveBeenCalledWith('/proj', 43112)
     })
 
     it('缺少 port 返回 ok:false', async () => {
@@ -609,16 +630,23 @@ describe('official IPC', () => {
   })
 
   describe('official:stopTranslator', () => {
-    it('正常路径返回 ok:true', async () => {
+    it('正常路径只停本项目翻译器', async () => {
       mocks.translatorService.stopTranslator.mockReturnValue(undefined)
-      const res = (await getHandler('official:stopTranslator')(mockEvent, {})) as IpcResult
+      const res = (await getHandler('official:stopTranslator')(mockEvent, { projectPath: '/proj' })) as IpcResult
       expect(res.ok).toBe(true)
-      expect(mocks.translatorService.stopTranslator).toHaveBeenCalled()
+      // 必须带路径：无参 stopTranslator() 是「停全部」
+      expect(mocks.translatorService.stopTranslator).toHaveBeenCalledWith('/proj')
+    })
+
+    it('缺少 projectPath 返回 ok:false', async () => {
+      const res = (await getHandler('official:stopTranslator')(mockEvent, {})) as IpcResult
+      expect(res.ok).toBe(false)
+      expect(res.error).toMatch(/参数校验失败/)
     })
 
     it('service 抛异常返回 ok:false', async () => {
       mocks.translatorService.stopTranslator.mockImplementation(() => { throw new Error('stop-t-fail') })
-      const res = (await getHandler('official:stopTranslator')(mockEvent, {})) as IpcResult
+      const res = (await getHandler('official:stopTranslator')(mockEvent, { projectPath: '/proj' })) as IpcResult
       expect(res.ok).toBe(false)
       expect(res.error).toBe('stop-t-fail')
     })

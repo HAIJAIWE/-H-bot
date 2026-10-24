@@ -244,7 +244,7 @@ function stopAllTranslators() {
 	stopMatchingTranslators(() => true);
 	clearPortLeases();
 }
-function getTranslatorStatus(port, projectPath) {
+function getTranslatorStatus(port?: number, projectPath?: string) {
 	let t;
 	if (port !== void 0) t = translators.get(port);
 	else if (projectPath) {

@@ -9,7 +9,7 @@
 // `services/botProcess`（Python 时代的 stdout 总线），在 TS 运行时下永远收不到
 // 事件（界面日志/节点高亮因此是死的），已随本轮一并下线。
 import { ipcMain, BrowserWindow } from 'electron'
-import { injectTestMessage } from '../services/onebot-translator'
+import { injectTestMessage } from '../services/runner/eventBus'
 import { injectTestMessageSchema } from '../schemas/runtime'
 import { onBotLog, onNodeEvent } from '../services/runtimeEvents'
 import type { BotLogEntry } from '@shared/types/runtime'
