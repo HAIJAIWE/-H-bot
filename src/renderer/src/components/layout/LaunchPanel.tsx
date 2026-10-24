@@ -1,6 +1,7 @@
 // src/renderer/src/components/layout/LaunchPanel.tsx
 import { useState, useEffect, useCallback, memo } from 'react';
 import type { LaunchTab } from '../../stores/uiStore';
+import { HomePanel } from '../launch/HomePanel';
 import { DashboardPanel } from '../launch/DashboardPanel';
 import { ConsolePanel } from '../launch/ConsolePanel';
 import { DataBrowserPanel } from '../launch/DataBrowserPanel';
@@ -152,6 +153,7 @@ export const LaunchPanel = memo(function LaunchPanel({
 }: LaunchPanelProps) {
   return (
     <>
+      {launchTab === 'home' && <HomePanel />}
       {launchTab === 'dashboard' && <DashboardPanel />}
       {launchTab === 'logs' && <LogViewer />}
       {launchTab === 'console' && <ConsolePanel />}

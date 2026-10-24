@@ -2245,6 +2245,28 @@
       "uptimeMs": "{m}m {s}s",
       "uptimeS": "{s}s"
     },
+    "home": {
+      "created": "Created project \"{name}\"",
+      "currentProject": "Current project",
+      "lastOpened": "Opened {time}",
+      "listFailed": "Failed to load recent projects",
+      "newProject": "New project",
+      "noProject": "No project selected",
+      "noProjectHint": "Create a new project, or open an existing one from the list below.",
+      "open": "Open",
+      "openExisting": "Open existing",
+      "openFailed": "Failed to open project",
+      "openFolder": "Open folder",
+      "openFolderFailed": "Failed to open the folder",
+      "opened": "Opened {name}",
+      "quickStart": "Quick actions",
+      "recent": "Recent projects",
+      "recentEmpty": "No recently opened projects",
+      "recentEmptyHint": "Projects you create show up here automatically.",
+      "remove": "Remove from recent",
+      "removeFailed": "Failed to remove it",
+      "removed": "Removed from recent projects"
+    },
     "left": {
       "nodeLibrary": "Node library"
     },
@@ -2255,6 +2277,7 @@
       "dashboard": "Dashboard",
       "dataview": "Players",
       "dev": "Develop",
+      "home": "Home",
       "logs": "Logs",
       "panels": "Button panels",
       "start": "Launch",

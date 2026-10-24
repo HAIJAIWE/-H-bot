@@ -8,7 +8,14 @@ export type BottomTab = 'output' | 'test' | 'terminal' | 'ports';
 /** 右侧面板 Tab：AI 智能体 / 变量管理 / 源码调试器（高代码模式专用） */
 export type RightTab = 'ai' | 'debugger' | 'variables';
 export type AppMode = 'launch' | 'dev' | 'browser';
-export type LaunchTab = 'dashboard' | 'logs' | 'console' | 'dataview' | 'config' | (string & {});
+export type LaunchTab =
+  | 'home'
+  | 'dashboard'
+  | 'logs'
+  | 'console'
+  | 'dataview'
+  | 'config'
+  | (string & {});
 
 interface UiState {
   centerTab: CenterTab;
@@ -59,7 +66,7 @@ export const useUiStore = create<UiState>()(
       mode: 'launch' as AppMode,
       /** 切换应用模式（launch/dev/browser） */
       setMode: (m: AppMode) => set({ mode: m }),
-      launchTab: 'dashboard' as LaunchTab,
+      launchTab: 'home' as LaunchTab,
       setLaunchTab: (t: LaunchTab) => set({ launchTab: t }),
       leftPanelWidth: 240,
       setLeftPanelWidth: (w: number) => set({ leftPanelWidth: Math.max(160, Math.min(500, w)) }),
@@ -68,6 +75,18 @@ export const useUiStore = create<UiState>()(
     }),
     {
       name: STORAGE_KEYS.ui,
+      version: 1,
+      /**
+       * 主页面（home）是后加的启动页：老存档里存的 launchTab 是 'dashboard'，
+       * 不迁移的话现有用户永远看不到主页面。仪表盘仍在页签里，一点就到。
+       */
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<UiState>;
+        if (version < 1 && (state.launchTab === undefined || state.launchTab === 'dashboard')) {
+          return { ...state, launchTab: 'home' } as UiState;
+        }
+        return state as UiState;
+      },
       // 仅持久化布局偏好，不持久化临时状态（terminalOpen、bottomTab）
       partialize: (state) => ({
         leftPanelWidth: state.leftPanelWidth,

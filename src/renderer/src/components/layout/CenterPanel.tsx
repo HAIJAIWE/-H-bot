@@ -21,6 +21,12 @@ import { TOP_TAB_PLATFORM_TAGS } from '../../lib/node/platformEntries';
 
 const LAUNCH_TABS: { id: LaunchTab; label: string }[] = [
   {
+    id: 'home',
+    get label() {
+      return t('launch.nav.home');
+    },
+  },
+  {
     id: 'dashboard',
     get label() {
       return t('launch.nav.dashboard');
@@ -479,7 +485,12 @@ export function CenterPanel() {
                 variant="ghost"
                 size="md"
                 className={`h-full whitespace-nowrap ${tab === t.id ? 'border-b-2 border-blue-500' : ''}`}
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  // 这排页签在浏览器模式下也显示（与开发模式共用一行）。只改 centerTab
+                  // 的话内容区还在渲染 BrowserPanel，点了像没反应 —— 必须同时切回开发模式。
+                  if (mode !== 'dev') setMode('dev');
+                  setTab(t.id);
+                }}
               >
                 {t.label}
               </Button>

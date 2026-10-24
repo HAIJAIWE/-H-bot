@@ -2245,6 +2245,28 @@
       "uptimeMs": "{m}分{s}秒",
       "uptimeS": "{s}秒"
     },
+    "home": {
+      "created": "已创建项目「{name}」",
+      "currentProject": "当前项目",
+      "lastOpened": "最近打开 {time}",
+      "listFailed": "读取最近项目失败",
+      "newProject": "新建项目",
+      "noProject": "还没有选中项目",
+      "noProjectHint": "新建一个项目，或在下面最近项目里打开已有的。",
+      "open": "打开",
+      "openExisting": "打开已有项目",
+      "openFailed": "打开项目失败",
+      "openFolder": "打开文件夹",
+      "openFolderFailed": "打开文件夹失败",
+      "opened": "已打开 {name}",
+      "quickStart": "快捷入口",
+      "recent": "最近项目",
+      "recentEmpty": "还没有最近打开的项目",
+      "recentEmptyHint": "新建项目后会自动记在这里。",
+      "remove": "从最近项目移除",
+      "removeFailed": "移除失败",
+      "removed": "已从最近项目移除"
+    },
     "left": {
       "nodeLibrary": "节点库"
     },
@@ -2255,6 +2277,7 @@
       "dashboard": "仪表盘",
       "dataview": "玩家浏览",
       "dev": "开发",
+      "home": "主页",
       "logs": "日志",
       "panels": "按钮面板",
       "start": "启动",
