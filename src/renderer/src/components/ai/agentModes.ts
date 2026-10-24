@@ -4,8 +4,8 @@
 //
 // 为什么单独成文件：角色按钮原来写在 ChatPanel 里（2,000+ 行的热文件），
 // 测试要验「四档都在、点了回调收到哪个」就得把整个 ChatPanel 连同 aiStore /
-// flowStore / IPC 全 mock 一遍 —— 于是没人写。拆出来之后 RoleChips 是纯组件，
-// 直接 render 就能验（tests/renderer/components/ai/RoleChips.test.tsx）。
+// flowStore / IPC 全 mock 一遍 —— 于是没人写。拆出来之后选择器（AgentPresetMenu）
+// 是纯组件，直接 render 就能验（tests/renderer/components/ai/AgentPresetMenu.test.tsx）。
 //
 // ⚠️ 这张表**必须穷尽 `AgentMode`** —— 2026-10-15 加 `duo` 时漏改主进程 schema，
 // 结果双向模式发送被 zod 静默拒绝（界面一直转圈、日志里一条请求都没有）。

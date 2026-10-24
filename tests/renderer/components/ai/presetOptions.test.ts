@@ -1,11 +1,11 @@
-// tests/renderer/components/ai/PresetSelect.test.tsx
+// tests/renderer/components/ai/presetOptions.test.ts
 //
 // 下拉的 value 必须是**预设名**：主进程 readPreset(projectPath, name) 只按 name 查。
 // 2026-10-25 之前这里把文件里的 id 当 value —— 写了 id 的预设选中后主进程查不到，
 // 白名单与角色全部静默失效（界面看起来一切正常，这是最难发现的一类错）。
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect } from 'vitest'
-import { parsePresetOptions } from '@renderer/components/ai/PresetSelect'
+import { parsePresetOptions } from '@renderer/components/ai/presetOptions'
 
 describe('parsePresetOptions', () => {
   it('★ 键用 name，文件里写了 id 也不改变选项的值', () => {

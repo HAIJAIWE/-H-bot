@@ -634,7 +634,6 @@
       "empty": "还没有对话"
     },
     "mode": {
-      "label": "角色：",
       "builder": "流程助手",
       "coder": "代码助手",
       "builderHint": "改流程（画布/节点），不碰源码文件",
@@ -646,11 +645,6 @@
       "creatorHint": "给这个应用自己加功能（要先进入框架工作区；每次写都会先备份，可回滚）"
     },
     "boundary": {
-      "role": "角色：{role}（{source}）",
-      "sourcePreset": "预设「{name}」",
-      "sourcePresetNoName": "预设",
-      "sourceManual": "手动",
-      "sourcePage": "跟随页面",
       "tools": "工具只留 {n} 个",
       "plugins": "插件限定 {n} 个",
       "approvalAsk": "审批：逐次问",
@@ -689,7 +683,6 @@
       "menu": "本轮",
       "plan": "先计划",
       "planTitle": "先计划：这一轮只用只读工具，先给出计划（不写盘、不跑命令）",
-      "presetTitle": "会话预设（限制这一轮能用的工具与角色）",
       "presetEdit": "预设…",
       "presetEditTitle": "编辑会话预设",
       "presetEditHint": "预设 = 这一轮的权限边界：勾工具白名单（不勾 = 不限制）、固定角色（不选 = 跟着页面走）、决定要不要逐次审批。附加要求只进系统提示，不是边界。保存写到 .qqbat/agent-presets.json；未知工具与未装载插件只给警告，不拒绝。plugins（插件集）暂时只能在 JSON 模式里改。",
@@ -737,6 +730,17 @@
     },
     "apply": {
       "projectMismatch": "这次会话的项目是「{session}」，但画布上打开的是另一个项目（{canvas}）—— 我没有应用，免得改错项目。请先切到要改的项目，再说一次。"
+    },
+    "preset": {
+      "trigger": "预设",
+      "title": "选择这一轮的角色或预设",
+      "pageHint": "按页签",
+      "followPageHint": "角色跟着当前页签走（低代码=流程助手，代码=代码助手）",
+      "groupRole": "角色",
+      "groupMine": "我的预设",
+      "empty": "这个项目还没有预设",
+      "roleFixed": "角色：{role}（预设固定）",
+      "roleFollow": "角色跟页面走"
     }
   },
   "settings": {

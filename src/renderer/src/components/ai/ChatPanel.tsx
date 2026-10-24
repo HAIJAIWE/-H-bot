@@ -24,7 +24,7 @@ import { InstalledPluginsList } from './InstalledPluginsList';
 import { TurnChangesCard } from './TurnChangesCard';
 import { TrajectoryPanel } from './TrajectoryPanel';
 import { ChatEmptyState } from './ChatEmptyState';
-import { PresetSelect, type PresetMeta } from './PresetSelect';
+import type { PresetMeta } from './presetOptions';
 import { PresetEditor } from './PresetEditor';
 import { InlineEditBox } from './InlineEditBox';
 import { TurnFoldHeader } from './TurnFoldHeader';
@@ -38,12 +38,12 @@ import { useLocaleSubscription } from '../../stores/i18nStore';
 import { AI_TURN_NOTE_PREFIX } from '@shared/types/ai';
 import { MAX_IMAGES, clipboardImageToDataUrl, imagesFromClipboard } from './clipboardImage';
 import { MODE_OF_ROLE } from '@shared/ai/roleDomains';
-import { RoleChips } from './RoleChips';
+import { AgentPresetMenu } from './AgentPresetMenu';
 import { TurnBoundary } from './TurnBoundary';
 import { creatorWorkspaceStatus, useFrameworkDevStore } from '../../stores/frameworkDevStore';
 
-/* 角色按钮表已抽到 ./agentModes（渲染层唯一那处枚举）+ ./RoleChips（纯组件）——
-   这样测「四档都在、点了回调收到哪个」不用把整个 ChatPanel 连 store 一起 mock。 */
+/* 角色按钮表在 ./agentModes（渲染层唯一那处枚举）；选择器是 ./AgentPresetMenu（纯组件）——
+   这样测「四个角色 + 自定义预设 + 跟随页面都在、点了回调收到哪个」不用把整个 ChatPanel 连 store 一起 mock。 */
 
 /**
  * 「已记住的自动批准」里每一类动作的名字。
@@ -318,13 +318,15 @@ export const ChatPanel = React.memo(function ChatPanel() {
   /** 当前预设的元信息（权限模式）：只用于界面提示，主进程仍自己解析 */
   const [presetMeta, setPresetMeta] = useState<PresetMeta | null>(null);
   /**
-   * 预设自带角色时，把角色按钮同步过去（2026-10-20 预设化）：
-   * 用户在下拉里选了「只读巡检（role: coder）」，界面上那排按钮却还亮着"搭建者"，
-   * 两边说的就不是一件事了。主进程那边本来就是预设优先，这里只是让界面说实话。
+   * 预设自带角色时，把"生效角色"同步过去（2026-10-20 预设化，2026-10-25 合并成一个选择器）：
+   * 选了「只读巡检（role: coder）」，界面上却说"搭建者"，两边说的就不是一件事了。
+   * 主进程本来就是预设优先，这里只是让界面说实话；预设没写 role 就退回跟随页面。
+   * 没选预设时什么都不做 —— 否则手动点的角色会被这条 effect 一直洗回 null。
    */
   useEffect(() => {
-    if (presetMeta?.role) setAgentModeOverride(MODE_OF_ROLE[presetMeta.role]);
-  }, [presetMeta, setAgentModeOverride]);
+    if (!preset) return;
+    setAgentModeOverride(presetMeta?.role ? MODE_OF_ROLE[presetMeta.role] : null);
+  }, [preset, presetMeta, setAgentModeOverride]);
   /** 预设编辑器开关 + 保存后让下拉重读文件的计数 */
   const [presetEditorOpen, setPresetEditorOpen] = useState(false);
   const [presetEpoch, setPresetEpoch] = useState(0);
@@ -1082,31 +1084,31 @@ export const ChatPanel = React.memo(function ChatPanel() {
             </div>
           </div>
         )}
-        {/* items-start：窄栏 chips 换成两行时，标签留在第一行而不是被垂直居中 */}
-        <div className="flex items-start gap-1.5 mb-2 text-[11px]">
-          <span className="text-zinc-500 shrink-0 pt-0.5">{t('ai.mode.label')}</span>
-          <RoleChips
-            value={effectiveAgentMode}
-            onChange={(m) => {
+        {/* 角色 + 预设合成一个菜单（2026-10-25）：同一件事不再在两处选、也不再多一条"跟页面" */}
+        <div className="flex items-center gap-1.5 mb-2 text-[11px]">
+          <AgentPresetMenu
+            projectPath={projectPath}
+            override={agentModeOverride}
+            preset={preset}
+            onResolve={setPresetMeta}
+            reloadKey={presetEpoch}
+            disabled={streaming}
+            onPickPage={() => {
+              setAgentModeOverride(null);
+              setPreset(null);
+            }}
+            onPickRole={(m) => {
               setAgentModeOverride(m);
               // 选角色 = 回到"只有角色"的权限边界，别让上一份收窄的预设继续压着它
               setPreset(null);
             }}
-            onReset={
-              agentModeOverride
-                ? () => {
-                    setAgentModeOverride(null);
-                    setPreset(null);
-                  }
-                : undefined
-            }
+            onPickPreset={(name) => setPreset(name)}
+            onEditPresets={() => setPresetEditorOpen(true)}
           />
         </div>
-        {/* 本轮边界：主进程真正生效的那几件事（角色来源/收窄/审批/先计划）——默认态自己不渲染 */}
+        {/* 本轮边界：主进程真正生效的那几件事（收窄/审批/先计划）——默认态自己不渲染。
+            角色不写在这里：上面那个选择器已经说了，重复一遍等于说两遍。 */}
         <TurnBoundary
-          mode={effectiveAgentMode}
-          source={presetMeta?.role ? 'preset' : agentModeOverride ? 'manual' : 'page'}
-          presetName={preset}
           toolCount={presetMeta?.allowedTools?.length ?? null}
           pluginCount={presetMeta?.plugins?.length ?? null}
           approval={fullAccess ? 'full' : presetMeta?.permissionMode === 'full' ? 'full-preset' : 'ask'}
@@ -1445,27 +1447,6 @@ export const ChatPanel = React.memo(function ChatPanel() {
                     setFullAccess(!fullAccess);
                   }}
                 />
-                <div className="px-0.5 pt-1">
-                  <PresetSelect
-                    projectPath={projectPath}
-                    value={preset}
-                    onChange={setPreset}
-                    onResolve={setPresetMeta}
-                    reloadKey={presetEpoch}
-                    disabled={streaming}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="w-full rounded px-1 py-1 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
-                  disabled={streaming}
-                  onClick={(e) => {
-                    closeMenu(e.currentTarget);
-                    setPresetEditorOpen(true);
-                  }}
-                >
-                  {t('ai.agentCore.presetEdit')}
-                </button>
                 <div className="my-1 border-t border-zinc-800" />
                 <button
                   type="button"

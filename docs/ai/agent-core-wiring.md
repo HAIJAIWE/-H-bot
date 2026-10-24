@@ -936,3 +936,101 @@ emit('ai:compact', { projectPath, dropped, tokensBefore, tokensAfter })
 工具数 0 与 `undefined` 都不显示而 `n=3` / 插件 `n=2` 显示。
 
 **还没做**：预设编辑器里的「预览这份预设会放开什么」（要拉一遍注册表 + 角色写域，见 §28）。
+
+### 2026-10-25 晚：**角色那一项删掉了**
+
+上面这段文字里有一条「角色：代码助手（预设「只读巡检」）」—— 与角色/预设合并后的选择器（§30）说的是同一件事，
+用户看到的是同一屏上把角色说了两遍。所以现在 `TurnBoundary` 只留**差异**：工具收窄、插件限定、审批口径、先计划；
+角色归选择器说。默认态的判定也相应简化成 `approval === 'ask' && !scoped && !plugins && !planFirst`。
+
+## 30. 角色与预设合成一个菜单（2026-10-25，对齐 DSH 的 `ui-agent-preset`）
+
+### 问题：同一件事在两处选
+
+原来输入框上方是「角色：🧩流程助手 📝代码助手 🔀双向 ✨创作 **跟页面**」一排按钮（`RoleChips`），
+再往下的「本轮 ▾」菜单里还有一份自定义预设下拉（`PresetSelect`）。两处都在决定「这一轮以什么身份、什么权限跑」，
+而且互相**不认识的优先规则**：点角色会把预设清掉，选预设又会把角色按钮顶掉，界面上还多一条带下划线的「跟页面」。
+用户原话：「原来的这个你可以重写 dsh 的那种吧」。
+
+### DSH 那种是什么形状
+
+`deepseek-harness-master/packages/client/ui-agent-preset`（快照在仓库根，MIT）：
+
+| 文件                       | 干的事                                                          |
+| -------------------------- | --------------------------------------------------------------- |
+| `AgentPresetSeat.tsx`      | 选择器的座位（放在输入框附近），只负责把状态往上抛              |
+| `AgentPresetSection.tsx`   | 分组列表：内置项与自定义项分开列，**当前项高亮**                |
+| `AgentPresetLabel.tsx`     | 一行"现在是谁"的标签（不带权限细节）                            |
+| `CreatePluginMenuItem.tsx` | 「新建预设」是菜单里的一项，点了进创建流程，不在这里内联编辑    |
+| `README.zh.md`             | 语义：选择结果 `applied/staged/unchanged/refused`；查看配置只读 |
+
+要点不是长相，而是**一处选、一处说**：选择器是唯一的真源，别的地方不再复述它。
+
+### 我们的做法
+
+一个新的纯组件 `src/renderer/src/components/ai/AgentPresetMenu.tsx`（`<details>` 触发器 + 一个面板）：
+
+```
+预设 跟页面 ▾
+──────────────────────────────
+✓ 跟页面                 按页签
+角色
+  流程助手 / 代码助手 / 双向 / 创作
+──────────────────────────────
+我的预设
+  只读巡检（角色：代码助手（预设固定））
+  全放行
+──────────────────────────────
+  编辑预设…
+```
+
+- **三种取值落到同一件事**（主进程只认「角色 + 预设名」）：
+  跟随页面 = 不覆盖角色 + 不带预设；内置角色 = 覆盖角色 + 不带预设；我的预设 = 带预设名（角色由预设的
+  `role` 决定，没写就跟页面走）。菜单里这三组互斥，`aria-pressed` 只亮一处。
+- **当前项高亮**用 `aria-pressed` + 一个 ✓（`w-3` 占位保持文字左对齐，不用绝对定位）。
+- **编辑是另一个入口**：菜单最后一项「编辑预设…」开 `PresetEditor` 弹窗（与 DSH 的「新建预设」同一思路：
+  菜单只负责选，不就地改）。
+- **预设列表仍是文件真源**：`window.qqbat.file.read(projectPath, PRESETS_FILE)` → `parsePresetOptions`。
+  保存后由 `ChatPanel` 的 `presetEpoch + 1` 触发重读（`reloadKey`），菜单不缓存。
+- **元信息回抛** `onResolve(meta | null)`：`ChatPanel` 拿它喂 `TurnBoundary` 的工具数/插件数/审批口径。
+  主进程仍然自己重读预设 —— 界面这份只用于显示，**不参与权限判断**。
+
+### 三处必须跟着改的地方（错一处就静默失效）
+
+1. **`role` 与 `mode` 是两个类型**：预设里写的是 `AgentRole`（`builder/coder/duo/creator`），
+   按钮表用的是 `AgentMode`（`blocks/code/duo/creator`）。菜单里显示预设的固定角色必须先 `MODE_OF_ROLE[role]`
+   再查按钮表 —— 直接拿 role 比 mode 的后果是四行全落到默认的「流程助手」，看起来"没写一样"。
+2. **预设没写 `role` 时必须把 override 清回 `null`**：原来那条 effect 是
+   `if (presetMeta?.role) setAgentModeOverride(...)` —— 从「只读巡检（coder）」切到「全放行（没写 role）」时，
+   角色会**留在上一次的 code**，而主进程算的是「跟页面」。现在是
+   `if (!preset) return; setAgentModeOverride(presetMeta?.role ? MODE_OF_ROLE[...] : null)`，
+   同一条 effect 也负责"没选预设时什么都不做"（否则手动点的角色会被洗回 null）。
+3. **`TurnBoundary` 不再写角色**（见 §29 末尾追加的那段）：角色归选择器说。
+
+### 删掉的东西
+
+| 删掉                                                                                                                          | 为什么                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `src/renderer/src/components/ai/RoleChips.tsx`                                                                                | 合并进选择器，留着就是第二处真源                                                                                   |
+| `src/renderer/src/components/ai/PresetSelect.tsx`                                                                             | 同上；**解析规则**搬到 `presetOptions.ts`（`PRESETS_FILE` / `PresetMeta` / `PresetOption` / `parsePresetOptions`） |
+| `tests/renderer/components/ai/RoleChips.test.tsx`                                                                             | 由 `AgentPresetMenu.test.tsx` 覆盖                                                                                 |
+| `PresetSelect.test.tsx` → `presetOptions.test.ts`                                                                             | 规则没变，只改 import 与文件名                                                                                     |
+| i18n：`ai.mode.label`、`ai.boundary.role/sourcePreset/sourcePresetNoName/sourceManual/sourcePage`、`ai.agentCore.presetTitle` | 组件删了，键就是残留（孤儿键闸门会拦）                                                                             |
+
+新增 i18n：`ai.preset.trigger/title/pageHint/followPageHint/groupRole/groupMine/empty/roleFixed/roleFollow`（中英各 9 个）。
+
+### 测试
+
+- `tests/renderer/components/ai/AgentPresetMenu.test.tsx`（8 例）：默认只亮「跟页面」、
+  点角色回调 **mode**（`'code'` 而不是 `'coder'`）、预设从文件读出且回调收到**名字**（不是 `id`）、
+  选中预设时只有它亮且触发器显示预设名、选中预设把元信息抛给 `onResolve`、「编辑预设…」回调、
+  没有项目时不去读盘并说「还没有预设」、坏 JSON 当空表不崩。
+- `tests/renderer/components/ai/TurnBoundary.test.tsx`（4 例，按新 props 重写）：默认态不渲染、
+  收窄 + 预设放行两条都说出来**且不再出现角色文案**、先计划不说「完全放行」、0 与 `undefined` 都不显示。
+- `tests/renderer/components/ai/presetOptions.test.ts`（7 例）：规则与 §28 完全相同，只换了文件名与 import。
+
+### 还没做
+
+- 菜单里没有「查看配置（只读）」—— DSH 那边是把预设当 YAML 展示。我们的预设就在 `.qqbat/agent-presets.json` 里，
+  点「编辑预设…」能直接看，暂不另做只读视图。
+- 选择结果没有 `applied/staged/unchanged/refused` 四态：我们的预设一选就生效（下一轮），没有"暂存"这一步。

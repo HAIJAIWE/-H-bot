@@ -634,7 +634,6 @@
       "empty": "No chats yet"
     },
     "mode": {
-      "label": "Role:",
       "builder": "Flow assistant",
       "coder": "Code assistant",
       "builderHint": "Changes flows (canvas/nodes); does not touch source files",
@@ -646,11 +645,6 @@
       "creatorHint": "Add features to this app itself (enter the framework workspace first; every write is backed up and rollback-able)"
     },
     "boundary": {
-      "role": "Role: {role} ({source})",
-      "sourcePreset": "preset “{name}”",
-      "sourcePresetNoName": "preset",
-      "sourceManual": "manual",
-      "sourcePage": "follows page",
       "tools": "tools: {n} only",
       "plugins": "plugins: {n}",
       "approvalAsk": "approval: ask each time",
@@ -689,7 +683,6 @@
       "menu": "This turn",
       "plan": "Plan first",
       "planTitle": "Plan first: read-only tools only this turn; produce a plan (no writes, no commands)",
-      "presetTitle": "Session presets (tool and role limits for this turn)",
       "presetEdit": "Presets…",
       "presetEditTitle": "Edit session presets",
       "presetEditHint": "A preset is this turn's permission boundary: pick a tool allowlist (none = unlimited), pin a role (none = follow the page), decide whether to approve every action. The extra requirement only goes into the system prompt — it is not a boundary. Saved to .qqbat/agent-presets.json; unknown tools and unloaded plugins only warn. plugins can only be edited in JSON mode for now.",
@@ -737,6 +730,17 @@
     },
     "apply": {
       "projectMismatch": "This conversation is about {session}, but the canvas has a different project open ({canvas}) — I did not apply it, to avoid editing the wrong project. Switch to the project you want and ask again."
+    },
+    "preset": {
+      "trigger": "Preset",
+      "title": "Pick the role or preset for this turn",
+      "pageHint": "by tab",
+      "followPageHint": "Role follows the current tab (low-code = flow, code = coder)",
+      "groupRole": "Role",
+      "groupMine": "My presets",
+      "empty": "No presets in this project yet",
+      "roleFixed": "Role: {role} (fixed by preset)",
+      "roleFollow": "Role follows the page"
     }
   },
   "settings": {
