@@ -435,12 +435,12 @@ export function NodePalette() {
         tabIndex={0}
       >
         <Icon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-        <span className="truncate">{highlightText(spec.label, q)}</span>
+        <span className="min-w-0 truncate">{highlightText(spec.label, q)}</span>
         {/* 右侧标签：组装 / 平台兼容性 */}
         <div className="ml-auto flex items-center gap-1 shrink-0">
           {spec.tags?.includes('composite') && (
             <span
-              className="text-xs px-1.5 py-0.5 rounded bg-violet-900/40 text-violet-300 border border-violet-700/40"
+              className="text-[10px] leading-4 px-1 rounded bg-violet-900/40 text-violet-300 border border-violet-700/40"
               title={t('palette.composedTitle')}
             >
               {t('palette.composed')}
@@ -448,7 +448,7 @@ export function NodePalette() {
           )}
           {spec.platform === 'qq' && (
             <span
-              className="text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40"
+              className="text-[10px] leading-4 px-1 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40"
               title={t('palette.qqOfficialTitle')}
             >
               {t('palette.qqOfficial')}

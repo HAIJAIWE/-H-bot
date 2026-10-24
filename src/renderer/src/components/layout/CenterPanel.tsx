@@ -419,10 +419,60 @@ export function CenterPanel() {
   const [registeredPanels, setRegisteredPanels] = useState<RegisteredPanel[]>([]);
   const [adapterConfigOpen, setAdapterConfigOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  // ── 顶栏自适应（2026-10-24，696 极限档 CDP 实测）──────────────────────
+  // 中栏压到 ~336px 时，模式按钮(170) + 分隔(9) + 「QQ 官方 API」(95) 就把这一行
+  // 吃干净，9 个页签只剩 50px —— 连「主页」都露一半，其余全靠横向滚动、而且
+  // **滚不到当前页签**（实测 scrollLeft 恒为 0）。窄的时候让页签条换到第二行
+  // 占满整行、适配器入口收成图标，页签可用宽度从 50px 变 300px+；再把当前页签
+  // 滚进可视区。宽窗口下保持原来的一行（页签条 flex-1 填满剩余空间）。
+  const topBarRef = useRef<HTMLDivElement>(null);
+  const tabStripRef = useRef<HTMLDivElement>(null);
+  const [topBarW, setTopBarW] = useState(0);
+  useEffect(() => {
+    const el = topBarRef.current;
+    if (!el) return;
+    const measure = () => setTopBarW(el.getBoundingClientRect().width);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // 520 ≈ 模式按钮(170) + 分隔(9) + 适配器图标(32) + 页签行至少 300
+  const barStacked = topBarW > 0 && topBarW < 520;
+  // 换行后模式按钮不能再吃 h-full（父级没有确定高度 ⇒ h-full 解析成整条栏的高度，
+  // 会把按钮拉成 72px 高的大块，页签行还被挤到栏外）。给固定 h-10。
+  const modeBtnH = barStacked ? 'h-10' : 'h-full';
   const handleCreated = (meta: ProjectMeta) => {
     setNewProjectOpen(false);
     useProjectStore.getState().setCurrentProject(meta);
   };
+  const launchTabs = useMemo(
+    () =>
+      mode === 'launch'
+        ? [
+            ...LAUNCH_TABS,
+            ...registeredPanels.map((p) => ({ id: p.panelId as LaunchTab, label: p.label })),
+          ]
+        : [],
+    [mode, registeredPanels],
+  );
+  const activeTabIndex =
+    mode === 'launch'
+      ? launchTabs.findIndex((x) => x.id === launchTab)
+      : visibleTabs.findIndex((x) => x.id === tab);
+  // 当前页签必须可见：横向把 scrollLeft 挪到刚好露出来（不用 scrollIntoView ——
+  // 那会连带把外层页面/其它滚动容器一起滚，实测会跳一下）
+  useEffect(() => {
+    const strip = tabStripRef.current;
+    const inner = strip?.firstElementChild as HTMLElement | null;
+    if (!strip || !inner || activeTabIndex < 0) return;
+    const btn = inner.children[activeTabIndex] as HTMLElement | undefined;
+    if (!btn) return;
+    const sr = strip.getBoundingClientRect();
+    const br = btn.getBoundingClientRect();
+    if (br.left < sr.left) strip.scrollLeft -= sr.left - br.left + 8;
+    else if (br.right > sr.right) strip.scrollLeft += br.right - sr.right + 8;
+  }, [activeTabIndex, barStacked, topBarW]);
   useEffect(() => {
     if (mode === 'launch' && projectPath) {
       // 架构：**读盘前先冲刷** —— 面板配置来自 flow.json 的 admin_panel 节点，
@@ -437,12 +487,17 @@ export function CenterPanel() {
 
   return (
     <div className="flex-1 flex flex-col bg-zinc-900 min-w-0">
-      {/* 顶栏 */}
-      <div className="h-10 flex items-center border-b border-zinc-800 shrink-0">
+      {/* 顶栏（窄中栏时页签条换行，见 barStacked 注释） */}
+      <div
+        ref={topBarRef}
+        className={`flex flex-wrap items-center border-b border-zinc-800 shrink-0 ${
+          barStacked ? '' : 'h-10'
+        }`}
+      >
         <Button
           variant={mode === 'launch' ? 'secondary' : 'ghost'}
           size="md"
-          className="h-full"
+          className={modeBtnH}
           onClick={() => setMode('launch')}
         >
           {t('launch.nav.start')}
@@ -450,7 +505,7 @@ export function CenterPanel() {
         <Button
           variant={mode === 'dev' ? 'secondary' : 'ghost'}
           size="md"
-          className="h-full"
+          className={modeBtnH}
           onClick={() => setMode('dev')}
         >
           {t('launch.nav.dev')}
@@ -458,7 +513,7 @@ export function CenterPanel() {
         <Button
           variant={mode === 'browser' ? 'secondary' : 'ghost'}
           size="md"
-          className="h-full"
+          className={modeBtnH}
           onClick={() => setMode('browser')}
         >
           {t('launch.nav.browser')}
@@ -466,13 +521,15 @@ export function CenterPanel() {
         <div className="w-px h-5 bg-zinc-800 mx-1 shrink-0" />
         {/* 页签数量会随项目里注册的管理面板增长，中栏窄的时候必须能横向滚动，
             否则后面的页签直接被裁掉、点都点不到（之前就只剩到「控制台」可见）。 */}
-        <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex h-10 items-center">
+        <div
+          ref={tabStripRef}
+          className={`min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+            barStacked ? 'order-last basis-full h-10' : 'flex-1'
+          }`}
+        >
+          <div className="flex h-full items-center">
             {mode === 'launch'
-              ? [
-                  ...LAUNCH_TABS,
-                  ...registeredPanels.map((p) => ({ id: p.panelId as LaunchTab, label: p.label })),
-                ].map((t) => (
+              ? launchTabs.map((t) => (
                   <Button
                     key={t.id}
                     variant="ghost"
@@ -506,12 +563,15 @@ export function CenterPanel() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-full shrink-0 font-medium hover:bg-zinc-800/50 text-blue-400 hover:text-blue-300"
+              className={`${modeBtnH} shrink-0 font-medium hover:bg-zinc-800/50 text-blue-400 hover:text-blue-300`}
               onClick={() => setAdapterConfigOpen(true)}
               title={t('launch.adapter.title')}
               leftIcon={<span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
             >
-              {t('launch.adapter.officialApi')}
+              {/* 窄中栏：只剩状态点（详情/配置在仪表盘的「连接设置」里，功能不丢） */}
+              <span className={barStacked ? 'sr-only' : undefined}>
+                {t('launch.adapter.officialApi')}
+              </span>
             </Button>
           </>
         )}
