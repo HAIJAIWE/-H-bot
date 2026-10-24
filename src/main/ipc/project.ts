@@ -156,10 +156,6 @@ export function registerProjectIpc(service: ProjectService): void {
     return tryIpcAsync(async () => {
       const { __projectPath, ...configFields } = parsed.data
       const config = { ...configFields } as ProjectConfig
-      // 官方 API 模式不需要 NapCat 配置
-      if (config.adapter === 'official') {
-        delete config.napcat
-      }
       await service.saveProjectConfig(__projectPath, config)
       return null
     })

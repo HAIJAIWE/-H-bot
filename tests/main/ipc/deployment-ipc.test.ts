@@ -108,9 +108,8 @@ describe('dockerExport IPC', () => {
   describe('docker:export', () => {
     const validArgs = {
       projectPath: '/proj',
-      adapter: 'napcat' as const,
-      outputDir: '/output',
-      includeNapcat: true
+      adapter: 'official' as const,
+      outputDir: '/output'
     }
 
     it('正常路径返回 ok:true', async () => {
@@ -139,7 +138,7 @@ describe('dockerExport IPC', () => {
     })
 
     it('缺少 projectPath 返回 ok:false', async () => {
-      const res = (await getHandler('docker:export')(mockEvent, { adapter: 'napcat', outputDir: '/output' })) as IpcResult
+      const res = (await getHandler('docker:export')(mockEvent, { adapter: 'official', outputDir: '/output' })) as IpcResult
       expect(res.ok).toBe(false)
       expect(res.error).toMatch(/参数校验失败/)
     })
@@ -194,8 +193,7 @@ describe('sshDeploy IPC', () => {
       username: 'root',
       password: 'pass123',
       remotePath: '/opt/bot',
-      adapter: 'napcat' as const,
-      includeNapcat: false,
+      adapter: 'official' as const,
       mode: 'docker' as const
     }
 

@@ -4,11 +4,10 @@
 /**
  * 主适配器 = 项目跑在哪个平台。
  *
- * 'napcat' 是 OneBot 时代的遗留值：10/18 起新建项目只允许 official / lark / dingtalk
- * （与 `src/main/schemas/project.ts` 的 createProjectSchema 一致），但老的 NapCat 项目存档
- * 还在磁盘上，读取路径要能认出它，所以保留在联合类型里。
+ * 'napcat' 已于 2026-10-24 彻底删除（用户只用 QQ 官方 API）；老存档里的该值读回时
+ * 会被当成未知字符串，不再有类型分支。
  */
-export type AdapterType = 'official' | 'lark' | 'dingtalk' | 'napcat'
+export type AdapterType = 'official' | 'lark' | 'dingtalk'
 
 /**
  * 机器人类型（大类）
@@ -24,12 +23,6 @@ export type AdapterType = 'official' | 'lark' | 'dingtalk' | 'napcat'
  * `src/shared/domain/project/botTypeConfig.ts`（迁移表只有那一处）。
  */
 export type BotType = 'qq' | 'general' | 'game'
-
-export interface NapcatConfig {
-  port: number
-  token?: string
-  napcatPath?: string
-}
 
 export interface OfficialConfig {
   appId: string
@@ -86,7 +79,7 @@ export interface ResourceLimit {
  * 额外启用的多平台适配器（不含主 adapter）。
  *
  * 设计说明：
- * - 主 adapter（`adapter` 字段）保持 'napcat' | 'official' 不变，决定 QQ 接入方式
+ * - 主 adapter（`adapter` 字段）决定 QQ 接入方式（当前只有 official）
  * - `botAdapters` 数组列出额外启用的非 QQ 平台适配器（如 Feishu/Kook/Telegram 等）
  * - botManager 启动时把主 adapter 对应的 OneBot V11 + botAdapters 合并写到 .env 的 BOT_ADAPTERS
  * - 空数组表示只用主 adapter（向后兼容，不写 BOT_ADAPTERS，bot.py 默认回退 OneBot V11）
@@ -122,7 +115,6 @@ export interface ProjectConfig {
   adapter: AdapterType
   botType?: BotType
   templateId?: string
-  napcat?: import('@shared/types/launch').NapCatConfig
   official?: OfficialConfig
   /** 飞书（adapter === lark 时才是主接入方式；同时也可能是额外启用的平台）。 */
   lark?: LarkConfig
@@ -143,7 +135,7 @@ export interface ProjectConfig {
    */
   pythonPath?: string
   resourceLimit?: ResourceLimit
-  // 端口块编号（1=1000块, 2=2000块...）。翻译器端口 = portBlock * 1000 + 1，NapCat端口 = portBlock * 1000 + 2
+  // 端口块编号（1=1000块, 2=2000块...）。翻译器端口 = portBlock * 1000 + 1
   portBlock?: number
   // 翻译器端口：自动分配（从 portBlock 计算），用户不可修改
   translatorPort?: number

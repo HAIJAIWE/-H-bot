@@ -42,7 +42,6 @@ export function registerSshDeployIpc(): void {
           passphrase: opts.passphrase,
           remotePath: opts.remotePath,
           adapter: opts.adapter,
-          includeNapcat: opts.includeNapcat,
           imageName: opts.imageName,
           containerPort: opts.containerPort,
           mode: opts.mode

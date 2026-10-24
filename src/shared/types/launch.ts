@@ -79,14 +79,6 @@ export interface ConfigCategory {
   description?: string
 }
 
-export interface NapCatConfig {
-  protocol: 'ws' | 'ws_reverse' | 'http'
-  host: string
-  port: number
-  path: string
-  token: string
-}
-
 export interface RunningBot {
   projectPath: string
   pid: number

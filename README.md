@@ -2,7 +2,7 @@
 
 AI 驱动的可视化**多平台**机器人开发框架。拖节点搭流程、写指令就上线：消息 / 定时 / 事件触发、条件分支、
 变量与配置表、玩家存档、AI 节点、内置节点包与插件市场，支持 Docker / SSH 部署。
-当前对接 QQ（官方协议端 / NapCat OneBot 11），节点层与平台无关，后续按适配层扩展其它平台。
+当前对接 QQ 官方机器人协议端，节点层与平台无关，后续按适配层扩展其它平台。
 
 > 本仓库是 **2026-10-18 打包客户端**的源码恢复与整理版：原工作目录已丢失且没有 git 历史，
 > 恢复方法、客户端模块覆盖率（594 个模块 / 98.5% 可定位）、已知差异与闸门数字见
@@ -16,7 +16,7 @@ AI 驱动的可视化**多平台**机器人开发框架。拖节点搭流程、�
 | 界面 | React 19 + TypeScript 6 + Tailwind CSS v4 + zustand |
 | 构建 | electron-vite（rolldown）+ Vite 7 |
 | 数据 | better-sqlite3（项目内 data/、玩家存档） |
-| 协议 | 官方 QQ 机器人协议端 + NapCat（OneBot 11） |
+| 协议 | QQ 官方机器人协议端（WebSocket） |
 | 部署 | Docker（node:22-slim）/ SSH（Node 运行时，不需要 Python） |
 
 ## 快速开始
@@ -33,7 +33,7 @@ pnpm dev        # 主进程 + 渲染层，界面在 http://localhost:5173
 之后 `node_modules/electron/dist` 仍然是空的，手动跑一次 `node node_modules/electron/install.js`
 （从本地缓存解压运行时二进制，不需要重新下载 Electron 本体）。
 
-连真实 QQ 需要在「机器人设置」里配置官方协议端或 NapCat；不连也能用「测试运行」跑流程。
+连真实 QQ 需要在「机器人设置」里配置官方协议端（AppID / AppSecret）；不连也能用「测试运行」跑流程。
 
 ## 常用命令
 
@@ -81,8 +81,8 @@ docs          节点参考、恢复审计与方法文档
 
 - 类型检查：`node scripts/typecheck.mjs` → node **0 错** / web **0 错**
 - 构建：`electron-vite build` EXIT 0
-- 测试：229 文件 / 2924 通过 + 10 skipped（2934 例）/ 0 失败；guards 12 文件 / 91 通过
-- 已知债：源码里仍有 **220 个 `@ts-nocheck`** 历史文件（闸门只覆盖其余文件）；全库尚未跑过 prettier
+- 测试：230 文件 / 2928 通过 + 10 skipped（2938 例）/ 0 失败；guards 13 文件 / 96 通过
+- 已知债：源码里仍有 **216 个 `@ts-nocheck`** 历史文件（闸门只覆盖其余文件）；全库尚未跑过 prettier
   格式化（配置在 `.prettierrc`，会动数百个文件，刻意没执行）
 
 ## 许可

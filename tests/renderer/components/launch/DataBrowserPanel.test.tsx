@@ -58,7 +58,7 @@ const mockProject: ProjectMeta = {
   name: '测试项目',
   path: '/tmp/test-project',
   qq: '10086',
-  adapter: 'napcat',
+  adapter: 'official',
   botType: 'game',
   createdAt: '',
   updatedAt: '',

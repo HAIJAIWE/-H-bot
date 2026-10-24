@@ -147,7 +147,7 @@ purge，pnpm 10+ 默认拦构建脚本，二进制就没了）。真正要重装
 | `scripts/check-catalog.mjs`（`check:catalog`） | 无 jiti，走 `scripts/lib/catalog-modules.mjs`（用 tsc 把 catalog 源码编成 CJS 再 require）；kind 唯一、`collectMissingCopy()` 必须为空、逐节点校验 en 文案/端口/选项，并反向查多余 kind/端口/选项。实测 76 节点 / 76 份英文 / 0 缺译文 |
 | `scripts/check-identity-conflicts.mjs`（`check:identity`） | kind、toolName、端口 id、选项 value 冲突检测；输入输出同名只警告。实测 76 kind / 46 toolName 唯一，4 条已知警告 |
 | `scripts/check-duplication.mjs`（`check:duplication`） | 同一 kind 多处定义；跳过端口 kind（'control' / 'data'）—— 首版正则把端口当节点定义，误报 data 1206 次，已修。通过 |
-| `scripts/check-userdata-layout.mjs`（`check:userdata`） | 只允许 `src/main/services/infra/paths.ts` 直接 `app.getPath('userData')`，其余按存量 allowlist ratchet；实测 6 文件 / 9 处（diagnostics 2、crashReporter 2、napcat 1、official 1、templates 1） |
+| `scripts/check-userdata-layout.mjs`（`check:userdata`） | 只允许 `src/main/services/infra/paths.ts` 直接 `app.getPath('userData')`，其余按存量 allowlist ratchet；实测 5 文件 / 8 处（diagnostics 2、crashReporter 2、official 1、templates 1） |
 | `scripts/i18n-extract-copy.mjs` + `scripts/i18n-build-catalog.mjs`（`check:i18n`） | 从节点目录抽取待译文案、回写 `catalog.en-US.ts`；与 client 目录 deep equal（76 kind / 870 端口 / 374 选项）。`check:i18n` 已去掉对 `git diff --exit-code` 的依赖（无 .git 也能跑） |
 | `scripts/gen-nodes-reference.mjs`（`docs:nodes` / `docs:nodes:check`） | 生成 `docs/nodes-reference.md`（22,236 B、76 节点、5 弃用），`--check` 检测漂移；排序按目录顺序（11 组：触发器 7 / 消息 6 / 动作 11 / 判断 3 / 控制流 13 / 数据 11 / AI 3 / 存储 10 / 计算 6 / 上下文 4 / 文本 2） |
 
@@ -171,8 +171,8 @@ web 286 错；本轮已全部修到 **0 错**，`node scripts/typecheck.mjs` 两
 | 闸门 | 结果 |
 | --- | --- |
 | `electron-vite build` | EXIT 0（含 §五 i18n 改动） |
-| `tests/guards` | 12 文件 / 91 passed |
-| 全量 vitest（2026-10-24 删除 Python 旧栈后复跑） | 229 文件 / 2924 passed + 10 skipped（2934 例）/ 0 failed |
+| `tests/guards` | 13 文件 / 96 passed |
+| 全量 vitest（2026-10-24 删除 NapCat 全链路后复跑） | 230 文件 / 2928 passed + 10 skipped（2938 例）/ 0 failed |
 | `tsc`（`node scripts/typecheck.mjs`） | node **0 错** / web **0 错**（§八） |
 | 仓库自查脚本（2026-10-24 05:12） | check:catalog / identity / duplication / userdata / i18n×2 / docs:nodes:check / audit:baseline:check / audit / benchmark 全部 EXIT 0 |
 | `package.json` scripts | 30 条全部有实现，逐条实测（§七） |

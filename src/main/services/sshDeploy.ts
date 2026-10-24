@@ -54,8 +54,6 @@ export interface SshDeployConfig extends SshAuthConfig {
   remotePath: string
   /** 适配器类型 */
   adapter: DeployAdapter
-  /** 是否在远程构建时打包 NapCat */
-  includeNapcat?: boolean
   /** 镜像名（默认 qqbat-bot） */
   imageName?: string
   /** 容器对外端口（注意：与 SshAuthConfig.port 不同，此处为容器端口） */
@@ -181,7 +179,6 @@ export async function deployProjectViaSsh(
         emit('[4/6] 生成 Docker 部署文件...')
         const dockerOptions: DockerExportOptions = {
           adapter: config.adapter,
-          includeNapcat: config.includeNapcat ?? false,
           outputDir: '', // 占位：uploadDockerFiles 内部会重新指定 tmpRoot
           imageName: config.imageName,
           port: config.containerPort
@@ -637,7 +634,6 @@ async function uploadDockerFiles(
   // DockerExportOptions 用 port 字段表示容器端口
   const exportOpts: DockerExportOptions = {
     adapter: options.adapter,
-    includeNapcat: options.includeNapcat,
     outputDir: tmpRoot,
     imageName: options.imageName,
     port: options.port

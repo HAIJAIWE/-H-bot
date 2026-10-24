@@ -15,33 +15,6 @@ const mocks = vi.hoisted(() => {
   const dialogShowOpenDialog = vi.fn()
   const shellOpenPath = vi.fn()
 
-  // ---- napcat service ----
-  const napcatService = {
-    startNapcat: vi.fn(),
-    stopNapcat: vi.fn(),
-    getNapcatStatus: vi.fn(),
-    onNapcatStatusChange: vi.fn(() => () => {}),
-    onNapcatQqDetected: vi.fn(() => () => {}),
-    onNapcatToken: vi.fn(() => () => {}),
-    saveNapcatPath: vi.fn(),
-    loadNapcatPath: vi.fn()
-  }
-
-  // ---- napcat downloader ----
-  class NapcatDownloadError extends Error {
-    phase: 'network' | 'disk' | 'extract'
-    constructor(message: string, phase: 'network' | 'disk' | 'extract' = 'network') {
-      super(message)
-      this.name = 'NapcatDownloadError'
-      this.phase = phase
-    }
-  }
-  const napcatDownloader = {
-    downloadNapCat: vi.fn(),
-    isNapcatDownloaded: vi.fn(),
-    NapcatDownloadError
-  }
-
   // ---- official service ----
   const officialService = {
     startOfficial: vi.fn(),
@@ -111,18 +84,6 @@ const mocks = vi.hoisted(() => {
   const fsPromisesCopyFile = vi.fn()
   const fsPromisesReaddir = vi.fn()
 
-  // ---- python service ----
-  const pythonService = {
-    detectPython: vi.fn(),
-    createVenv: vi.fn(),
-    installDependencies: vi.fn(),
-    verifyVenv: vi.fn(),
-    checkVenvUpdates: vi.fn(),
-    updateDependencies: vi.fn(),
-    savePythonPath: vi.fn(),
-    loadCustomPythonPath: vi.fn()
-  }
-
   // ---- terminal service ----
   const terminalService = {
     createTerminal: vi.fn(),
@@ -154,8 +115,8 @@ const mocks = vi.hoisted(() => {
 
   // ---- adapter registry ----
   const adapterRegistry = {
-    list: vi.fn(() => ['napcat', 'official']),
-    has: vi.fn((type: string) => type === 'napcat' || type === 'official')
+    list: vi.fn(() => ['official']),
+    has: vi.fn((type: string) => type === 'official')
   }
 
   return {
@@ -163,8 +124,6 @@ const mocks = vi.hoisted(() => {
     browserWindowFromWebContents,
     dialogShowOpenDialog,
     shellOpenPath,
-    napcatService,
-    napcatDownloader,
     officialService,
     translatorService,
     persistTranslatorPort,
@@ -182,7 +141,6 @@ const mocks = vi.hoisted(() => {
     fsPromisesMkdir,
     fsPromisesCopyFile,
     fsPromisesReaddir,
-    pythonService,
     terminalService,
     BatchAccumulatorMock,
     sshDeployService,
@@ -283,9 +241,6 @@ const allMockFns: Array<{ mockReset: () => void }> = [
   mocks.browserWindowFromWebContents,
   mocks.dialogShowOpenDialog,
   mocks.shellOpenPath,
-  ...Object.values(mocks.napcatService),
-  mocks.napcatDownloader.downloadNapCat,
-  mocks.napcatDownloader.isNapcatDownloaded,
   ...Object.values(mocks.officialService),
   ...Object.values(mocks.translatorService),
   mocks.persistTranslatorPort,
@@ -303,7 +258,6 @@ const allMockFns: Array<{ mockReset: () => void }> = [
   mocks.fsPromisesMkdir,
   mocks.fsPromisesCopyFile,
   mocks.fsPromisesReaddir,
-  ...Object.values(mocks.pythonService),
   ...Object.values(mocks.terminalService),
   mocks.BatchAccumulatorMock,
   ...Object.values(mocks.sshDeployService),
@@ -325,8 +279,8 @@ beforeEach(() => {
   mocks.aiPluginLoader.unloadAiPluginByName.mockReturnValue(false)
   mocks.aiPluginLoader.setAiPluginEnabledByName.mockResolvedValue(false)
   mocks.persistTranslatorPort.mockResolvedValue(undefined)
-  mocks.adapterRegistry.list.mockReturnValue(['napcat', 'official'])
-  mocks.adapterRegistry.has.mockImplementation((type: string) => type === 'napcat' || type === 'official')
+  mocks.adapterRegistry.list.mockReturnValue(['official'])
+  mocks.adapterRegistry.has.mockImplementation((type: string) => type === 'official')
   // official.ts 的 getTranslatorPort 调用 readFile；默认读不到 project.json → 端口全交给 resolveUsableTranslatorPort
   mocks.fsPromisesReadFile.mockRejectedValue(new Error('file not found'))
   // terminal.ts 的 BatchAccumulator 需要 mock 实例（用普通函数实现，支持 new 调用）
@@ -946,13 +900,13 @@ describe('adapter IPC', () => {
   // 由于 currentAdapterType 是模块级状态，测试间共享。在 afterEach 中重置。
   afterEach(async () => {
     const switchHandler = getHandler('adapter:switch')
-    await switchHandler({}, { type: 'napcat' })
+    await switchHandler({}, { type: 'official' })
   })
 
   it('adapter:list 返回已注册适配器列表', async () => {
     const res = (await getHandler('adapter:list')()) as IpcResult
     expect(res.ok).toBe(true)
-    expect(res.data).toEqual(['napcat', 'official'])
+    expect(res.data).toEqual(['official'])
     expect(mocks.adapterRegistry.list).toHaveBeenCalled()
   })
 
@@ -971,10 +925,10 @@ describe('adapter IPC', () => {
 
   it('adapter:current 返回当前适配器类型', async () => {
     // 先切换到已知状态
-    await getHandler('adapter:switch')({}, { type: 'napcat' })
+    await getHandler('adapter:switch')({}, { type: 'official' })
     const res = (await getHandler('adapter:current')()) as IpcResult
     expect(res.ok).toBe(true)
-    expect(res.data).toBe('napcat')
+    expect(res.data).toBe('official')
   })
 })
 
@@ -985,9 +939,8 @@ describe('dockerExport IPC', () => {
   describe('docker:export', () => {
     const validArgs = {
       projectPath: '/proj',
-      adapter: 'napcat' as const,
-      outputDir: '/output',
-      includeNapcat: true
+      adapter: 'official' as const,
+      outputDir: '/output'
     }
 
     it('正常路径返回 ok:true', async () => {
@@ -1016,7 +969,7 @@ describe('dockerExport IPC', () => {
     })
 
     it('缺少 projectPath 返回 ok:false', async () => {
-      const res = (await getHandler('docker:export')(mockEvent, { adapter: 'napcat', outputDir: '/output' })) as IpcResult
+      const res = (await getHandler('docker:export')(mockEvent, { adapter: 'official', outputDir: '/output' })) as IpcResult
       expect(res.ok).toBe(false)
       expect(res.error).toMatch(/参数校验失败/)
     })
@@ -1071,8 +1024,7 @@ describe('sshDeploy IPC', () => {
       username: 'root',
       password: 'pass123',
       remotePath: '/opt/bot',
-      adapter: 'napcat' as const,
-      includeNapcat: false,
+      adapter: 'official' as const,
       mode: 'docker' as const
     }
 

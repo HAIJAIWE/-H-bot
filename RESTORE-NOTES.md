@@ -9,9 +9,9 @@
 - 构建：`electron-vite build` 成功。清理掉恢复期 tsc 写进 `out/` 的 1558 个垃圾文件后，现在 `out/` 106 个文件（`out/main` 9 个）。
 - 启动：Electron 能起窗口，主进程无未捕获异常（只有 [errorMonitoring] 未配 SENTRY_DSN 的提示）。
 - 业务：左上项目下拉能选中项目；Bot 管理列出项目；「低代码」页能走「新建指令」向导 → 生成 2 节点 1 连线并落盘 `.qqbat/flow.json`；「布局」后节点不叠压；git 自动初始化并出现 `master (1 提交)`。
-- 规模：src 下 **812 个 .ts/.tsx（含 2 个 .d.ts）/ 183,005 行**（2026-10-24 清理死代码、重复翻译器、NapCat 遗留壳与 Python 旧栈后，逐文件计数）；`[[MISSING` 标记 0 处；**220 个文件带 `// @ts-nocheck`（223 处）**（见「已知债」）。
-- 测试：**全绿**（2026-10-24 删除 Python 旧栈后复跑）。`vitest run --maxWorkers=2` → **229 文件 / 2924 例通过**，4 文件 / 10 例 skip（0 failed，2934 例）；guards 12 文件 / 91 通过。
-- 类型检查（2026-10-24 **已清零**）：`node scripts/typecheck.mjs` → node **0 错**（原 161，全在 `tests/`）、web **0 错**（原 286）；`src/main` / `src/renderer` 均干净。注意树里仍有 220 个 `// @ts-nocheck` 文件（见「已知债 1」），闸门覆盖的是其余文件；`electron-vite build` 走 rolldown 不做类型检查，所以以该脚本为准。明细与修法见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
+- 规模：src 下 **812 个 .ts/.tsx（含 2 个 .d.ts）/ 182,889 行**（2026-10-24 清理死代码、重复翻译器、NapCat 全链路与 Python 旧栈后，逐文件计数）；`[[MISSING` 标记 0 处；**216 个文件带 `// @ts-nocheck`**（见「已知债」）。
+- 测试：**全绿**（2026-10-24 删除 Python 旧栈后复跑）。`vitest run --maxWorkers=2` → **230 文件 / 2928 例通过**，4 文件 / 10 例 skip（0 failed，2938 例）；guards 13 文件 / 96 通过。
+- 类型检查（2026-10-24 **已清零**）：`node scripts/typecheck.mjs` → node **0 错**（原 161，全在 `tests/`）、web **0 错**（原 286）；`src/main` / `src/renderer` 均干净。注意树里仍有 216 个 `// @ts-nocheck` 文件（见「已知债 1」），闸门覆盖的是其余文件；`electron-vite build` 走 rolldown 不做类型检查，所以以该脚本为准。明细与修法见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 
 ## 恢复基准（2026-10-24 定）
 
@@ -61,7 +61,7 @@ CDP 探针（都放在 `_recovery/`，可直接复用）：`cdp-probe.mjs`（URL
 5. `fs_promises` 别名 import —— 26 个文件改成 `import * as fs_promises from 'node:fs/promises'`。
 6. **两个 BotManager 单例** —— 旧 `src/main/services/botManager.ts`（NapCat 时代）与 10/18 版 `src/main/services/bot/botManager.ts` 各 `new` 一个；IPC 查旧实例（baseDir 配置没生效）→ 永远返回空列表、顶栏「未选择」。旧文件已改成 9 行门面 `export { BotManager, botManager } from './bot/botManager'`。
 7. `file:*` / `customNode:*` 一组通道缺失 —— 树里是旧 revision 的 IPC；按产物 region 重写 `src/main/ipc/file.ts`（含 devMode 的 fail-closed）与 `src/main/ipc/customNode.ts`（scan/scanAiGenerated/watch/unwatch/fork + 以 pluginsDir 为 key 的 watchers）。
-8. 项目 schema 停在 NapCat 时代 —— `adapter` 枚举还是 `napcat|official`、`botType` 还是 `functional|game`，新建项目被 Zod 拒（渲染层只看到 `{ok:false}`）。按 10/18 产物重写 `src/main/schemas/project.ts`（adapter: official/lark/dingtalk，botType: qq/general/game，+ lark/dingtalk/ai 块），`src/shared/types/project.ts` 同步（保留 napcat 仅为读老存档）。
+8. 项目 schema 停在 NapCat 时代 —— `adapter` 枚举还是 `napcat|official`、`botType` 还是 `functional|game`，新建项目被 Zod 拒（渲染层只看到 `{ok:false}`）。按 10/18 产物重写 `src/main/schemas/project.ts`（adapter: official/lark/dingtalk，botType: qq/general/game，+ lark/dingtalk/ai 块），`src/shared/types/project.ts` 同步（napcat 类型/字段已于 2026-10-24 随 NapCat 能力一并删除）。
 9. 向导生成的节点叠压 20px —— `blockEditorModel.placeNewNodesBelow` 写死 `x: 40 + i * 300`，而卡片宽 `NODE_WIDTH=320`；改成 `40 + i * (NODE_WIDTH + NEW_NODE_GAP)`（NEW_NODE_GAP=80）。
 
 ## 测试恢复的判定原则（2026-10-24 定）
@@ -143,6 +143,6 @@ CodeEditor/Terminal/elk/editor.worker/i18n/index.html）齐平；main 少 16 个
 ## 下一步
 
 1. 清 @ts-nocheck（按 TS2304 → TS2339 顺序），把 `tsconfig.recover.json` 变成真闸门。
-2. ~~决策 tests：按新 API 修 or 重写~~ —— **已修完**：`node scripts/typecheck.mjs` node/web 双 0 错，全量 vitest 229 文件 / 2924 例通过；做法是「生产签名按真实契约放宽 + 测试补注解/元组 mock + 重建缺失共享类型」，明细见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
+2. ~~决策 tests：按新 API 修 or 重写~~ —— **已修完**：`node scripts/typecheck.mjs` node/web 双 0 错，全量 vitest 230 文件 / 2928 例通过；做法是「生产签名按真实契约放宽 + 测试补注解/元组 mock + 重建缺失共享类型」，明细见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 3. 收敛两套 codegen 栈。
 4. 之后才是功能。**注意：这棵树里已经带着 10/18 之前的 DSH 对齐成果**——`agent-core/scheduler.ts`（独占/并行工具组）、`plugins/kernel.ts`（Cordis-lite 内核）、`plugins/market.ts`（插件市场）、`ai/contextDigest.ts` + `ai/summaryLlm.ts`（模型摘要）都在；盘点基线读 `docs/ai/dsh-parity-2026-10-18.md`（14 层对照表）与 `docs/ai/agent-framework-porting.md`，别按旧记忆列待办。

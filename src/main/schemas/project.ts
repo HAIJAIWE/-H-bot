@@ -88,17 +88,6 @@ export const createProjectSchema = z.object({
       baseUrl: z.string().url().optional()
     })
     .optional(),
-  /** 旧 NapCat 项目的配置块：10/18 已不再新建，但老项目存档里还有，保留以能读回/回写。 */
-  napcat: z
-    .object({
-      protocol: z.enum(['ws', 'ws_reverse', 'http']).optional(),
-      host: z.string().optional(),
-      port: z.number().int().min(1024).max(65535).optional(),
-      path: z.string().optional(),
-      token: z.string().optional(),
-      napcatPath: z.string().optional()
-    })
-    .optional(),
   /** 旧 Java/Python 混合架构遗留字段：10/18 的 TS 运行时不用它，保留以便老项目存档不被剥掉。 */
   pythonPath: z.string().min(1).optional()
 })

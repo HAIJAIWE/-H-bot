@@ -61,7 +61,6 @@ describe.skipIf(!enabled)('导出的部署包可被纯 Node 启动', () => {
 
       const exported = await exportProjectToDocker(projectDir, {
         adapter: 'official',
-        includeNapcat: false,
         outputDir,
         imageName: 'smoke-bot'
       })

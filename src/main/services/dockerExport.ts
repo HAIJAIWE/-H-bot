@@ -9,7 +9,7 @@
 // - 不依赖 dockerode 等额外库，仅用 Node.js 内置 fs/path。
 // - 产物写到 options.outputDir，与项目目录隔离；outputDir 本身就是可独立构建的构建上下文。
 // - 运行时通过 deploy/runtimeBundle 复制（缺 out/main 时直接报错，不产出跑不起来的包）。
-// - 支持 napcat / official 两种适配器；napcat 模式可选把 NapCat 打进镜像（它本身也是 Node 程序）。
+// - 适配器固定为 QQ 官方机器人 API（NapCat 兼容分支已于 2026-10-24 彻底删除）。
 //
 // 生成的文件清单：
 //   - Dockerfile / docker-compose.yml / start.sh / .dockerignore / README.md / .env.example
@@ -25,15 +25,13 @@ import {
   RUNTIME_DIR_NAME
 } from './deploy/runtimeBundle'
 
-/** 适配器类型 */
-export type DeployAdapter = 'napcat' | 'official'
+/** 适配器类型（只保留官方 API；NapCat 是历史能力，已删除） */
+export type DeployAdapter = 'official'
 
 /** 导出选项 */
 export interface DockerExportOptions {
   /** 适配器类型 */
   adapter: DeployAdapter
-  /** 是否在镜像中打包 NapCat（仅 napcat 模式有意义） */
-  includeNapcat: boolean
   /** 输出目录（Docker 构建上下文根目录） */
   outputDir: string
   /** 镜像名（默认 qqbat-bot） */
@@ -75,9 +73,6 @@ export type DockerExportPhase =
 /** 项目文件复制白名单（只带运行需要的；不含 node_modules / 缓存） */
 const COPY_WHITELIST_DIRS = ['.qqbat', 'data', 'plugins', 'src']
 const COPY_WHITELIST_FILES = ['.env']
-
-/** NapCat 容器内安装路径 */
-const NAPCAT_DIR = '/app/napcat'
 
 /**
  * 为项目生成 Docker 部署包。
@@ -243,19 +238,6 @@ function generateDockerfile(options: DockerExportOptions, lockfileName: string):
   )
   lines.push('    && rm -rf /var/lib/apt/lists/*')
   lines.push('')
-  if (options.includeNapcat && options.adapter === 'napcat') {
-    lines.push('# NapCat（基于 Node 的 OneBot v11 实现）')
-    lines.push('RUN apt-get update && apt-get install -y --no-install-recommends curl unzip \\')
-    lines.push('    && rm -rf /var/lib/apt/lists/*')
-    lines.push(`RUN mkdir -p ${NAPCAT_DIR} && \\`)
-    lines.push('    curl -L -o /tmp/napcat.zip \\')
-    lines.push(
-      '      "https://github.com/NapNeko/NapCatQQ/releases/latest/download/NapCat.Shell.Linux.zip" && \\'
-    )
-    lines.push(`    unzip -q /tmp/napcat.zip -d ${NAPCAT_DIR} && \\`)
-    lines.push('    rm -f /tmp/napcat.zip')
-    lines.push('')
-  }
   lines.push('# 先按锁文件装运行时依赖（这一步最慢，放在复制源码前以命中层缓存）')
   lines.push('# ws / zod / electron-log / better-sqlite3 在 out/main 里是 external，不在包里；')
   lines.push('# better-sqlite3 必须在这里装 Linux 预编译，不能从 Windows 直接拷 .node。')
@@ -285,13 +267,8 @@ function generateDockerfile(options: DockerExportOptions, lockfileName: string):
   lines.push('ENV NODE_ENV=production \\')
   lines.push('    QQBOT_PROJECT_ROOT=/app')
   lines.push('')
-  if (options.includeNapcat && options.adapter === 'napcat') {
-    lines.push('RUN chmod +x /app/start.sh')
-    lines.push('CMD ["/app/start.sh"]')
-  } else {
-    lines.push('# 启动：node runtime/standalone.js <项目根>')
-    lines.push(`CMD ["node", "/app/${runtimeEntryRel()}", "/app"]`)
-  }
+  lines.push('# 启动：node runtime/standalone.js <项目根>')
+  lines.push(`CMD ["node", "/app/${runtimeEntryRel()}", "/app"]`)
   lines.push('')
   lines.push('# 健康检查：TCP 探测翻译器真实监听的端口（每 60s 一次）')
   lines.push('#')
@@ -354,9 +331,6 @@ function generateDockerCompose(options: DockerExportOptions): string {
     '      - ./data:/app/data',
     '      - ./.qqbat:/app/.qqbat',
     '      - ./plugins:/app/plugins',
-    ...(options.includeNapcat && options.adapter === 'napcat'
-      ? [`      - ./napcat/config:${NAPCAT_DIR}/config`]
-      : []),
     '    environment:',
     '      - TZ=Asia/Shanghai',
     '    logging:',
@@ -375,21 +349,8 @@ function generateStartSh(options: DockerExportOptions): string {
   lines.push('# QQ bat 容器启动脚本（由 qqbat 自动生成）')
   lines.push('set -e')
   lines.push('')
-  if (options.includeNapcat && options.adapter === 'napcat') {
-    lines.push('# 启动 NapCat（后台）')
-    lines.push(`cd ${NAPCAT_DIR}`)
-    lines.push('node napcat.mjs --no-sandbox -q "${NAPCAT_QQ:-10000}" &')
-    lines.push('NAPCAT_PID=$!')
-    lines.push('sleep 5')
-    lines.push('cd /app')
-    lines.push('node /app/' + runtimeEntryRel() + ' /app &')
-    lines.push('RUNTIME_PID=$!')
-    lines.push('trap "kill $NAPCAT_PID $RUNTIME_PID 2>/dev/null; exit" SIGTERM SIGINT')
-    lines.push('wait -n')
-  } else {
-    lines.push('cd /app')
-    lines.push('exec node /app/' + runtimeEntryRel() + ' /app')
-  }
+  lines.push('cd /app')
+  lines.push('exec node /app/' + runtimeEntryRel() + ' /app')
   lines.push('')
   return lines.join('\n')
 }
@@ -402,18 +363,10 @@ function generateEnvExample(options: DockerExportOptions): string {
   lines.push('# 项目根（容器内固定为 /app，一般不用改）')
   lines.push('QQBOT_PROJECT_ROOT=/app')
   lines.push('')
-  if (options.adapter === 'napcat') {
-    lines.push('# OneBot 反向 WS 地址（翻译器监听端口取自项目 project.json 的 translatorPort）')
-    lines.push('ONEBOT_WS_URLS=["ws://127.0.0.1:8080/onebot/v11/ws"]')
-    lines.push('')
-    lines.push('# NapCat 登录 QQ 号')
-    lines.push('NAPCAT_QQ=10000')
-  } else {
-    lines.push('# 官方适配器凭证')
-    lines.push('QQ_APP_ID=')
-    lines.push('QQ_APP_SECRET=')
-    lines.push('QQ_SANDBOX=false')
-  }
+  lines.push('# 官方适配器凭证')
+  lines.push('QQ_APP_ID=')
+  lines.push('QQ_APP_SECRET=')
+  lines.push('QQ_SANDBOX=false')
   lines.push('')
   return lines.join('\n')
 }
@@ -446,7 +399,7 @@ function generateReadme(options: DockerExportOptions): string {
   lines.push('')
   lines.push('```bash')
   lines.push('cp .env.example .env')
-  lines.push('# 编辑 .env，填入 QQ_APP_ID / QQ_APP_SECRET（或 NapCat 相关配置）')
+  lines.push('# 编辑 .env，填入 QQ_APP_ID / QQ_APP_SECRET')
   lines.push('docker compose up -d --build')
   lines.push('docker compose logs -f')
   lines.push('```')
@@ -467,18 +420,7 @@ function generateReadme(options: DockerExportOptions): string {
   lines.push('')
   lines.push('## 适配器说明')
   lines.push('')
-  if (options.adapter === 'napcat') {
-    lines.push('本镜像使用 NapCat 适配器（OneBot v11）。')
-    lines.push('')
-    if (options.includeNapcat) {
-      lines.push(`镜像内已打包 NapCat（${NAPCAT_DIR}），start.sh 会先拉起 NapCat 再启动运行时。`)
-      lines.push('首次启动需要扫码登录，可通过 `docker logs` 查看二维码。')
-    } else {
-      lines.push('镜像未打包 NapCat，需要外部 NapCat 通过 `ONEBOT_WS_URLS` 连接。')
-    }
-  } else {
-    lines.push('本镜像使用 QQ 官方机器人 API 适配器，需要在 `.env` 填写 `QQ_APP_ID` 与 `QQ_APP_SECRET`。')
-  }
+  lines.push('本镜像使用 QQ 官方机器人 API 适配器，需要在 `.env` 填写 `QQ_APP_ID` 与 `QQ_APP_SECRET`。')
   lines.push('')
   lines.push('## 数据持久化')
   lines.push('')

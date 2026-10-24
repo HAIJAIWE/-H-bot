@@ -38,10 +38,6 @@ const ALLOWED = {
     max: 2,
     reason: 'crashReporter 在 app ready 前可能被调用，不能依赖 paths 的懒加载',
   },
-  'src/main/services/napcat.ts': {
-    max: 1,
-    reason: 'NapCat 旧数据目录（qqbat-data）只读，迁移前保留',
-  },
   'src/main/services/official.ts': {
     max: 1,
     reason: '官方凭据旧位置（qqbat-data/official）迁移来源',

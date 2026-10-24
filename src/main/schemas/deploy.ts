@@ -2,8 +2,8 @@
 // 部署相关的 zod schema：用于校验来自渲染进程的 IPC 参数
 import { z } from 'zod'
 
-/** 适配器类型枚举 */
-const adapterSchema = z.enum(['napcat', 'official'])
+/** 适配器类型枚举（只保留官方 API；NapCat 已于 2026-10-24 删除） */
+const adapterSchema = z.enum(['official'])
 
 /**
  * 安全字符白名单：用于防止 SSH 远程 shell 命令注入。
@@ -33,8 +33,6 @@ export const dockerExportSchema = z.object({
   projectPath: z.string().min(1),
   /** 适配器类型 */
   adapter: adapterSchema,
-  /** 是否在镜像中打包 NapCat */
-  includeNapcat: z.boolean().default(false),
   /** 输出目录（Docker 构建上下文根目录） */
   outputDir: z.string().min(1),
   /** 镜像名（可选，默认 qqbat-bot） */
@@ -63,8 +61,6 @@ export const sshDeploySchema = z.object({
   remotePath: remotePathSchema,
   /** 适配器类型 */
   adapter: adapterSchema,
-  /** 是否打包 NapCat */
-  includeNapcat: z.boolean().default(false),
   /** 镜像名（白名单校验，防止 SSH 命令注入） */
   imageName: imageNameSchema,
   /** 容器对外端口（与 SSH port 区分） */

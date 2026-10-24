@@ -112,14 +112,14 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 | `shared/types/project.ts` 的 `pythonPath?`、`schemas/project.ts:103` | 老项目存档字段，读写保留以免把用户配置剥掉                                                |
 | 注释里的历史说明                                             | 解释「节点事件原由 Python 打印标记」这类迁移背景                                          |
 
-部署侧仍保留 `adapter === 'napcat'` 兼容分支（NapCat 本身是 Node 程序，不属于 Python 栈；UI 已无入口，只为旧项目存档）——要彻底删可以再提。
+部署侧的 `adapter === 'napcat'` 兼容分支（Dockerfile 里的 NapCat 下载、start.sh 双进程、compose volume、`includeNapcat` 开关、`.env` 的 `NAPCAT_QQ`）已于 2026-10-24 **彻底删除**：`DeployAdapter` 只剩 `'official'`，部署 schema 只接受 `z.enum(['official'])`。项目类型侧同步删掉 `AdapterType` 的 `'napcat'`、`NapcatConfig` / `NapCatConfig` 两个接口、`ProjectConfig.napcat` 字段与 `createProjectSchema` 的 napcat 块；`tests/guards/noNapcat.test.ts` 锁住这些能力面不再回来。
 
 ## 四、当前状态（同一份基线下的验证）
 
 | 闸门                                | 结果                                                               |
 | ----------------------------------- | ------------------------------------------------------------------ |
-| `vitest run --maxWorkers=2`（全量） | 229 文件通过 / 2924 例通过 / 10 skip（4 文件），0 failed           |
-| `tests/guards`                      | 12 文件 / 91 通过（含写闸门新增的序列调用正控）                    |
+| `vitest run --maxWorkers=2`（全量） | 230 文件通过 / 2928 例通过 / 10 skip（4 文件），0 failed           |
+| `tests/guards`                      | 13 文件 / 96 通过（含写闸门序列调用正控、NapCat 删除守卫）          |
 | `node scripts/typecheck.mjs`        | node **0 错** / web **0 错**                                       |
 | `electron-vite build`               | EXIT=0（main/preload/renderer 三入口）                             |
 | 真机                                | 起窗、项目「还原验证项目」可选中、低代码页可编辑、console errors 0 |

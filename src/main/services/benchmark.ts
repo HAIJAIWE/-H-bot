@@ -131,7 +131,7 @@ async function benchmarkAIContext(projectPath: string): Promise<number> {
   const info = {
     name: 'benchmark-project',
     qq: '123456789',
-    adapter: 'napcat',
+    adapter: 'official',
     model: 'glm-4',
     projectPath
   }

@@ -49,7 +49,6 @@ describe('exportProjectToDocker', () => {
   it('生成 Node 运行时的完整构建上下文', async () => {
     const result = await exportProjectToDocker(projectDir, {
       adapter: 'official',
-      includeNapcat: false,
       outputDir,
       imageName: 'test-bot',
       port: 9000
@@ -98,6 +97,9 @@ describe('exportProjectToDocker', () => {
     expect(dockerfile).not.toMatch(/CMD pgrep/)
     expect(dockerfile).not.toMatch(/python|pip3?\s/)
     expect(dockerfile).not.toContain('requirements.txt')
+    // NapCat 已于 2026-10-24 删除：镜像/脚本里不该再出现任何 NapCat 痕迹
+    expect(dockerfile).not.toContain('NapCat')
+    expect(dockerfile).not.toContain('start.sh')
 
     const compose = readFileSync(join(outputDir, 'docker-compose.yml'), 'utf-8')
     expect(compose).toContain('./data:/app/data')
@@ -116,32 +118,10 @@ describe('exportProjectToDocker', () => {
     expect(readme).toContain('runtime/standalone.js')
   })
 
-  it('napcat 模式把 NapCat 写进镜像与启动脚本', async () => {
-    const result = await exportProjectToDocker(projectDir, {
-      adapter: 'napcat',
-      includeNapcat: true,
-      outputDir,
-      imageName: 'test-bot'
-    })
-    expect(result.success).toBe(true)
-
-    const dockerfile = readFileSync(join(outputDir, 'Dockerfile'), 'utf-8')
-    expect(dockerfile).toContain('NapCat')
-    expect(dockerfile).toContain('CMD ["/app/start.sh"]')
-
-    const startSh = readFileSync(join(outputDir, 'start.sh'), 'utf-8')
-    expect(startSh).toContain('napcat.mjs')
-    expect(startSh).toContain('node /app/runtime/standalone.js /app &')
-
-    const envExample = readFileSync(join(outputDir, '.env.example'), 'utf-8')
-    expect(envExample).toContain('NAPCAT_QQ=')
-  })
-
   it('缺 .qqbat/flow.json 时直接失败且不产出半成品', async () => {
     rmSync(join(projectDir, '.qqbat', 'flow.json'))
     const result = await exportProjectToDocker(projectDir, {
       adapter: 'official',
-      includeNapcat: false,
       outputDir
     })
     expect(result.success).toBe(false)
@@ -158,7 +138,6 @@ describe('exportProjectToDocker', () => {
     try {
       const result = await exportProjectToDocker(projectDir, {
         adapter: 'official',
-        includeNapcat: false,
         outputDir
       })
       expect(result.success).toBe(false)

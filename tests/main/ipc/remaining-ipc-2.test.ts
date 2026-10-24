@@ -74,8 +74,6 @@ const {
       saveFlow: vi.fn()
     },
     projectServiceInstanceMock: {
-      getNapcatConfig: vi.fn(),
-      saveNapcatConfig: vi.fn()
     },
     dataTransferServiceMock: {
       exportTableToJson: vi.fn(),

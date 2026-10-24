@@ -32,7 +32,6 @@ export function registerDockerExportIpc(): void {
         opts.projectPath,
         {
           adapter: opts.adapter,
-          includeNapcat: opts.includeNapcat,
           outputDir: opts.outputDir,
           imageName: opts.imageName,
           port: opts.port
