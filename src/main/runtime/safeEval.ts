@@ -1,5 +1,5 @@
 /**
- * 安全表达式求值 —— 从 qqbat_nodes/runtime/safe_eval.py 移植
+ * 安全表达式求值 —— 从迁移前的 Python 实现移植
  *
  * 先把流程图表达式中的 Python 风格写法（True/False/None、and/or/not、A if C else B、
  * f-string、`x in y`）翻译为 JS 表达式，再在受限作用域内求值。

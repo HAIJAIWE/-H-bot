@@ -93,13 +93,6 @@ export interface ProjectConfig {
    * 没配就走全局 ai-config.json（见 services/ai 的 resolveAuthorAiConfig）。
    */
   ai?: AiConfig
-  /**
-   * 旧 Java/Python 混合架构的执行入口（bot.py 的 pythonPath）。
-   *
-   * ADR-003 之后 TS 运行时直接解释 .qqbat/flow.json，不再生成 bot.py ——
-   * 这个字段只为**读出老项目存档**而保留，新建项目不会写它。
-   */
-  pythonPath?: string
   resourceLimit?: ResourceLimit
   // 端口块编号（1=1000块, 2=2000块...）。翻译器端口 = portBlock * 1000 + 1
   portBlock?: number

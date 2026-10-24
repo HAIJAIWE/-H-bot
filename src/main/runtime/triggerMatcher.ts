@@ -1,5 +1,5 @@
 /**
- * 触发器匹配 —— 从 qqbat_nodes/runtime/trigger_matcher.py 移植，现状以本文件为准
+ * 触发器匹配 —— 从迁移前的 Python 实现移植，现状以本文件为准
  *
  * matchTrigger(triggerNode, event) 返回触发输出端口字典或 null。
  */

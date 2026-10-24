@@ -1,7 +1,7 @@
 /**
  * 内置节点 TypeScript 纯实现
  *
- * 历史：由已移除的 Python handler（qqbat_nodes/builtin/*.py）移植而来，现状以本文件为准。
+ * 历史：由已移除的 Python handler 移植而来，现状以本文件为准。
  * 纯 TypeScript 实现，零 Python 运行时依赖。
  *
  * 所有 handler 统一为 `(bot, event, ...参数)` 签名，由 FlowInterpreter 按节点 kind 调用；

@@ -109,10 +109,10 @@ export interface FlowGraph {
     /**
      * 目标运行时标识。
      *
-     * 历史值 `'nonebot2'` 仍被接受（既有 flow.json 里写的就是它），
-     * 新写的流程使用 `'typescript'`（ADR-001/002：运行时已改为 TS，不再有 Python 机器人栈）。
+     * 只有 TS 一种：旧版流程文件里可能残留别的字符串，加载时由 schema 统一归一为
+     * `'typescript'`（见 src/main/schemas/flow.ts 的 metadata.runtime）。
      */
-    runtime: 'nonebot2' | 'typescript';
+    runtime: 'typescript';
     createdAt: string;
     updatedAt: string;
   };

@@ -596,13 +596,11 @@ async function uploadDir(
 
     if (entry.isDirectory()) {
       // 跳过缓存目录（node_modules 不能跳：runtime/ 里的 electron 占位包就在其中）
-      if (entry.name === '__pycache__' || entry.name === '.pytest_cache' || entry.name === '.git') {
+      if (entry.name === '.git') {
         continue
       }
       count += await uploadDir(sftp, localEntry, remoteEntry, emit)
     } else if (entry.isFile()) {
-      // 跳过编译产物
-      if (entry.name.endsWith('.pyc') || entry.name.endsWith('.pyo')) continue
       await uploadFile(sftp, localEntry, remoteEntry)
       const rel = relative(localDir, localEntry).split('\\').join('/')
       emit(`  [upload] ${rel}`)

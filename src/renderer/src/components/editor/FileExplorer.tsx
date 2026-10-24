@@ -51,12 +51,6 @@ function getFileIcon(name: string): { color: string } {
 const IGNORED_DIRS = new Set([
   'node_modules',
   '.git',
-  '__pycache__',
-  '.venv',
-  'venv',
-  '.mypy_cache',
-  '.pytest_cache',
-  '.tox',
   'dist',
   '.next',
 ]);

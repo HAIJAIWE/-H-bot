@@ -35,7 +35,7 @@ describe('FlowService', () => {
       metadata: {
         name: 'test',
         version: '1.0',
-        runtime: 'nonebot2' as const,
+        runtime: 'typescript' as const,
         createdAt: '2026-01-01T00:00:00Z',
         updatedAt: '2026-01-01T00:00:00Z'
       }
@@ -58,7 +58,7 @@ describe('FlowService', () => {
       metadata: {
         name: 't',
         version: '1.0',
-        runtime: 'nonebot2' as const,
+        runtime: 'typescript' as const,
         createdAt: '',
         updatedAt: ''
       }
@@ -78,7 +78,7 @@ describe('FlowService', () => {
       metadata: {
         name: 't',
         version: '1.0',
-        runtime: 'nonebot2' as const,
+        runtime: 'typescript' as const,
         createdAt: '2020-01-01T00:00:00Z',
         updatedAt: '2020-01-01T00:00:00Z'
       }
@@ -124,7 +124,7 @@ describe('sanitizeFlowEdges', () => {
     ],
     edges,
     variables: [],
-    metadata: { name: 'test', version: '1.0', runtime: 'nonebot2', createdAt: '', updatedAt: '' },
+    metadata: { name: 'test', version: '1.0', runtime: 'typescript', createdAt: '', updatedAt: '' },
   })
 
   it('保留有效 edges', () => {

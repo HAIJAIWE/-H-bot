@@ -87,9 +87,7 @@ export const createProjectSchema = z.object({
       model: z.string().min(1),
       baseUrl: z.string().url().optional()
     })
-    .optional(),
-  /** 旧 Java/Python 混合架构遗留字段：10/18 的 TS 运行时不用它，保留以便老项目存档不被剥掉。 */
-  pythonPath: z.string().min(1).optional()
+    .optional()
 })
 
 export const openProjectSchema = z.object({

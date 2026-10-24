@@ -5,7 +5,8 @@
 // 翻译器入口的别名表里（src/main/services/translator/actions/aliases.ts）做兼容。
 // 这里同时锁住外表与命名：再出现大写 OneBot 说明有人从旧产物里搬回来了。
 //
-// 唯一允许的存量：flow.json 里的历史 runtime 值 `'nonebot2'`（小写，磁盘数据，不能改）。
+// 2026-10-24 补：连 flow 的 metadata.runtime 也只剩 `'typescript'` 一种（旧文件里的其它
+// 字符串由 schema 静默归一），历史框架名不再作为可选值出现在类型里。
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join, dirname } from 'path'

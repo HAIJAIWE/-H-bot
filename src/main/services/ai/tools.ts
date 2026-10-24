@@ -32,23 +32,6 @@ export function safeJoin(projectPath: string, userInput: string): string {
   return resolvedTarget
 }
 
-// ====== run_command 命令白名单 ======
-
-const RUN_COMMAND_WHITELIST: RegExp[] = [
-  /^\s*pip\s+install\b/,
-  /^\s*pip3\s+install\b/,
-  /^\s*python\s+-m\s+pip\s+install\b/,
-  /^\s*python3\s+-m\s+pip\s+install\b/,
-  /^\s*nonebot\b/,
-  /^\s*nb\b/
-]
-
-/** 校验 run_command 的命令是否在白名单内（只允许 pip install / nonebot / nb 等安全命令） */
-export function isCommandAllowed(command: string): boolean {
-  const trimmed = command.trim()
-  return RUN_COMMAND_WHITELIST.some((re) => re.test(trimmed))
-}
-
 // ====== 工具分类映射 ======
 // query 类：立即执行，结果回传 LLM
 // mutation 类：累积到 Proposal，用户确认后执行
@@ -72,8 +55,6 @@ const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   run_bot: 'query',
   stop_bot: 'query',
   run_command: 'mutation',
-  install_plugin: 'query',
-  search_plugin: 'query',
   begin_batch: 'query',
   commit_batch: 'query',
   rollback_batch: 'query'
@@ -219,20 +200,20 @@ const fileToolDefs: AiToolDefinition[] = [
   },
   {
     name: 'generate_code',
-    description: '从当前画布流程图生成 NoneBot 代码（generated/__init__.py），生成后触发机器人热更新',
+    description: '把当前流程图导出为 TypeScript 代码快照（src/plugins/generated/flow.generated.ts，仅供调试/审查，运行时不加载）',
     parameters: { type: 'object', properties: {} },
     category: getToolCategory('generate_code')
   },
   {
     name: 'create_ai_node',
-    description: '创建一个 AI 生成的自定义节点。会写入 ai_generated/<funcName>.py，自动注册到画布节点库。生成前会校验语法、签名、命名冲突。',
+    description: '创建一个 AI 生成的自定义节点（沙箱 JS；落到 plugins/ai-<funcName>/index.js，自动注册到画布节点库）。生成前会校验 handler 语法与命名冲突。',
     parameters: {
       type: 'object',
       properties: {
-        funcName: { type: 'string', description: '函数名，蛇形命名，如 weather_query' },
+        funcName: { type: 'string', description: '节点标识，蛇形命名（小写字母/数字/下划线），如 weather_query' },
         label: { type: 'string', description: '节点中文显示名' },
         summary: { type: 'string', description: '30-80字摘要' },
-        code: { type: 'string', description: '完整 Python 文件内容，必须含 @node 装饰器和 async def 函数，签名首参为 bot/event' }
+        code: { type: 'string', description: 'JS 函数表达式源码字符串，形如 async (ctx) => { ... }；沙箱内无 require/process/Buffer' }
       },
       required: ['funcName', 'label', 'summary', 'code']
     },
@@ -257,7 +238,7 @@ const runtimeToolDefs: AiToolDefinition[] = [
   },
   {
     name: 'run_command',
-    description: '在终端执行一条命令（如 pip install）',
+    description: '在终端执行一条命令（危险操作，需用户确认）',
     parameters: {
       type: 'object',
       properties: {
@@ -277,35 +258,6 @@ const runtimeToolDefs: AiToolDefinition[] = [
       }
     },
     category: getToolCategory('read_logs')
-  }
-]
-
-// ====== 插件操作工具 ======
-
-const pluginToolDefs: AiToolDefinition[] = [
-  {
-    name: 'install_plugin',
-    description: '从 pip 安装 NoneBot 插件',
-    parameters: {
-      type: 'object',
-      properties: {
-        packageName: { type: 'string', description: 'pip 包名（如 nonebot-plugin-memes）' }
-      },
-      required: ['packageName']
-    },
-    category: getToolCategory('install_plugin')
-  },
-  {
-    name: 'search_plugin',
-    description: '搜索 NoneBot 插件商店',
-    parameters: {
-      type: 'object',
-      properties: {
-        keyword: { type: 'string', description: '搜索关键词' }
-      },
-      required: ['keyword']
-    },
-    category: getToolCategory('search_plugin')
   }
 ]
 
@@ -337,7 +289,6 @@ export const ALL_TOOL_DEFINITIONS: AiToolDefinition[] = [
   ...queryToolDefs,
   ...fileToolDefs,
   ...runtimeToolDefs,
-  ...pluginToolDefs,
   ...batchToolDefs
 ]
 
@@ -437,15 +388,6 @@ export async function executeTool(
     case 'read_logs': {
       const lines = (args.lines as number) || 50
       return { result: `（返回最近 ${lines} 行日志，由渲染层填充）`, needsClientExecution: true, clientInstruction: { name, args: { lines } } }
-    }
-
-    case 'install_plugin': {
-      const pkg = String(args.packageName)
-      return { result: `安装命令已提交: pip install ${pkg}`, needsClientExecution: true, clientInstruction: { name, args } }
-    }
-
-    case 'search_plugin': {
-      return { result: `搜索关键词: ${args.keyword}（需要 npm run search 支持）` }
     }
 
     case 'begin_batch':

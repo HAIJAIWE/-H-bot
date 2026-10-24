@@ -1,6 +1,6 @@
 /**
  * 数据库操作纯 TS 实现
- * 历史：由已移除的 qqbat_nodes/builtin/database_write.py 移植而来，现状以本文件为准
+ * 历史：由已移除的 Python 实现移植而来，现状以本文件为准
  */
 
 import * as path from 'path';

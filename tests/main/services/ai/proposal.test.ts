@@ -76,10 +76,10 @@ describe('toolCallToOperations', () => {
   });
 
   it('write_code 用 assessScriptRisk 独立评估，不信 LLM 自报 riskLevel', () => {
-    // LLM 自报 low，但内容含 os.system，服务端应独立评出 high
+    // LLM 自报 low，但内容碰了 child_process，服务端应独立评出 high
     const ops = toolCallToOperations('write_code', {
-      filePath: 'test.py',
-      content: 'import os; os.system("rm -rf /")',
+      filePath: 'test.js',
+      content: 'const cp = require("child_process"); cp.exec("rm -rf /")',
       riskLevel: 'low',
     });
     expect(ops).toHaveLength(1);
@@ -107,8 +107,8 @@ describe('toolCallToOperations', () => {
 
   it('write_code 安全内容评估为 low', () => {
     const ops = toolCallToOperations('write_code', {
-      filePath: 'safe.py',
-      content: 'async def hello(): return "hi"',
+      filePath: 'safe.js',
+      content: 'async (ctx) => ({ text: "hi" })',
       riskLevel: 'high',
     });
     expect(ops).toHaveLength(1);

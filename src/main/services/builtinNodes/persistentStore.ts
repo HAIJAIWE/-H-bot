@@ -1,7 +1,7 @@
 /**
  * 持久化存储纯 TS 实现
  * 
- * 历史：由已移除的 qqbat_nodes/builtin/persistent_store.py 移植而来，现状以本文件为准
+ * 历史：由已移除的 Python 实现移植而来，现状以本文件为准
  * - SQLite + better-sqlite3 (同步，Electron 主进程可用)
  * - 每项目一条连接（WAL）+ 写锁；库在 {项目}/data/players/persistent.db
  * - 作用域隔离：user/group/global

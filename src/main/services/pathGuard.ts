@@ -1,6 +1,6 @@
 // src/main/services/pathGuard.ts
 import { existsSync } from 'fs'
-import { resolve, relative, isAbsolute, basename } from 'path'
+import { resolve, relative, isAbsolute } from 'path'
 
 /**
  * 规范化项目路径，用作**凭据文件名**的键。
@@ -212,54 +212,3 @@ export function assertExecutablePathSafe(targetPath: string, requireExists: bool
   }
 }
 
-/** Python 解释器可接受的文件名（不含扩展名，小写）。 */
-const PYTHON_BASE_NAMES: Set<string> = new Set(['python', 'python3', 'py'])
-
-/** 危险 shell 文件名黑名单（不含扩展名，小写），用于拒绝伪装成 Python 的系统 shell。 */
-const DANGEROUS_SHELL_NAMES: Set<string> = new Set([
-  'cmd', 'cmd.exe',
-  'powershell', 'pwsh', 'powershell.exe', 'pwsh.exe',
-  'bash', 'sh', 'zsh', 'fish', 'csh', 'ksh',
-  'explorer', 'explorer.exe',
-  'wt', 'wt.exe'
-])
-
-/**
- * 断言 Python 解释器路径安全。
- *
- * 用于 `python:setPath` 保存自定义 Python 解释器路径。校验：
- *   1. 非空字符串 + 必须绝对路径
- *   2. 文件名（不含扩展名）必须是 python / python3 / py
- *   3. 拒绝常见系统 shell 文件名（防止把 cmd.exe / powershell.exe 伪造成 Python 路径）
- *   4. 可选校验文件在磁盘上存在
- *
- * 注意：本函数不限制路径必须在用户目录内，因为系统安装的 Python（如 /usr/bin/python3、
- * C:\Python312\python.exe）是合法且常见的选择。
- *
- * @param targetPath 待校验的 Python 解释器绝对路径
- * @param requireExists 是否要求文件真实存在（默认 false）
- */
-export function assertPythonPathSafe(targetPath: string, requireExists: boolean = false): void {
-  if (!targetPath || typeof targetPath !== 'string') {
-    throw new Error('路径不能为空')
-  }
-  if (!isAbsolute(targetPath)) {
-    throw new Error('路径必须是绝对路径')
-  }
-  const normalized = resolve(targetPath)
-  const baseName = basename(normalized)
-  const baseNameLower = baseName.toLowerCase()
-  const nameWithoutExt = baseNameLower.replace(/\.exe$/, '')
-
-  if (DANGEROUS_SHELL_NAMES.has(baseNameLower)) {
-    throw new Error(`禁止将 Python 路径设置为系统 shell：${targetPath}`)
-  }
-  if (!PYTHON_BASE_NAMES.has(nameWithoutExt)) {
-    throw new Error(
-      `Python 解释器文件名必须是 python / python3 / py 之一：${targetPath}`
-    )
-  }
-  if (requireExists && !existsSync(normalized)) {
-    throw new Error(`路径不存在：${targetPath}`)
-  }
-}

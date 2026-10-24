@@ -1,5 +1,5 @@
 /**
- * TS Flow 解释器 —— 从 qqbat_nodes/runtime/interpreter.py 移植
+ * TS Flow 解释器 —— 从迁移前的 Python 实现移植
  *
  * 事件驱动：触发匹配 → 链执行 → 节点 handler 调用 → 数据流传递 → 控制流路由。
  *

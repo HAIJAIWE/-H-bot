@@ -1,5 +1,5 @@
 /**
- * 执行上下文 —— 从 qqbat_nodes/runtime/interpreter.py 的 _ExecContext 移植
+ * 执行上下文 —— 从迁移前 Python 解释器的 _ExecContext 移植
  *
  * 维护变量表（key: "nodeId:portId"）、控制流索引、数据流索引。
  */

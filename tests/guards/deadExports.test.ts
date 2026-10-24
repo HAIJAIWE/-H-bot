@@ -318,10 +318,9 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
 const RESTORED_REASON = '恢复树存量（分组理由见上方注释）：10/18 产物与磁带测试不同步造成；接上或删除时移出本条';
 
 const RESTORED_BASELINE: Record<string, string> = {
-  // 10/18 之后的 AI 分流/规划/检索层（planner·rag·lanes·scout·readOnlyRoute·benchmark·allowRules·legacyTools·assessCodeRiskDeep）—— 源码已恢复、测试在驱动，但入口（processAiChat 的只读分流/规划开关）尚未接线；接线后逐条移出。
+  // 10/18 之后的 AI 分流/规划/检索层（planner·rag·lanes·scout·readOnlyRoute·benchmark·allowRules·legacyTools）—— 源码已恢复、测试在驱动，但入口（processAiChat 的只读分流/规划开关）尚未接线；接线后逐条移出。
   'src\\main\\services\\agent-core\\legacyTools.ts:adaptLegacyTools': RESTORED_REASON,
   'src\\main\\services\\ai\\allowRules.ts:toolRuleMatch': RESTORED_REASON,
-  'src\\main\\services\\ai\\codeSafety.ts:assessCodeRiskDeep': RESTORED_REASON,
   'src\\main\\services\\ai\\lanes.ts:isSubagentLanesEnabled': RESTORED_REASON,
   'src\\main\\services\\ai\\lanes.ts:renderLaneReports': RESTORED_REASON,
   'src\\main\\services\\ai\\lanes.ts:runPlanLanes': RESTORED_REASON,
@@ -338,7 +337,6 @@ const RESTORED_BASELINE: Record<string, string> = {
   'src\\main\\services\\ai\\readOnlyRoute.ts:shouldRouteReadOnlyToLoop': RESTORED_REASON,
   'src\\main\\services\\ai\\scout.ts:renderFindings': RESTORED_REASON,
   'src\\main\\services\\ai\\scout.ts:scoutWithModel': RESTORED_REASON,
-  'src\\main\\services\\ai\\tools.ts:isCommandAllowed': RESTORED_REASON,
   'src\\main\\services\\benchmark.ts:runBenchmark': RESTORED_REASON,
 
   // 官方 API 封装保持齐全（群成员管理 / 频道管理 / 公告 / 置顶 / 表情回应 / 黑名单）—— 本构建的界面没有这些入口，与 10/18 产物一致；待做管理面板时接线。

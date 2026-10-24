@@ -64,7 +64,7 @@ export function registerLaunchPanelIpc(): void {
         nodes: [] as FlowNode[],
         edges: [],
         variables: [],
-        metadata: { name: '', version: '1.0', runtime: 'nonebot2' as const, createdAt: now, updatedAt: now }
+        metadata: { name: '', version: '1.0', runtime: 'typescript' as const, createdAt: now, updatedAt: now }
       }
 
       // 添加或更新 admin_panel 节点

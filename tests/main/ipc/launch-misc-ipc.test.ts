@@ -323,7 +323,7 @@ describe('launchPanel IPC', () => {
           data: { nodeKind: 'admin_panel', label: '旧', config: { panelId: 'p1', label: '旧' }, inputs: [], outputs: [] }
         }],
         edges: [], variables: [],
-        metadata: { name: '', version: '1.0', runtime: 'nonebot2' as const, createdAt: '', updatedAt: '' }
+        metadata: { name: '', version: '1.0', runtime: 'typescript' as const, createdAt: '', updatedAt: '' }
       }
       flowServiceInstanceMock.loadFlow.mockResolvedValue(existingFlow)
       flowServiceInstanceMock.saveFlow.mockResolvedValue(undefined)

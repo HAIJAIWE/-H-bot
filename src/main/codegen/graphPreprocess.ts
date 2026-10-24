@@ -3,7 +3,7 @@
 // 从 generator.ts 拆分而来。
 // - populateMissingPorts: flow.json 端口定义丢失时从 NodeSpecV2 重新填充
 // - migrateLegacyKinds: 旧版节点 kind（on_at_me/send_to/sqlite_query 等）自动迁移为新版合并节点
-//   后端 qqbat_nodes/runtime/migrate_flow.py 是兜底迁移，两端的转换规则必须保持完全一致。
+//   后端（迁移前的 Python 实现）是兜底迁移，两端的转换规则必须保持完全一致。
 import type { FlowGraph, Port } from '@shared/types/flow'
 import { getNodeRegistry } from '../nodes/registry'
 

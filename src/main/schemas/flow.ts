@@ -118,7 +118,9 @@ var flowGraphSchema = z.object({
 	metadata: z.object({
 		name: z.string(),
 		version: z.string(),
-		runtime: z.union([z.literal("nonebot2"), z.literal("typescript")]),
+		// 运行时只有 TS 一种；旧流程文件里的其它字符串在这里静默归一，
+		// 不为了"读得动老文件"把历史标识留在类型里。
+		runtime: z.literal("typescript").catch("typescript"),
 		createdAt: z.string(),
 		updatedAt: z.string()
 	})

@@ -103,14 +103,27 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 | 根 pluginLoader    | `src/main/services/pluginLoader.ts`                                                                                             | `services/plugins/pluginLoader.ts`                                                          |
 | 模板 / 资产        | `src/main/templates/highcode-template/`、`src/nonebot_plugins/`                                                                | 无（Python 时代产物）                                                                        |
 
+第二轮清尾（同一天晚些，用户问「怎么还有 py」）：
+
+| 类别             | 删掉/改掉的东西                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 死测试套件       | `tests/python/**` 共 **107 个 pytest 文件**（`from qqbat_nodes.builtin.send_message import ...`，被 import 的库早已不存在，跑必红）              |
+| 安全校验         | `ai/codeSafety.ts` 的 Python 规则表、字符串拼接启发式、`assessCodeRisk` / `assessCodeRiskDeep`（后者 spawn 的 `scripts/python_safety_check.py` 根本不存在）；只剩 `assessScriptRisk`（JS/TS 规则） |
+| 路径校验         | `pathGuard.ts` 的 `PYTHON_BASE_NAMES` / `DANGEROUS_SHELL_NAMES` / `assertPythonPathSafe`（src 内 0 调用方）                                    |
+| 存档字段         | `shared/types/project.ts` 的 `pythonPath?` 与 `schemas/project.ts` 的同名字段（zod 默认 strip，老项目读得进）                                  |
+| 旧工具           | `ai/tools.ts` 的 `install_plugin` / `search_plugin`（pip/NoneBot 插件商店）、`RUN_COMMAND_WHITELIST` / `isCommandAllowed`（只允许 pip/nonebot/nb） |
+| 运行时默认值     | 新建面板与 benchmark 的 `runtime: 'nonebot2'` → `'typescript'`；类型只剩 `'typescript'`，schema 用 `z.literal('typescript').catch('typescript')` 静默归一老文件 |
+| 缓存忽略项       | `dockerExport.ts` / `sshDeploy.ts` 的 `__pycache__` / `.pytest_cache` / `.pyc`，`FileExplorer.tsx` 的 Python 目录                                          |
+
+现在**仓库里 0 个 .py 文件**（`tests/guards/noPythonStack.test.ts` 锁住：无 .py、无 pythonPath/__pycache__/qqbat_nodes/nonebot、无 Python 专用校验函数、flow 运行时只剩一种）。
+
 还留着的 Python 字样只有**语义兼容**，不含 Python 执行：
 
 | 位置                                                         | 为什么留                                                                                  |
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `src/shared/nodes/pyToJs.ts`、`runtime/safeEval.ts`        | 用户表达式仍是 Python 风格（`A if C else B`、`True/False`、`and/or/not`），翻译成 JS 执行 |
 | `codegen/expressionSafety.ts` 的正则与注释                  | 与历史 Python 安全表**判据同源**，避免两套「安全」定义漂移                                 |
-| `shared/types/project.ts` 的 `pythonPath?`、`schemas/project.ts:103` | 老项目存档字段，读写保留以免把用户配置剥掉                                                |
-| 注释里的历史说明                                             | 解释「节点事件原由 Python 打印标记」这类迁移背景                                          |
+| 注释里的历史说明                                             | 解释「节点事件原由 Python 打印标记」这类迁移背景（已去掉具体旧路径名，避免误导）          |
 
 部署侧的 `adapter === 'napcat'` 兼容分支（Dockerfile 里的 NapCat 下载、start.sh 双进程、compose volume、`includeNapcat` 开关、`.env` 的 `NAPCAT_QQ`）已于 2026-10-24 **彻底删除**：`DeployAdapter` 只剩 `'official'`，部署 schema 只接受 `z.enum(['official'])`。项目类型侧同步删掉 `AdapterType` 的 `'napcat'`、`NapcatConfig` / `NapCatConfig` 两个接口、`ProjectConfig.napcat` 字段与 `createProjectSchema` 的 napcat 块；`tests/guards/noNapcat.test.ts` 锁住这些能力面不再回来。
 
@@ -118,8 +131,8 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 
 | 闸门                                | 结果                                                               |
 | ----------------------------------- | ------------------------------------------------------------------ |
-| `vitest run --maxWorkers=2`（全量） | 232 文件通过 / 2938 例通过 / 10 skip（4 文件），0 failed           |
-| `tests/guards`                      | 14 文件 / 102 通过（含写闸门序列调用正控、NapCat/OneBot 删除守卫） |
+| `vitest run --maxWorkers=2`（全量） | 233 文件通过 / 2904 例通过 / 10 skip（4 文件），0 failed           |
+| `tests/guards`                      | 15 文件 / 107 通过（含写闸门序列调用正控、NapCat/OneBot/Python 栈删除守卫） |
 | `node scripts/typecheck.mjs`        | node **0 错** / web **0 错**                                       |
 | `electron-vite build`               | EXIT=0（main/preload/renderer 三入口）                             |
 | 真机                                | 起窗、项目「还原验证项目」可选中、低代码页可编辑、console errors 0 |

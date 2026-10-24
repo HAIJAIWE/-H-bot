@@ -171,8 +171,8 @@ web 286 错；本轮已全部修到 **0 错**，`node scripts/typecheck.mjs` 两
 | 闸门 | 结果 |
 | --- | --- |
 | `electron-vite build` | EXIT 0（含 §五 i18n 改动） |
-| `tests/guards` | 14 文件 / 102 passed |
-| 全量 vitest（2026-10-24 内部动作名改名后复跑） | 232 文件 / 2938 passed + 10 skipped（2948 例）/ 0 failed |
+| `tests/guards` | 15 文件 / 107 passed |
+| 全量 vitest（2026-10-24 清 Python 残留后复跑） | 233 文件 / 2904 passed + 10 skipped（2914 例）/ 0 failed |
 | `tsc`（`node scripts/typecheck.mjs`） | node **0 错** / web **0 错**（§八） |
 | 仓库自查脚本（2026-10-24 05:12） | check:catalog / identity / duplication / userdata / i18n×2 / docs:nodes:check / audit:baseline:check / audit / benchmark 全部 EXIT 0 |
 | `package.json` scripts | 30 条全部有实现，逐条实测（§七） |

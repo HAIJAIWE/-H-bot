@@ -301,9 +301,6 @@ function generateDockerignore(): string {
     '# 构建产物与缓存',
     'dist/',
     'build/',
-    '__pycache__/',
-    '*.pyc',
-    '.pytest_cache/',
     '',
     '# 本工具自身生成的非必要文件',
     'Dockerfile.local',
@@ -449,17 +446,11 @@ async function copyDir(src: string, dest: string, exclude?: string): Promise<voi
     if (exclude && srcPath === exclude) continue
     const destPath = join(dest, entry.name)
     if (entry.isDirectory()) {
-      if (
-        entry.name === '__pycache__' ||
-        entry.name === '.pytest_cache' ||
-        entry.name === 'node_modules' ||
-        entry.name === '.git'
-      ) {
+      if (entry.name === 'node_modules' || entry.name === '.git') {
         continue
       }
       await copyDir(srcPath, destPath, exclude)
     } else if (entry.isFile()) {
-      if (entry.name.endsWith('.pyc') || entry.name.endsWith('.pyo')) continue
       await copyFile(srcPath, destPath)
     }
   }

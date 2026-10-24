@@ -74,7 +74,7 @@ const baseFlow: FlowGraph = {
   metadata: {
     name: 'test',
     version: '1.0',
-    runtime: 'nonebot2',
+    runtime: 'typescript',
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01'
   }

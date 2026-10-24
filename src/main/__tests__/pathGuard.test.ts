@@ -14,8 +14,7 @@ import {
   joinSafe,
   assertPathWithinBase,
   assertExternalPathSafe,
-  assertExecutablePathSafe,
-  assertPythonPathSafe
+  assertExecutablePathSafe
 } from '../services/pathGuard'
 
 describe('assertPathWithinBase', () => {
@@ -137,17 +136,17 @@ describe('assertExecutablePathSafe', () => {
   const { homedir } = require('os')
 
   it('接受用户目录下的可执行文件路径', () => {
-    const userBin = join(homedir(), 'tools', 'napcat.exe')
+    const userBin = join(homedir(), 'tools', 'gateway.exe')
     expect(() => assertExecutablePathSafe(userBin)).not.toThrow()
   })
 
   it('接受无扩展名的 POSIX 可执行文件', () => {
-    const userBin = join(homedir(), '.local', 'bin', 'python3')
+    const userBin = join(homedir(), '.local', 'bin', 'gateway')
     expect(() => assertExecutablePathSafe(userBin)).not.toThrow()
   })
 
   it('接受 .bat / .cmd 脚本路径', () => {
-    const batPath = join(homedir(), 'napcat', 'napcat.bat')
+    const batPath = join(homedir(), 'gateway', 'gateway.bat')
     expect(() => assertExecutablePathSafe(batPath)).not.toThrow()
   })
 
@@ -156,7 +155,7 @@ describe('assertExecutablePathSafe', () => {
   })
 
   it('拒绝相对路径', () => {
-    expect(() => assertExecutablePathSafe('python.exe')).toThrow('必须是绝对路径')
+    expect(() => assertExecutablePathSafe('gateway.exe')).toThrow('必须是绝对路径')
   })
 
   it('拒绝系统关键目录下的可执行文件', () => {
@@ -169,38 +168,5 @@ describe('assertExecutablePathSafe', () => {
   it('requireExists=true 时拒绝不存在的路径', () => {
     const nonExistent = join(homedir(), 'not-exist-executable-' + Date.now() + '.exe')
     expect(() => assertExecutablePathSafe(nonExistent, true)).toThrow('路径不存在')
-  })
-})
-
-describe('assertPythonPathSafe', () => {
-  const { homedir } = require('os')
-
-  it('接受系统 Python 路径 /usr/bin/python3', () => {
-    expect(() => assertPythonPathSafe('/usr/bin/python3')).not.toThrow()
-  })
-
-  it('接受 Windows 自定义 Python 路径', () => {
-    expect(() => assertPythonPathSafe('C:\\Python312\\python.exe')).not.toThrow()
-  })
-
-  it('接受 py launcher 路径', () => {
-    expect(() => assertPythonPathSafe('C:\\Windows\\py.exe')).not.toThrow()
-  })
-
-  it('拒绝空路径', () => {
-    expect(() => assertPythonPathSafe('')).toThrow('路径不能为空')
-  })
-
-  it('拒绝相对路径', () => {
-    expect(() => assertPythonPathSafe('python3')).toThrow('必须是绝对路径')
-  })
-
-  it('拒绝非 Python 可执行文件', () => {
-    expect(() => assertPythonPathSafe('C:\\Program Files\\node\\node.exe')).toThrow('Python 解释器文件名')
-  })
-
-  it('拒绝伪装成 Python 的系统 shell', () => {
-    expect(() => assertPythonPathSafe('C:\\Windows\\System32\\cmd.exe')).toThrow('系统 shell')
-    expect(() => assertPythonPathSafe('/bin/bash')).toThrow('系统 shell')
   })
 })

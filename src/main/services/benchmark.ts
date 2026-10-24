@@ -73,7 +73,7 @@ function buildSampleFlow(): FlowGraph {
     metadata: {
       name: 'benchmark',
       version: '1.0',
-      runtime: 'nonebot2',
+      runtime: 'typescript',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }

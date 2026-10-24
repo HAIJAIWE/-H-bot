@@ -18,7 +18,7 @@ const mockFlow: FlowGraph = {
   nodes: [],
   edges: [],
   variables: [],
-  metadata: { name: 'test', version: '1.0', runtime: 'nonebot2', createdAt: '', updatedAt: '' }
+  metadata: { name: 'test', version: '1.0', runtime: 'typescript', createdAt: '', updatedAt: '' }
 }
 
 function mockGenerate(): ReturnType<typeof vi.fn> {
