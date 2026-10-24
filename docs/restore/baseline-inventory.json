@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T00:22:52.769Z",
+  "generatedAt": "2026-10-24T00:36:02.311Z",
   "baseline": {
     "kind": "packaged-client",
     "bundle": "_baseline/out-bundle",
@@ -8,7 +8,7 @@
     "regions": 594
   },
   "tree": {
-    "files": 828
+    "files": 824
   },
   "missing": {
     "total": 10,
@@ -83,9 +83,9 @@
     }
   ],
   "delta": {
-    "total": 225,
+    "total": 221,
     "symbolHit": 93,
-    "unshipped": 99,
+    "unshipped": 95,
     "unshippedFiles": [
       "src/main/ipc/aiAgentCore.ts",
       "src/main/ipc/aiAllowRules.ts",
@@ -95,8 +95,6 @@
       "src/main/nodes/compat.ts",
       "src/main/schemas/launchAi.ts",
       "src/main/schemas/linter.ts",
-      "src/main/schemas/napcat.ts",
-      "src/main/schemas/napcatDownload.ts",
       "src/main/schemas/python.ts",
       "src/main/schemas/templates.ts",
       "src/main/services/agent-core/adapters.ts",
@@ -125,8 +123,6 @@
       "src/main/services/configTemplateService.ts",
       "src/main/services/flow/turnProjection.ts",
       "src/main/services/messageQueue.ts",
-      "src/main/services/napcat.ts",
-      "src/main/services/napcatDownloader.ts",
       "src/main/services/plugins/aiPluginLoader.ts",
       "src/main/services/plugins/builtinHostPlugins.ts",
       "src/main/services/plugins/defaults.ts",

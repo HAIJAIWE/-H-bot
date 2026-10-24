@@ -9,7 +9,7 @@
 - 构建：`electron-vite build` 成功。清理掉恢复期 tsc 写进 `out/` 的 1558 个垃圾文件后，现在 `out/` 106 个文件（`out/main` 9 个）。
 - 启动：Electron 能起窗口，主进程无未捕获异常（只有 [errorMonitoring] 未配 SENTRY_DSN 的提示）。
 - 业务：左上项目下拉能选中项目；Bot 管理列出项目；「低代码」页能走「新建指令」向导 → 生成 2 节点 1 连线并落盘 `.qqbat/flow.json`；「布局」后节点不叠压；git 自动初始化并出现 `master (1 提交)`。
-- 规模：src 下 **828 个 .ts/.tsx（含 2 个 .d.ts）/ 186,240 行**（2026-10-24 清理死代码与重复翻译器副本后，逐文件计数）；`[[MISSING` 标记 0 处；**218 个文件带 `// @ts-nocheck`**（见「已知债」）。
+- 规模：src 下 **824 个 .ts/.tsx（含 2 个 .d.ts）/ 185,569 行**（2026-10-24 清理死代码、重复翻译器与 NapCat 遗留壳后，逐文件计数）；`[[MISSING` 标记 0 处；**218 个文件带 `// @ts-nocheck`**（见「已知债」）。
 - 测试：**全绿**（2026-10-24 删除重复翻译器副本后复跑）。`vitest run --maxWorkers=2` → **231 文件 / 2955 例通过**，4 文件 / 10 例 skip（0 failed，2965 例）；guards 12 文件 / 90 通过。
 - 类型检查（2026-10-24 **已清零**）：`node scripts/typecheck.mjs` → node **0 错**（原 161，全在 `tests/`）、web **0 错**（原 286）；`src/main` / `src/renderer` 均干净。注意树里仍有 223 个 `// @ts-nocheck` 文件（见「已知债 1」），闸门覆盖的是其余文件；`electron-vite build` 走 rolldown 不做类型检查，所以以该脚本为准。明细与修法见 `docs/restore/client-diff-audit-2026-10-24.md` §八。
 
@@ -17,7 +17,7 @@
 
 - **基准 = 打包客户端**（`D:\H Bot 制造`，2026-10-18 04:50 的 `resources/app.asar`）。源码行为以它为准；DSH 磁带里更晚 revision 的测试只作参考，不反过来驱动恢复。
 - 基准产物已随仓库保管：`_baseline/app.asar.bin`（74,277,199B，sha256 `9bf9e626…fb7b19`）+ `_baseline/out-bundle/`（25 文件 / 5,833,371B）+ `manifest.sha256`；`scripts/audit-baseline.mjs` 默认优先用它，缺了才回退 `D:/tmp/hbot-out`。
-- 覆盖率可复算：`node scripts/audit-baseline.mjs`（产物 594 个模块 / 树 828 文件覆盖 98.3%（584/594），缺的 10 个全部登记了理由；2026-10-24 又删掉 5 个无 importer 的 ops 副本、2 个重复翻译器副本）；`--check` 会在出现未登记缺失时 exit 1。明细 `docs/restore/baseline-inventory.json`，报告 `docs/restore/baseline-alignment-2026-10-24.md`。
+- 覆盖率可复算：`node scripts/audit-baseline.mjs`（产物 594 个模块 / 树 824 文件覆盖 98.3%（584/594），缺的 10 个全部登记了理由；2026-10-24 又删掉 5 个无 importer 的 ops 副本、2 个重复翻译器副本、4 个 NapCat 遗留模块）；`--check` 会在出现未登记缺失时 exit 1。明细 `docs/restore/baseline-inventory.json`，报告 `docs/restore/baseline-alignment-2026-10-24.md`。
 - 树里另有 99 个模块**没进过这次构建**（= 10/18 之后的增量或更早的遗留），已分类但**不删**；`agent-core` / 插件内核 / presets 等增量按用户要求暂停推进。
 - **TS-only 口径**：运行时是 `botManager` + `FlowRuntime` 进程内解释 `flow.json`（ADR-003），不 spawn Python。Python 只剩旧进程运行器/代码生成/部署模板/旧插件包解析的壳，不修、不测、不扩展。
 - **翻译器只有一套**：`src/main/services/runner/eventBus.ts`（`/runtime/ws`，10/18 基线的真实宿主）。恢复期另建的 `onebot-translator.ts` / `officialExtras.ts` 在基线里 0 region，已删除；`ipc/official.ts`、`ipc/runtime.ts`、`dashboardService.ts` 全部改接 eventBus。

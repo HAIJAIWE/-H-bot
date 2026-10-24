@@ -7,8 +7,7 @@ import { createWriteStream } from 'fs'
 import { createDeflateRaw, constants as zlibConstants } from 'zlib'
 import { Writable } from 'stream'
 import * as os from 'os'
-import { getBotStatus } from './botProcess'
-import { getNapcatStatus } from './napcat'
+import { botManager } from './botManager'
 
 // ====== 类型 ======
 
@@ -230,64 +229,34 @@ function collectEnvironment(): Record<string, unknown> {
 
 // ====== 运行状态采集 ======
 
+/**
+ * 采集运行状态。
+ *
+ * 10/18 基线是 TS-only + 官方通道：Python 子进程与 NapCat 都退役了，诊断包再去探测它们
+ * 只会写进「python 没装 / NapCat 未连接」这种误导性的假信息；真状态在 botManager 里。
+ */
 async function collectRuntimeStatus(projectPath: string): Promise<Record<string, unknown>> {
-  // Python 版本检测
-  let pythonVersion: string | null = null
-  try {
-    const { execFile } = await import('child_process')
-    const py = await new Promise<string>((resolve, reject) => {
-      execFile(
-        process.platform === 'win32' ? 'python' : 'python3',
-        ['--version'],
-        { timeout: 5000 },
-        (err, stdout) => {
-          if (err) reject(err)
-          else resolve(stdout.trim().replace('Python ', ''))
-        }
-      )
-    })
-    pythonVersion = py
-  } catch {
-    pythonVersion = null
-  }
-
-  // 读取项目配置获取 bot 状态
   let botStatus: Record<string, unknown> = { running: false }
   try {
-    const status = getBotStatus(projectPath)
+    const status = botManager.getBotStatus(projectPath)
     if (status) {
       botStatus = {
         running: status.status === 'running',
-        pid: status.pid,
+        status: status.status,
+        adapter: status.adapter,
         startedAt: status.startedAt,
-        crashCount: status.crashCount,
-        lastCrashTime: status.lastCrashTime,
-        uptime: status.uptime
+        uptime: status.uptime,
+        pid: status.pid
       }
     }
   } catch {
-    // bot 状态获取失败时返回离线状态
     botStatus = { running: false, error: '无法获取 bot 状态' }
   }
 
-  // NapCat 状态
-  let napcatStatus: Record<string, unknown> = { connected: false }
-  try {
-    const ns = getNapcatStatus(projectPath)
-    napcatStatus = {
-      status: ns.status,
-      pid: ns.pid,
-      port: ns.port
-    }
-  } catch {
-    // NapCat 状态获取失败时返回断开状态
-    napcatStatus = { connected: false, error: '无法获取 NapCat 状态' }
-  }
-
   return {
-    pythonVersion,
-    bot: botStatus,
-    napcat: napcatStatus
+    runtime: 'ts',
+    node: process.versions.node,
+    bot: botStatus
   }
 }
 

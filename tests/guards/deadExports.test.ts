@@ -374,22 +374,13 @@ const RESTORED_BASELINE: Record<string, string> = {
   'src\\renderer\\src\\components\\editor\\pythonCompletions.ts:registerPythonCompletions': RESTORED_REASON,
   'src\\renderer\\src\\lib\\mockRunner.ts:simulateExecution': RESTORED_REASON,
 
-  // 扁平副本的导出：生产走同名嵌套实现或另一条路径（crashReporter/dockerExport/terminal/pluginLoader/templates/schemaService/napcat/runtimeLogStore/configTemplateService）—— 属恢复树里的重复副本，去重时整文件处理。
+  // 扁平副本的导出：生产走同名嵌套实现或另一条路径（crashReporter/dockerExport/terminal/pluginLoader/templates/schemaService/runtimeLogStore/configTemplateService）—— 属恢复树里的重复副本，去重时整文件处理。
   'src\\main\\services\\configTemplateService.ts:_getConfigTemplatesDir': RESTORED_REASON,
   'src\\main\\services\\configTemplateService.ts:initProjectConfigTables': RESTORED_REASON,
   'src\\main\\services\\crashReporter.ts:initCrashReporter': RESTORED_REASON,
   'src\\main\\services\\dockerExport.ts:_checkPath': RESTORED_REASON,
   'src\\main\\services\\dockerExport.ts:detectProjectRequirements': RESTORED_REASON,
   'src\\main\\services\\dockerExport.ts:readProjectRequirements': RESTORED_REASON,
-  'src\\main\\services\\napcat.ts:onNapcatQqDetected': RESTORED_REASON,
-  'src\\main\\services\\napcat.ts:onNapcatStatusChange': RESTORED_REASON,
-  'src\\main\\services\\napcat.ts:onNapcatToken': RESTORED_REASON,
-  'src\\main\\services\\napcat.ts:saveNapcatPath': RESTORED_REASON,
-  'src\\main\\services\\napcat.ts:startNapcat': RESTORED_REASON,
-  'src\\main\\services\\napcat.ts:stopAllNapcat': RESTORED_REASON,
-  'src\\main\\services\\napcat.ts:stopNapcat': RESTORED_REASON,
-  'src\\main\\services\\napcatDownloader.ts:downloadNapCat': RESTORED_REASON,
-  'src\\main\\services\\napcatDownloader.ts:napcatDirSize': RESTORED_REASON,
   'src\\main\\services\\pluginLoader.ts:clearAllPlugins': RESTORED_REASON,
   'src\\main\\services\\pluginLoader.ts:getPluginCount': RESTORED_REASON,
   'src\\main\\services\\pluginLoader.ts:getPluginPackage': RESTORED_REASON,

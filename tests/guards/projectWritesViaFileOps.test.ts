@@ -679,16 +679,7 @@ const ALLOWED: Record<string, Allowed> = {
       '【系统/非项目】指标导出（用户选定路径 / appData）',
     counts: { writeFileSync: 2 },
   },
-  'src/main/services/napcat.ts': {
-    why:
-      '【系统/非项目】NapCat 适配：配置写在 NapCat 自己的配置目录（onebot11.json / napcat-path.json），不是项目目录',
-    counts: { writeFile: 2 },
-  },
-  'src/main/services/napcatDownloader.ts': {
-    why:
-      '【系统/非项目】NapCat 下载安装：下载包/解压目标都在 appData 的 runtime 目录，删除只清自己下载的临时文件',
-    counts: { createWriteStream: 1, rmSync: 2, writeFileSync: 1 },
-  },
+
   'src/main/services/official.ts': {
     why:
       '【系统/非项目】官方协议端：把各账号的登录态/配置持久化到 appData 的官方目录（<key>.json），不是项目目录',
