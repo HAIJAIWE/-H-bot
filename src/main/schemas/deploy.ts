@@ -29,7 +29,7 @@ const imageNameSchema = z
 
 /** Docker 导出参数 schema */
 export const dockerExportSchema = z.object({
-  /** 项目根路径（包含 bot.py 的目录） */
+  /** 项目根路径（包含 .qqbat/flow.json 的目录） */
   projectPath: z.string().min(1),
   /** 适配器类型 */
   adapter: adapterSchema,

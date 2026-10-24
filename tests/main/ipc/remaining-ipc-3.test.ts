@@ -220,8 +220,6 @@ vi.mock('fs/promises', () => {
   }
   return { ...m, default: m }
 })
-vi.mock('@main/services/pluginScanner', () => mocks.pluginScanner)
-vi.mock('@main/services/pluginLoader', () => mocks.pluginLoader)
 // plugins.ts 真身 import 的是嵌套路径（10/18 起插件服务收进 services/plugins/），
 // 只 mock 扁平路径等于没 mock：真实 scanner/loader 会跑起来、返回空。
 vi.mock('@main/services/plugins/pluginScanner', () => mocks.pluginScanner)

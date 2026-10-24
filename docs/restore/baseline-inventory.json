@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T00:36:02.311Z",
+  "generatedAt": "2026-10-24T00:54:44.181Z",
   "baseline": {
     "kind": "packaged-client",
     "bundle": "_baseline/out-bundle",
@@ -8,7 +8,7 @@
     "regions": 594
   },
   "tree": {
-    "files": 824
+    "files": 812
   },
   "missing": {
     "total": 10,
@@ -83,9 +83,9 @@
     }
   ],
   "delta": {
-    "total": 221,
-    "symbolHit": 93,
-    "unshipped": 95,
+    "total": 209,
+    "symbolHit": 83,
+    "unshipped": 93,
     "unshippedFiles": [
       "src/main/ipc/aiAgentCore.ts",
       "src/main/ipc/aiAllowRules.ts",
@@ -95,7 +95,6 @@
       "src/main/nodes/compat.ts",
       "src/main/schemas/launchAi.ts",
       "src/main/schemas/linter.ts",
-      "src/main/schemas/python.ts",
       "src/main/schemas/templates.ts",
       "src/main/services/agent-core/adapters.ts",
       "src/main/services/agent-core/computerUse.ts",
@@ -159,7 +158,6 @@
       "src/renderer/src/components/blocks/AiActionEditor.tsx",
       "src/renderer/src/components/blocks/HttpActionEditor.tsx",
       "src/renderer/src/components/editor/MetricsPanel.tsx",
-      "src/renderer/src/components/editor/pythonCompletions.ts",
       "src/renderer/src/components/launch/characterFields.ts",
       "src/renderer/src/components/settings/PluginMarket.tsx",
       "src/renderer/src/components/ui/codeHighlight.tsx",

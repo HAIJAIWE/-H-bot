@@ -2,16 +2,13 @@
 //
 // 数据流绑定解析（拉取模型）。
 //
-// ⚠️ **两条代码生成栈共用这个模块**（恢复期发现的事实，记在这里防止再踩）：
-//   · Python 栈：generator.ts / emitterV2.ts → 产出 `qqbat_nodes` 的 Python 代码，
-//     使用 pythonLiteral / pyIdentifier；
-//   · TS 栈：controlFlowEmitter.ts / emitters.ts → 产出 TypeScript 代码，
-//     使用 ctx.flowVars / tsLiteral；
-//   两边的"变量访问器"是同一套作用域语义（flow/user/group/global），只是承载语言不同。
-//   所以这里同时提供 getVariableAccessor（TS 侧）与 pyIdentifier（Python 侧）。
+// 代码生成只有 TS 一套栈（controlFlowEmitter.ts / emitters.ts → TypeScript 代码）：
+//   · 表达式里的变量访问走 ctx.flowVars / tsLiteral；
+//   · 输出端口变量名走 tsIdentifier。
+// 作用域语义（flow/user/group/global）见 getVariableAccessor。
 import type { FlowGraph, FlowNode } from '@shared/types/flow'
 import { inferTypeFromConfig, normalizePortType } from '@shared/types/ports'
-import { pythonLiteral, pyIdentifier } from './pythonUtils'
+import { tsIdentifier, tsLiteral } from './typescriptUtils'
 
 /** 配置 API 边的 source 标识符 */
 export const CONFIG_API_SOURCE = '__config_api__'
@@ -88,7 +85,7 @@ export function resolveDataInput(
     return ctx.variables.get(`${edge.source}:${edge.sourcePort}`) ?? 'None'
   }
   const configValue = node.data.config[portId]
-  return pythonLiteral(configValue)
+  return tsLiteral(configValue)
 }
 
 /**
@@ -102,7 +99,7 @@ export function assignOutputVariables(
 ): Record<string, string> {
   const result: Record<string, string> = {}
   for (const port of node.data.outputs.filter((p) => p.kind === 'data')) {
-    const varName = pyIdentifier(node.id, port.id)
+    const varName = tsIdentifier(node.id, port.id)
     const key = `${node.id}:${port.id}`
     ctx.variables.set(key, varName)
     // TS 栈需要变量类型才能声明/解构；没有 dataType 时按配置值推导

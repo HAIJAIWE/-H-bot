@@ -112,11 +112,6 @@ const BASELINE_NAMES: Record<string, string> = {
  * 所以**两类都管**：新增的仅测试引用同样红。
  */
 const BASELINE_TEST_ONLY: Record<string, string> = {
-  'src\\main\\services\\botProcess.ts:sendCommand':
-    '**Python 子进程壳**：只给旧 bot.py 的 stdin 发命令；2026-10-24 IPC 控制通道下线后无生产调用点。' +
-    '文件本身保留（botProcess.test.ts 仍覆盖子进程生命周期），真删要等确认没有旧项目还在用 Python 运行时。',
-  'src\\main\\services\\botProcess.ts:listRunningBots':
-    '同上：枚举旧 Python 子进程；TS 运行时的运行列表由 botManager.listBots() 提供。',
   'src\\main\\services\\agent-core\\runTurn.ts:isToolCall':
     '⚠️ 进行中：供调用方做类型收窄（避免 UI 层写 as），接线时使用。',
   'src\\main\\services\\agent-core\\modelAdapter.ts:createModelFn':
@@ -370,8 +365,7 @@ const RESTORED_BASELINE: Record<string, string> = {
   'src\\main\\services\\official.ts:updateGroupBlacklist': RESTORED_REASON,
   'src\\main\\services\\official.ts:updateGuildChannel': RESTORED_REASON,
 
-  // 渲染层组件可编译但本构建无挂载点（BlockView 等旧画布视图；Python 编辑器补全）。已按客户端基准归档的组件见 _recovery/dead-renderer/。
-  'src\\renderer\\src\\components\\editor\\pythonCompletions.ts:registerPythonCompletions': RESTORED_REASON,
+  // 渲染层组件可编译但本构建无挂载点（BlockView 等旧画布视图）。已按客户端基准归档的组件见 _recovery/dead-renderer/。
   'src\\renderer\\src\\lib\\mockRunner.ts:simulateExecution': RESTORED_REASON,
 
   // 扁平副本的导出：生产走同名嵌套实现或另一条路径（crashReporter/dockerExport/terminal/pluginLoader/templates/schemaService/runtimeLogStore/configTemplateService）—— 属恢复树里的重复副本，去重时整文件处理。
@@ -381,20 +375,16 @@ const RESTORED_BASELINE: Record<string, string> = {
   'src\\main\\services\\dockerExport.ts:_checkPath': RESTORED_REASON,
   'src\\main\\services\\dockerExport.ts:detectProjectRequirements': RESTORED_REASON,
   'src\\main\\services\\dockerExport.ts:readProjectRequirements': RESTORED_REASON,
-  'src\\main\\services\\pluginLoader.ts:clearAllPlugins': RESTORED_REASON,
-  'src\\main\\services\\pluginLoader.ts:getPluginCount': RESTORED_REASON,
-  'src\\main\\services\\pluginLoader.ts:getPluginPackage': RESTORED_REASON,
-  'src\\main\\services\\pluginLoader.ts:setPluginRegistrar': RESTORED_REASON,
   'src\\main\\services\\runner\\runtimeLogStore.ts:pushRuntimeLog': RESTORED_REASON,
   'src\\main\\services\\schemaService.ts:getCompositeTypeDef': RESTORED_REASON,
   'src\\main\\services\\templates.ts:getTemplatesByCategory': RESTORED_REASON,
   'src\\main\\services\\terminal.ts:resizeTerminal': RESTORED_REASON,
   'src\\main\\templates\\index.ts:getImportableTemplate': RESTORED_REASON,
 
-  // codegen 辅助（TS codegen 栈尚未接通 —— 当前生成仍走 Python 栈落点）；接 TS 生成器时启用。
+  // codegen 辅助：TS 生成器已接通（controlFlowEmitter/emitters 走 dataflow 的 tsLiteral/tsIdentifier），
+  // 这两个导出留给后续「变量解构」优化，目前无调用点。
   'src\\main\\codegen\\dataflow.ts:generateVariableDestructuring': RESTORED_REASON,
   'src\\main\\codegen\\dataflow.ts:resolveNamedVarSyntax': RESTORED_REASON,
-  'src\\main\\codegen\\emitterV2.ts:emitAiGeneratedNode': RESTORED_REASON,
 
   // 恢复树存量：10/18 产物与磁带测试不同步造成的零/仅测试引用；逐条在清理时确认（接上、或删除）。
   'src\\main\\ipc\\adapter.ts:getCurrentAdapterType': RESTORED_REASON,

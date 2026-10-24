@@ -115,11 +115,11 @@ vi.mock('@main/services/fileOps', () => ({
 }))
 
 // Mock customNodeScanner + forkNode —— customNode.ts 引用
-vi.mock('@main/services/customNodeScanner', () => ({
+vi.mock('@main/services/plugins/customNodeScanner', () => ({
   scanCustomNodes: scanCustomNodesMock,
   scanCustomNodesV2: scanCustomNodesV2Mock
 }))
-vi.mock('@main/services/forkNode', () => ({
+vi.mock('@main/services/flow/forkNode', () => ({
   forkBuiltinNode: forkBuiltinNodeMock
 }))
 

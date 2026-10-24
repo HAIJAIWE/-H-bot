@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getDashboardStatus, getTimeline, getGroups } from '../services/dashboardService'
+import { getDashboardStatus, getTimeline, getGroups } from '../services/project/dashboardService'
 import { tryIpc } from './_shared'
 import { launchDashboardProjectPathSchema } from '../schemas/launchDashboard'
 

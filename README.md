@@ -81,8 +81,8 @@ docs          节点参考、恢复审计与方法文档
 
 - 类型检查：`node scripts/typecheck.mjs` → node **0 错** / web **0 错**
 - 构建：`electron-vite build` EXIT 0
-- 测试：231 文件 / 2955 通过 + 10 skipped（2965 例）/ 0 失败；guards 12 文件 / 90 通过
-- 已知债：源码里仍有 **218 个 `@ts-nocheck`** 历史文件（闸门只覆盖其余文件）；全库尚未跑过 prettier
+- 测试：229 文件 / 2924 通过 + 10 skipped（2934 例）/ 0 失败；guards 12 文件 / 91 通过
+- 已知债：源码里仍有 **220 个 `@ts-nocheck`** 历史文件（闸门只覆盖其余文件）；全库尚未跑过 prettier
   格式化（配置在 `.prettierrc`，会动数百个文件，刻意没执行）
 
 ## 许可

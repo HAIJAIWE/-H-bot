@@ -273,8 +273,8 @@ terminal = 终端
    —— 命名空间与通道前缀不一致。现有 `channelContract` / `ipcSurfaceParity` 闸门对的是**名字**，
    不对**业务归属**，所以它一直绿着。影响：按命名空间自动归位时会归错域。
 2. **（已处理 2026-10-24）`runtime.start/stop/status/sendCommand/restart/listRunning` 曾直连
-   `services/botProcess`（Python 时代的 stdout 总线）** —— TS 运行时下永远收不到事件；控制改走
-   `botManager:*`、状态改走 `botManager:statusChanged`，本附录只留观测三项。
+   `services/botProcess`（Python 时代的 stdout 总线，该文件已随 Python 栈清理删除）** —— TS 运行时下
+   永远收不到事件；控制改走 `botManager:*`、状态改走 `botManager:statusChanged`，本附录只留观测三项。
 
 ---
 

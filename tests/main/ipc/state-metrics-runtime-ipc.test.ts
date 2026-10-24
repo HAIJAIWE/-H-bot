@@ -154,19 +154,9 @@ vi.mock('@main/services/metricsExport', () => ({
   exportToJSON: mocks.exportToJSON
 }))
 
-vi.mock('@main/services/botProcess', () => ({
-  startBot: mocks.startBot,
-  stopBot: mocks.stopBot,
-  getBotStatus: mocks.getBotStatus,
-  sendCommand: mocks.sendCommand,
-  restartBot: mocks.restartBot,
-  listRunningBots: mocks.listRunningBots,
-  onStatusChange: mocks.onStatusChange,
-  onBotLog: mocks.onBotLog,
-  onNodeEvent: mocks.onNodeEvent,
-  onMetricData: mocks.onMetricData
-}))
-
+// botProcess（Python 时代进程壳）已删除：runtime 改为观测 botManager + runtimeEvents。
+// 只保留下面这一处完整 mock —— 早先残留的「仅 onBotLog/onNodeEvent」精简版会先占位，
+// 让 metrics 那边的 onStatusChange 变成 undefined（曾整片红）。
 vi.mock('@main/services/runtimeEvents', () => ({
   onStatusChange: mocks.onStatusChange,
   onBotLog: mocks.onBotLog,

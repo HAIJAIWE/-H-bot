@@ -7,7 +7,7 @@ import type { ImportCollector } from './typescriptUtils';
 import { indentStr, tsLiteral } from './typescriptUtils';
 import { DataflowContext, resolveDataInput, assignOutputVariables } from './dataflow';
 import { getNodeEmitterRegistry } from './nodeRegistry';
-import { findPluginNode } from '../services/pluginLoader';
+import { findPluginNode } from '../services/plugins/pluginLoader';
 
 /** TypeScript 标识符合法性校验 */
 export function isValidTSIdentifier(value: string): boolean {

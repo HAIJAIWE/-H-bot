@@ -22,12 +22,12 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 | --------------------------------- | --------------------------------------------------------- |
 | 打包产物 js                       | 25 个 / 5.6 MB（main 24 + renderer index）                |
 | 产物模块清单（region 去重）       | **594 个**                                                |
-| 恢复树 `src/*.ts(x)`              | 824 个（2026-10-24 清理 5 个 ops 副本、2 个翻译器、4 个 NapCat 模块后） |
+| 恢复树 `src/*.ts(x)`              | 812 个（2026-10-24 依次清理 5 个 ops 副本、2 个翻译器、4 个 NapCat 模块、12 个 Python 旧栈 .ts 后） |
 | 产物模块在树里的覆盖率            | **98.3%（584/594）**                                      |
 | 缺失                              | 10 个，**全部已登记理由**（未登记 0）                     |
-| 树里有、产物里没有 region         | 221 个（其中 33 个是纯类型/再导出，构建后本就不留模块名） |
-| 这 221 里，导出符号能在产物中搜到 | 93 个（被内联或改名，不是缺）                             |
-| 真的没进过这次构建                | **99 个**                                                 |
+| 树里有、产物里没有 region         | 209 个（其中 33 个是纯类型/再导出，构建后本就不留模块名） |
+| 这 209 里，导出符号能在产物中搜到 | 83 个（被内联或改名，不是缺）                             |
+| 真的没进过这次构建                | **93 个**                                                 |
 
 缺的 10 个（`--check` 里逐条写明了理由，`MISSING_OK`）：
 
@@ -89,28 +89,38 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 
 处置原则：**不删**（它们是你工作树的一部分，删了不可逆），但在文档里标为遗留；后续要做「瘦身」时按这张表逐项确认再删。
 
-## 三、Python 技术栈现状（TS-only 的落地口径）
+## 三、Python 技术栈：已收敛（2026-10-24）
 
-先说结论：**运行时已经是纯 TS**。机器人运行按钮 → `botManager:start` → `botManager` 用 `FlowRuntime` 在**主进程内**解释 `.qqbat/flow.json`（ADR-003：不再生成 `bot.py`、不再 spawn Python）。
+先说结论：**树里不再有 Python 运行 / 生成 / 部署代码**。机器人运行按钮 → `botManager:start` → `botManager` 用 `FlowRuntime` 在**主进程内**解释 `.qqbat/flow.json`（ADR-003：不生成 `bot.py`、不 spawn Python）；部署侧也换成 Node 运行时（`services/deploy/runtimeBundle.ts` 复制 `out/main`，`dockerExport.ts` 写 `CMD ["node","/app/runtime/standalone.js","/app"]`，`sshDeploy.ts` 的 `mode: 'node'` 远程直接跑 Node）。
 
-树里还剩的 Python 相关代码分四类，都**不在** TS 运行时主链路上：
+本轮按「10/18 产物里 0 命中就删」清掉的旧栈（12 个 .ts + 模板/资产）：
 
-| 类别                  | 位置                                                                                                                                | 说明                                                                                   | 处置                                                                                        |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 旧进程运行器          | `src/main/services/botProcess.ts` + `src/main/ipc/runtime.ts` 的 `runtime:*` 通道                                                   | 会 spawn `<project>/.venv/.../python bot.py`，解析 stdout 标记。界面运行按钮**不走**它 | 标记遗留，只保留协议解析（`runner/runtimeLogParser.ts` 仍被 TS 运行时复用）                 |
-| Python 代码生成       | `src/main/codegen/{pythonUtils,emitterV2,expressionSafety,dataflow}.ts`                                                             | 旧 codegen 栈（生成 bot.py 用）；`flow/codegen.ts` 现输出可读 TS 快照                  | 不修、不测；对应的 17 个 Python codegen 测试已归档 `_recovery/legacy-python-codegen-tests/` |
-| 部署模板              | `src/main/services/{dockerExport,sshDeploy}.ts`                                                                                     | Dockerfile/远程脚本仍写 `bot.py`、`CMD ["python","bot.py"]`                            | 导出/部署功能用得到再改；本轮不动                                                           |
-| 旧 Python 脚手架/解析 | `aiNodeScaffold.ts`（跑 python 校验）、`customNodeScanner.ts`（扫 .py 插件）、`pathGuard.assertPythonPathSafe`、`schemas/python.ts` | 旧节点包模型（.py）                                                                    | `schemas/python.ts`、`renderer/.../pythonCompletions.ts` 已 0 引用，可优先删                |
+| 类别               | 删掉的东西                                                                                                                        | 真源在哪                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 旧进程运行器       | `src/main/services/botProcess.ts`、`services/dashboardService.ts`                                                              | `botManager` + `services/project/dashboardService.ts`                                      |
+| 旧 codegen         | `codegen/pythonUtils.ts`、`codegen/emitterV2.ts`、`schemas/python.ts`、`schemas/pythonDebugger.ts`                          | `codegen/{typescriptUtils,emitters,expressionSafety,dataflow}.ts`                          |
+| 旧节点模型         | `services/{customNodeScanner,aiGeneratedScanner,aiNodeScaffold,forkNode}.ts`、`renderer/.../pythonCompletions.ts`              | `services/plugins/{customNodeScanner,aiGeneratedScanner,customNodeScaffold}`、`services/flow/forkNode.ts` |
+| 根 pluginLoader    | `src/main/services/pluginLoader.ts`                                                                                             | `services/plugins/pluginLoader.ts`                                                          |
+| 模板 / 资产        | `src/main/templates/highcode-template/`、`src/nonebot_plugins/`                                                                | 无（Python 时代产物）                                                                        |
 
-所以「我没怎么用 py 了，都是 ts 技术栈」在代码里是成立的：**新的东西全 TS，Python 只剩导出/部署/旧插件包的壳**，且不再作为恢复与测试目标。
+还留着的 Python 字样只有**语义兼容**，不含 Python 执行：
+
+| 位置                                                         | 为什么留                                                                                  |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `src/shared/nodes/pyToJs.ts`、`runtime/safeEval.ts`        | 用户表达式仍是 Python 风格（`A if C else B`、`True/False`、`and/or/not`），翻译成 JS 执行 |
+| `codegen/expressionSafety.ts` 的正则与注释                  | 与历史 Python 安全表**判据同源**，避免两套「安全」定义漂移                                 |
+| `shared/types/project.ts` 的 `pythonPath?`、`schemas/project.ts:103` | 老项目存档字段，读写保留以免把用户配置剥掉                                                |
+| 注释里的历史说明                                             | 解释「节点事件原由 Python 打印标记」这类迁移背景                                          |
+
+部署侧仍保留 `adapter === 'napcat'` 兼容分支（NapCat 本身是 Node 程序，不属于 Python 栈；UI 已无入口，只为旧项目存档）——要彻底删可以再提。
 
 ## 四、当前状态（同一份基线下的验证）
 
 | 闸门                                | 结果                                                               |
 | ----------------------------------- | ------------------------------------------------------------------ |
-| `vitest run --maxWorkers=2`（全量） | 226 文件通过 / 3004 例通过 / 58 skip（5 文件），0 failed           |
-| `tests/guards`                      | 12 文件 / 88 通过 + 2 skip                                         |
-| `tsc -p tsconfig.node.json`         | src 0 错（185 行全在 tests/，历史 revision 漂移）                  |
+| `vitest run --maxWorkers=2`（全量） | 229 文件通过 / 2924 例通过 / 10 skip（4 文件），0 failed           |
+| `tests/guards`                      | 12 文件 / 91 通过（含写闸门新增的序列调用正控）                    |
+| `node scripts/typecheck.mjs`        | node **0 错** / web **0 错**                                       |
 | `electron-vite build`               | EXIT=0（main/preload/renderer 三入口）                             |
 | 真机                                | 起窗、项目「还原验证项目」可选中、低代码页可编辑、console errors 0 |
 
@@ -118,9 +128,9 @@ node scripts/audit-baseline.mjs --check    # 有「未登记的缺失」就 exit
 
 ## 五、剩余债（与本基准相关）
 
-1. **112 个未进客户端构建的模块**：分类已给出，但「哪些该留、哪些该删」需要你拍板；删是不可逆的。
-2. `botProcess.ts` + `ipc/runtime.ts` 的 Python 通道仍在，理论上可被旧调用触发（当前 UI 不走）。若确定要纯 TS，可把 `runtime:*` 改成只服务日志/指标。
-3. 部署导出模板（docker/ssh）仍按 `bot.py` 写，和 TS 运行时不一致 —— 要么改成导出 `out/main` 运行方式，要么在 UI 上标注「旧版导出」。
+1. **93 个没进过 10/18 构建的模块**：分类已给出，但「哪些该留、哪些该删」需要你拍板；删是不可逆的。
+2. ~~`botProcess.ts` + `ipc/runtime.ts` 的 Python 通道~~ —— **已解决**：`botProcess.ts` 已删，`runtime:*` 只剩观测（batchLog / executeNode / injectTestMessage）。
+3. ~~部署模板按 `bot.py` 写~~ —— **已解决**：docker/ssh 都改成 Node 运行时（`services/deploy/runtimeBundle.ts`）。
 4. `tests/` 侧 185 行 tsc 诊断（历史 revision 漂移，运行期已绿）。
 5. 5 个 skip 测试文件（multi-agent、plan_task、需真实 API Key 的 e2e、官方能力清单文档对账、基线冒烟）。
 6. **格式化闸门缺配置**：原工作树的 `.prettierrc` 没有恢复回来，`prettier --check` 按默认配置对整棵树都不合格（连没动过的 `src/main/index.ts` 也是 warn）。要不要补一份 `.prettierrc` 再一次性 `prettier --write src/` 需要你拍板 —— 那会是几千文件的 diff，且没有 git 兜底。

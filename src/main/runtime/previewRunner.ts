@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { normalizeFlow, validateFlow } from '@shared/nodes/flowNormalize';
-import { onBotLog, onNodeEvent } from '../services/botProcess';
+import { onBotLog, onNodeEvent } from '../services/runtimeEvents';
 import { setPreviewDataDirOverride } from '../services/builtinNodes/persistentStore';
 import { FlowInterpreter } from './FlowInterpreter';
 import { logger } from '../services/logger';

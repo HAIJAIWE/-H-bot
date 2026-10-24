@@ -12,9 +12,9 @@
 import { existsSync, watch, type FSWatcher } from 'fs'
 import { join } from 'path'
 import { ipcMain, BrowserWindow } from 'electron'
-import { scanCustomNodes } from '../services/customNodeScanner'
-import { scanAiGeneratedNodes } from '../services/aiGeneratedScanner'
-import { forkBuiltinNode } from '../services/forkNode'
+import { scanCustomNodes } from '../services/plugins/customNodeScanner'
+import { scanAiGeneratedNodes } from '../services/plugins/aiGeneratedScanner'
+import { forkBuiltinNode } from '../services/flow/forkNode'
 import type { NodeSpecV2 } from '@shared/types/nodeV2'
 import { tryIpc, tryIpcAsync } from './_shared'
 import { customNodeProjectPathSchema, customNodeForkSchema } from '../schemas/customNode'
@@ -25,6 +25,14 @@ import { assertWithinProject } from '../services/infra/pathGuard'
  * 测试用 setAiGeneratedScanner 注入 stub 验证 IPC 行为。
  */
 export type AiScannerFn = (projectPath: string) => Promise<NodeSpecV2[]>
+
+/**
+ * 默认扫描器：基线模块 aiGeneratedScanner.ts 带 @ts-nocheck（从产物还原），
+ * 其 NodeSpecV2 里的 `handler.source` 被推断成 `string` 而非字面量 'plugin'，
+ * 结构上不匹配 HandlerRef。这里只做一次显式收口，不改基线的形状。
+ */
+const defaultAiScanner: AiScannerFn = (projectPath) =>
+  scanAiGeneratedNodes(projectPath) as Promise<NodeSpecV2[]>
 
 const aiScannerSlot: { fn: AiScannerFn | null } = { fn: null }
 
@@ -117,7 +125,7 @@ export function registerCustomNodeIpc(baseDir?: string): void {
     }
     guardProjectPath(parsed.data.projectPath)
     return tryIpcAsync(() =>
-      (aiScannerSlot.fn ?? scanAiGeneratedNodes)(parsed.data.projectPath),
+      (aiScannerSlot.fn ?? defaultAiScanner)(parsed.data.projectPath),
     )
   })
 

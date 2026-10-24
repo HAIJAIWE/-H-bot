@@ -453,6 +453,24 @@ export function scanSource(file: string, text: string): Offender[] {
           if (mode && ts.isStringLiteral(mode) && WRITE_MODES.test(mode.text)) bump('open:write');
         }
       }
+      // ③ 恢复产物的序列调用形态：(0, fs_promises.writeFile)(...)
+      //    这是 tsc/rollup 把命名空间导入拆开后留下的写法（逗号表达式 + 括号），语义与 ② 相同。
+      {
+        const unwrapped = ts.isParenthesizedExpression(callee) ? callee.expression : callee
+        const seq =
+          ts.isBinaryExpression(unwrapped) &&
+          unwrapped.operatorToken.kind === ts.SyntaxKind.CommaToken
+            ? unwrapped.right
+            : null
+        if (seq && ts.isPropertyAccessExpression(seq)) {
+          const api = apiOfProperty(seq)
+          if (api && api !== 'open' && MUTATING_APIS.has(api)) bump(api)
+          if (api === 'open') {
+            const mode = n.arguments[1]
+            if (mode && ts.isStringLiteral(mode) && WRITE_MODES.test(mode.text)) bump('open:write')
+          }
+        }
+      }
       // ② 命名空间：fs.writeFile(...) / fs.promises.writeFile(...)
       if (ts.isPropertyAccessExpression(callee)) {
         const api = apiOfProperty(callee);
@@ -573,16 +591,6 @@ const ALLOWED: Record<string, Allowed> = {
       '【fileOps 本体】它就是「项目内写」那条通道本身：writeProjectFile（含路径护栏/禁区/应用管理文件兜底）与 atomicWrite',
     counts: { writeFile: 2, rename: 1 },
   },
-  'src/main/services/aiGeneratedScanner.ts': {
-    why:
-      '【应用自有数据】AI 生成节点的扫描目录：写 <项目>/src/plugins/ai-gen/__init__.py（空包标记），路径由项目根拼出来',
-    counts: { writeFile: 1 },
-  },
-  'src/main/services/aiNodeScaffold.ts': {
-    why:
-      '【应用自有数据】AI 生成节点包：写项目 src/plugins/ai-*/**（先写 tmp 再 rename/unlink，调用方已用 recordFileBefore 记 before，撤回能还原）',
-    counts: { writeFile: 2, unlink: 1 },
-  },
   'src/main/services/backupService.ts': {
     why:
       '【框架/备份】项目备份/恢复：读写 .qqbat/backups/** 或用户选定的备份目录 —— 它就是备份机制本身',
@@ -639,10 +647,10 @@ const ALLOWED: Record<string, Allowed> = {
       '【系统/非项目】部署包装配：复制 out/main 到导出目录、写 electron 占位包与 package.json/锁文件清单；目标由部署流程指定，不是项目目录',
     counts: { copyFile: 2, writeFile: 2 },
   },
-  'src/main/services/forkNode.ts': {
+  'src/main/services/flow/forkNode.ts': {
     why:
-      '【应用自有数据】「复制内置节点」：在项目 plugins/<名> 下生成脚手架（名称由用户输入，既有行为）',
-    counts: { writeFile: 1 },
+      '【应用自有数据】「复制内置节点」：在项目 plugins/<plugin_custom-名_名>/ 下写 manifest.json + index.js 脚手架（名称经 JS_RESERVED / isValidPluginNodeKind 校验，目录由用户输入拼出）',
+    counts: { writeFile: 2 },
   },
   'src/main/services/history.ts': {
     why:
@@ -715,6 +723,115 @@ const ALLOWED: Record<string, Allowed> = {
     why:
       '【应用自有数据】UID 映射表（.qqbat/ 下，固定名）',
     counts: { writeFileSync: 1 },
+  },
+
+  // ── 2026-10-24：闸门补认「(0, fs.writeFile)(...)」序列调用形态后暴露的存量登记 ──
+  // 这些都是 10/18 产物原样还原的模块（@ts-nocheck，tsc 拆命名空间导入），
+  // 以前整批从闸门底下漏过去（假绿）。逐条按真实写入目标登记；新加写点仍会被计数拦住。
+  'src/main/runtime/previewRunner.ts': {
+    why:
+      '【系统/非项目】预览运行：把项目（含 .qqbat）复制到系统临时工作区，flow.json 改的是副本，不碰用户项目',
+    counts: { cp: 2, writeFile: 1 },
+  },
+  'src/main/services/ai/historyStore.ts': {
+    why: '【应用自有数据】对话历史 .qqbat/ai-history*.jsonl：追加、压缩后重写、清空',
+    counts: { appendFile: 2, rm: 1, writeFile: 2 },
+  },
+  'src/main/services/ai/verifierLlm.ts': {
+    why: '【应用自有数据】校验器审计日志 .qqbat/ai-verifier*.jsonl：追加 + 超上限重写保留尾部',
+    counts: { appendFile: 1, writeFile: 1 },
+  },
+  'src/main/services/bot/pending.ts': {
+    why: '【应用自有数据】待确认动作 .qqbat/bot-pending/**.json：落盘 / 确认或作废时删除',
+    counts: { rm: 1, writeFile: 1 },
+  },
+  'src/main/services/bot/policy.ts': {
+    why:
+      '【应用自有数据】用量账本 .qqbat/bot-usage/<date>.json 重写（动态 import fs.promises）+ 调用日志 .qqbat/bot-calls/<date>.log 追加，写失败只 warn',
+    counts: { appendFile: 1, writeFile: 1 },
+  },
+  'src/main/services/devBackup/devBackup.ts': {
+    why:
+      '【框架/备份】开发模式备份：复制到用户选定的备份根（先写 tmp 再 rename，旧备份轮转删除），就是备份机制本身',
+    counts: { copyFile: 2, rename: 1, rm: 3, writeFile: 1 },
+  },
+  'src/main/services/devBackup/devMode.ts': {
+    why: '【系统/非项目】开发模式开关写 appData 下的 dev-mode.json',
+    counts: { writeFileSync: 1 },
+  },
+  'src/main/services/flow/flow.ts': {
+    why:
+      '【应用自有数据】schema 迁移后重写 .qqbat/flow.json（迁移前已 historyService.backup 落快照；flow.json 属应用管理文件）',
+    counts: { writeFile: 1 },
+  },
+  'src/main/services/flow/history.ts': {
+    why: '【应用自有数据】流程历史快照 .qqbat/history/**：复制快照、恢复覆盖、清理旧快照',
+    counts: { copyFile: 2, unlink: 1 },
+  },
+  'src/main/services/flow/turnJournal.ts': {
+    why: '【应用自有数据】轮次日志 .qqbat/history/turns/**：写 turn、撤回时还原 before 内容、清理旧轮次与数据快照',
+    counts: { cp: 2, rm: 3, writeFile: 2 },
+  },
+  'src/main/services/infra/fileOps.ts': {
+    why: '【fileOps 本体】writeProjectFile 与 atomicWrite 的实现：写、tmp→rename、失败清理 tmp',
+    counts: { rename: 1, rm: 1, writeFile: 2 },
+  },
+  'src/main/services/infra/portLease.ts': {
+    why: '【系统/非项目】端口租约 appData/port-leases/**：原子写 + 过期租约删除',
+    counts: { renameSync: 1, unlinkSync: 1, writeFileSync: 1 },
+  },
+  'src/main/services/infra/sqliteFiles.ts': {
+    why: '【应用自有数据】删 SQLite 主库旁的 -wal/-shm 辅助文件（store 开库前调用，路径由 store 给出）',
+    counts: { unlinkSync: 1 },
+  },
+  'src/main/services/infra/tempWorkspace.ts': {
+    why: '【系统/非项目】临时工作区创建与销毁（系统临时目录）',
+    counts: { rm: 1 },
+  },
+  'src/main/services/infra/userDataMigration.ts': {
+    why:
+      '【系统/非项目】userData 迁移：整目录复制到新位置、写迁移标记、记录最近迁移清单（全在 appData 下）',
+    counts: { cpSync: 2, writeFileSync: 3 },
+  },
+  'src/main/services/official/config.ts': {
+    why: '【系统/非项目】官方协议端配置在 appData/official/**：删旧版本遗留配置文件',
+    counts: { rm: 1 },
+  },
+  'src/main/services/ops/crashReporter.ts': {
+    why: '【系统/非项目】崩溃报告写 appData 崩溃目录、轮转删旧报告、导出转储用流写用户选定路径',
+    counts: { createWriteStream: 1, unlink: 2, writeFile: 1 },
+  },
+  'src/main/services/ops/git.ts': {
+    why:
+      '【应用自有数据】项目 git 仓库维护：补 .gitignore、撤销改动前备份/回写目标文件、坏 .git 目录归档改名',
+    counts: { copyFile: 1, rename: 1, writeFile: 2 },
+  },
+  'src/main/services/plugins/aiNodeScaffold.ts': {
+    why:
+      '【应用自有数据】AI 生成节点包 plugins/ai-*/**：往 index.js 追加节点、写 manifest、覆盖包源（调用方已 recordFileBefore）',
+    counts: { writeFile: 3 },
+  },
+  'src/main/services/plugins/customNodeScaffold.ts': {
+    why:
+      '【应用自有数据】新建自定义节点：写 plugins/<名>/manifest.json + index.js（目录名经 isValidPluginDirName 校验）',
+    counts: { writeFile: 2 },
+  },
+  'src/main/services/project/buttonPanelService.ts': {
+    why: '【应用自有数据】按钮面板库 .qqbat/button_panels.json 整体重写',
+    counts: { writeFileSync: 1 },
+  },
+  'src/main/services/project/panelSync.ts': {
+    why: '【应用自有数据】面板同步日志 .qqbat/panel_sync.log 追加（只记同步事件）',
+    counts: { appendFileSync: 1 },
+  },
+  'src/main/services/project/project.ts': {
+    why:
+      '【系统/非项目】项目生命周期：新建项目写 .env、删除项目目录、克隆到用户选定路径',
+    counts: { cp: 1, rm: 1, writeFile: 1 },
+  },
+  'src/main/services/runner/eventBus.ts': {
+    why: '【应用自有数据】翻译器 UID 映射 .qqbat/uid-map.json：重写并留 .bak 备份（写临时文件辅助函数在 :31）',
+    counts: { writeFileSync: 3 },
   },
 };
 
@@ -833,6 +950,12 @@ describe('★ 正控：各种写法都要被抓到（防假绿）', () => {
       name: '命名空间导入 + promises',
       code: "import * as fs from 'fs';\nfs.writeFileSync('a', 'x');\nawait fs.promises.writeFile('b', 'y');",
       expectApis: ['writeFileSync', 'writeFile'],
+    },
+    {
+      // 恢复树里大量 @ts-nocheck 文件是打包产物原样：tsc 会把命名空间调用拆成 (0, fs.writeFile)(...)
+      name: '序列调用：(0, fs_promises.writeFile)(...)',
+      code: "import * as fs_promises from 'fs/promises';\nawait (0, fs_promises.writeFile)('a', 'x');\nawait (0, fs_promises.mkdir)('b');",
+      expectApis: ['writeFile'],
     },
     {
       name: '默认导入',

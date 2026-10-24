@@ -100,7 +100,7 @@ vi.mock('electron', () => ({
 vi.mock('@main/services/git', () => ({ gitService: gitServiceMock }))
 vi.mock('@main/services/history', () => ({ historyService: historyServiceMock }))
 vi.mock('@main/services/auditService', () => auditServiceMock)
-vi.mock('@main/services/dashboardService', () => dashboardServiceMock)
+vi.mock('@main/services/project/dashboardService', () => dashboardServiceMock)
 vi.mock('@main/services/panelRegistryService', () => panelRegistryServiceMock)
 // FlowService / ProjectService 在 IPC 文件顶层被 new，mock 工厂返回实例
 // 注意：必须用 function() 而非箭头函数，否则不能用 new 调用

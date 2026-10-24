@@ -2,7 +2,7 @@
 // 表达式安全校验 + 调试输出辅助。
 // 从 generator.ts 拆分而来，集中管理用户表达式（if_branch/loop while 条件）的安全过滤。
 // 防止用户在表达式中注入 __import__ / eval / exec / open / os / sys 等危险代码。
-import { pythonLiteral } from './pythonUtils'
+import { tsLiteral } from './typescriptUtils'
 
 /** 安全表达式正则：只允许安全的 Python 表达式字符（含括号以支持函数调用） */
 const SAFE_EXPR_RE = /^[a-zA-Z_][a-zA-Z0-9_ .\[\]()<>=!+\-*/%&|^~'",]*$/
@@ -94,21 +94,19 @@ export function isExpressionSafe(expr: string): boolean {
   return true
 }
 
-/** 安全地转义 debug 标签：返回 Python 字符串字面量（含外层引号），用于在 f-string 外拼接。
+/** 安全地转义 debug 标签：返回合法的 TS 字符串字面量（含外层引号）。
  *
- * 注意：不能直接放入 f-string 内部（如 `f"...{safeDebugLabel(label)}..."`）），
- * 因为字面量自带双引号会与 f-string 外层引号冲突，产生 Python 语法错误。
- * 正确用法见 emitDebugPausePrint：在 f-string 外用字符串拼接。
+ * 用 tsLiteral 而非裸字符串拼接，确保 label/nodeId 中的引号、反斜杠、换行
+ * 不会破坏生成的语句或注入代码。
  */
 export function safeDebugLabel(label: string): string {
-  return pythonLiteral(label)
+  return tsLiteral(label)
 }
 
-/** 生成 debug 暂停 print 语句：[DEBUG:PAUSE:<nodeId>:<label>:trace_id=<traceVar>]。
+/** 生成 debug 暂停语句：[DEBUG:PAUSE:<nodeId>:<label>:trace_id=<traceVar>]。
  *
- * 安全修复：nodeId 和 label 都通过 pythonLiteral 转义为 Python 字符串字面量，
- * 然后在 f-string 外用 `+` 拼接，避免 f-string 内部嵌套引号导致 Python 语法错误，
- * 同时防止 label/nodeId 含有 `{` `}` `"` 等字符破坏 f-string 或注入代码。
+ * 该标记由主进程 `services/runner/runtimeLogParser.ts` 消费（正则见该文件的
+ * `\[DEBUG:PAUSE:(...)\]`），标记格式属于协议，不可随意更改。
  */
 export function emitDebugPausePrint(
   indent: string,
@@ -116,8 +114,8 @@ export function emitDebugPausePrint(
   label: string,
   traceVar: string
 ): string {
-  // 生成：print("[DEBUG:PAUSE:" + "<nodeId>" + ":" + "<label>" + f":trace_id={traceVar}]")
-  return `${indent}print("[DEBUG:PAUSE:" + ${safeDebugLabel(nodeId)} + ":" + ${safeDebugLabel(label)} + f":trace_id={${traceVar}}]")`
+  // 生成：console.log("[DEBUG:PAUSE:" + "<nodeId>" + ":" + "<label>" + ":trace_id=" + <traceVar> + "]")
+  return `${indent}console.log("[DEBUG:PAUSE:" + ${safeDebugLabel(nodeId)} + ":" + ${safeDebugLabel(label)} + ":trace_id=" + ${traceVar} + "]")`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

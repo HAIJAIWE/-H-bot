@@ -1,7 +1,6 @@
 {
   "src/renderer/src/components/ai/errorMessage.ts": 2,
   "src/renderer/src/components/blocks/BlockView.tsx": 233,
-  "src/renderer/src/components/editor/pythonCompletions.ts": 24,
   "src/renderer/src/lib/canvas/flushFlow.ts": 1,
   "src/renderer/src/lib/flushFlow.ts": 1,
   "src/renderer/src/lib/mockRunner.ts": 37,

@@ -22,7 +22,7 @@ vi.mock('electron', () => ({
 }))
 
 // Mock customNodeScanner：提供 legacy scanCustomNodes（旧 handler 仍引用）+ V2
-vi.mock('@main/services/customNodeScanner', () => ({
+vi.mock('@main/services/plugins/customNodeScanner', () => ({
   scanCustomNodes: vi.fn(),
   scanCustomNodesV2: scanCustomNodesV2Mock
 }))
@@ -81,7 +81,7 @@ describe('customNode:fork IPC 重新校验 newName', () => {
     expect(result.error).toMatch(/newName|小写字母|非法/)
   })
 
-  it('IPC handler 拒绝 Python 关键字 newName', async () => {
+  it('IPC handler 拒绝 JS 保留字 newName', async () => {
     registerCustomNodeIpc()
     const handler = getHandler('customNode:fork') as (
       e: unknown,
@@ -95,7 +95,7 @@ describe('customNode:fork IPC 重新校验 newName', () => {
     })
 
     expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/Python|关键字/)
+    expect(result.error).toMatch(/保留字|关键字/)
   })
 
   it('IPC handler 拒绝路径穿越 builtinKind', async () => {
