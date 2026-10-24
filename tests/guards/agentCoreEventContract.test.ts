@@ -29,6 +29,8 @@ export const REQUIRED_KEYS: Record<string, string[]> = {
   'ai:agentState': ['projectPath', 'state'],
   // 步骤条（第 N / 共 M 步）：渲染层 aiStore.ts:1862 直接读 step/maxSteps
   'ai:agentStep': ['projectPath', 'step', 'maxSteps'],
+  // 循环内压缩（aiAgentCore 独有）：渲染层要读 dropped 与两个 token 估算值
+  'ai:compact': ['projectPath', 'dropped', 'tokensBefore', 'tokensAfter'],
   'ai:response': ['message'],
   'ai:error': ['message'],
   'ai:warning': ['message'],
@@ -201,6 +203,7 @@ describe('★ 事件契约：主进程发 → preload 收 → 渲染层读', () 
       'ai:agentStep',
       'ai:chunk',
       'ai:chunk',
+      'ai:compact',
       'ai:error',
       'ai:error',
       'ai:response',

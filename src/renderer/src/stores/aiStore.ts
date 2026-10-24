@@ -1867,6 +1867,26 @@ export const useAiStore = create<AiState>((set, get) => {
         }));
       });
 
+      /**
+       * 循环内压缩（2026-10-25）：早先回合被换成摘要后，界面上留一条提示 ——
+       * 否则模型忽然忘了前面的事，用户只会觉得它变笨了。
+       * **不进记忆**（记忆里已有压缩注记，这里再存一份等于重复），重开对话就没了。
+       */
+      const compactTokens = (n: number): string =>
+        n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n));
+      const unsubCompact = window.qqbat.ai.onCompact?.((data) => {
+        const note: ChatMessage = {
+          role: 'system',
+          notice: 'compaction',
+          content: t('ai.chat.compacted', {
+            dropped: String(data.dropped),
+            before: compactTokens(data.tokensBefore),
+            after: compactTokens(data.tokensAfter),
+          }),
+        };
+        routeTo(data.projectPath, (c) => ({ ...c, messages: [...c.messages, note] }));
+      });
+
       const unsubToolCall = window.qqbat.ai.onToolCall?.((data) => {
         routeTo(data.projectPath, (c) => {
           const idx = c.toolCalls.findIndex((t) => t.id === data.id);
@@ -2041,6 +2061,7 @@ export const useAiStore = create<AiState>((set, get) => {
       return () => {
         unsubToolCall?.();
         unsubAgentStep?.();
+        unsubCompact?.();
         unsubChunk();
         unsubResponse();
         unsubNeedRollback();

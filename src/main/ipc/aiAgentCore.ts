@@ -187,6 +187,10 @@ export function registerAiAgentCoreIpc(): void {
      * 事件出口：**复用助手那条链路已有的五个通道**（chunk / toolCall / agentState /
      * response / error），渲染层那边一行监听都不用改 —— 流式、工具行、状态栏、
      * 收尾、错误提示全都是现成的。新开通道只会多三处登记和一套重复的界面逻辑。
+     *
+     * 只有 `ai:compact` 是循环独有的（助手链路没有"循环内压缩"这件事），
+     * 所以它按新通道办：preload 监听 + 渲染层类型 + aiStore 订阅 + 事件契约闸门，
+     * 四处都登记过（tests/guards/agentCoreEventContract.test.ts）。
      */
     const emit = (channel: string, payload: unknown): void => {
       win?.webContents.send(channel, payload);
@@ -483,7 +487,20 @@ export function registerAiAgentCoreIpc(): void {
           budgetTokens: AUTHOR_PROFILE.conversationTokenBudget,
           ...(turnSummarizer ? { summarize: turnSummarizer } : {}),
         },
-        onCompact: (info) => logger.info('[ipc/aiAgentCore] 循环内上下文压缩:', JSON.stringify(info)),
+        /**
+         * 循环内压缩发生了：日志留一份，**界面也要留一条**（2026-10-25）。
+         * 压缩是"悄悄发生"的动作 —— 早先回合被换成摘要之后，用户看到模型忘了前面的事，
+         * 却没有任何解释。这条事件就是那句解释。
+         */
+        onCompact: (info) => {
+          logger.info('[ipc/aiAgentCore] 循环内上下文压缩:', JSON.stringify(info));
+          emit('ai:compact', {
+            projectPath,
+            dropped: info.dropped,
+            tokensBefore: info.tokensBefore,
+            tokensAfter: info.tokensAfter,
+          });
+        },
         signal: ctrl.signal,
         // ── 流式观测：模型边吐字、工具边执行，界面就能边显示 ──
         onTextChunk: chunk,

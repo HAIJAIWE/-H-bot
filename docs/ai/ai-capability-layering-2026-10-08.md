@@ -170,7 +170,7 @@ terminal = 终端
 | audit           | 3    | –   | 2   | –   | –   | –   | 1   | 只读可查                     |
 | backup          | 4    | –   | 1   | 3   | –   | –   | –   | restore ★★★                  |
 | dataTransfer    | 4    | –   | 2   | 2   | –   | –   | –   | import ★★                    |
-| ai              | 48   | –   | –   | –   | –   | –   | 48  | **元域：助手自身，不归位**   |
+| ai              | 49   | –   | –   | –   | –   | –   | 49  | **元域：助手自身，不归位**   |
 | data            | 5    | –   | –   | –   | –   | –   | 5   | 渲染层内部管道               |
 | panel           | 4    | –   | 3   | –   | 1   | –   | –   | 发布=用户触发                |
 | debug           | 11   | –   | 2   | 8   | –   | –   | 1   | 仅调试会话，低危             |
@@ -190,7 +190,7 @@ terminal = 终端
 | docker          | 3    | –   | –   | 1   | 1   | –   | 1   | 生成部署件                   |
 | ssh             | 3    | –   | 1   | 1   | –   | –   | 1   | **★★★ 远程部署**             |
 
-**小计**：R **0** · Q **84** · M **105** · P **8** · ⛔ **3** · X **66**（合计 **266** ✓）
+**小计**：R **0** · Q **84** · M **105** · P **8** · ⛔ **3** · X **67**（合计 **267** ✓）
 
 > X + ⛔ = **69** 个能力**不进模型工具表**；Q + M = **189 个**是「谁控制」意义上的候选 —— **是否放行仍由附录 B / C 决定**（层不说明「已开放」）。
 
@@ -244,7 +244,7 @@ terminal = 终端
 
 ### ai（30）— 元域，不参与归位
 
-20 个方法（`chat`/`cancelChat`/`tools`/`*Config`/`beginBatch`…）+ 10 个事件监听（`onChunk` `onProposal`…）。
+20 个方法（`chat`/`cancelChat`/`tools`/`*Config`/`beginBatch`…）+ 11 个事件监听（`onChunk` `onProposal` `onCompact`…）。
 它是**助手自身的控制面**。把它也归位会造成自指（助手调用助手）。
 → 归位表里显式**排除**，并在闸门里登记排除理由。
 
@@ -360,6 +360,7 @@ ai.onAgentStep = X
 ai.onAgentState = X
 ai.onChunk = X
 ai.onClientInstruction = X
+ai.onCompact = X
 ai.onError = X
 ai.onNeedRollback = X
 ai.onProposal = X

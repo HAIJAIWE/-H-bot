@@ -766,6 +766,58 @@ roleNote 透传与预设覆盖）、`tests/main/services/ai/presets.test.ts`（r
 - `tests/main/services/agent-core/contextGate.test.ts`：`estimateTurns` 每张图 +1000。
 - `tests/main/services/ai/presets.test.ts`：`permissionMode` 读写归一（`'yolo'` 当没写）。
 
-**还没做**：压缩发生时的界面提示（要先在 `agentCoreEventContract` 登记事件）、预设的表单化编辑
+**还没做**：预设的表单化编辑
 （现在仍然只能改 JSON）、以及"角色已生效"的界面痕迹。
 
+## 27. 压缩发生时，界面留一条提示（2026-10-25，补齐 §23 没做的那一半）
+
+§23 把压缩做进了循环里，但**只有模型知道**：它会在消息最前面收到一条「【本轮上下文已压缩…】」。
+用户那边什么都不显示 —— 聊到一半，早先的回合就"凭空少了"，会以为是界面丢消息。这一节补的就是这条提示。
+
+### 它不是"状态"，是一条事件
+
+压缩发生在 `core.ts` 的循环体里、`opts.model(messages)` 之前，是**一次性的既成事实**，没有开始/结束、
+没有进度可报。所以没有走"步骤 / 流式 chunk"那两条通道，而是新开一条 `ai:compact`：
+
+```ts
+emit('ai:compact', { projectPath, dropped, tokensBefore, tokensAfter })
+```
+
+一条新 IPC 通道要**四处登记**，少一处就是静默失效（§26 刚踩过同族的坑）：
+
+| 位置 | 作用 |
+|---|---|
+| `src/main/ipc/aiAgentCore.ts` | `emit`（`onCompact` 回调里，logger 之后） |
+| `src/preload/index.ts` | `onCompact(cb)` → `ipcRenderer.on('ai:compact')` |
+| `src/renderer/src/types/ipc.ts` | `onCompact?` 类型（`?`：老窗口不崩） |
+| `src/renderer/src/stores/aiStore.ts` | `init()` 里订阅 + `cleanup` 里退订 |
+
+另外三本账也要各加一行，否则闸门红：`docs/ai/ai-capability-layering-*.md` 的附录（`ai.onCompact = X`）、
+分层表里 `ai` 那一行、以及 `node scripts/gen-capability-catalog.mjs` 重生成的两份 `.generated.ts`。
+（那份文档有两张表：附录 / 分层表是**机器对账**用的，域汇总表是**给人看的历史口径**，后者别跟着动。）
+
+### 落成"消息"，但只活在界面里
+
+渲染层的做法是往当前会话 `messages` 里塞一条 `{ role: 'system', notice: 'compaction' }`：
+这样它自然跟着时间线排序、跟着会话切换路由，不需要额外维护"提示列表"。
+
+- `notice?: 'compaction'` 只是**界面标签**：不进记忆、不发模型、不写历史 JSONL；刷新后这条提示就没了
+  （真实的早先回合仍在盘上的 `.qqbat/ai/*.jsonl` 里，压缩只影响"发给模型的那一份"）。
+- 样式是**上方一条细线 + 居中 11px 灰字**，不是琥珀色警示横幅：这是"说明发生过什么"，不是"需要你处理"。
+  为什么不是"文字两侧各一条线"那种经典分隔：右栏窄到 200px 时文字自己就把宽度吃满了，两条 `flex-1`
+  的线会缩成 0，看着只是一段孤立的灰字；而 `break-all` 又会把 `91k` 劈成 `9 / 1k` —— 用 `break-words`
+  只在词边界折行。这两个都是**真机 869 窗口下量出来**再改的，不是拍脑袋。
+- 文案里的数字要能对得上：`dropped` 是省略的回合数，`tokensBefore/After` 是估算值，≥1000 时取整成
+  `12k` 这种写法 —— 报 `118432 → 9120` 只会让人以为程序疯了。
+- 事件里带 `projectPath` 才能正确路由：循环是**按项目**跑的，提示必须落进它那一个会话，
+  不能落进用户此刻正在看的那个。
+
+### 测试
+
+- `tests/main/ipc/aiAgentCore-ipc.test.ts`：断言 `ai:compact` 载荷的四个键（`electron` 的 `send` 换成
+  hoisted 稳定 mock + `beforeEach` 清账，否则前一个用例的 emit 会串进来）。
+- `tests/renderer/stores/aiStoreCompactNotice.test.ts`：提示文案与取整、不碰流式状态、别的项目的压缩事件
+  只进它自己的存档。
+
+**还没做**：压缩前给用户一个"正在压缩"的即时反馈（压缩是同步的、通常几十毫秒，先不加）；把这条提示也
+持久化进历史（那就得给 JSONL 加个不发给模型的消息类型，等真有人抱怨"重开看不到"再说）。

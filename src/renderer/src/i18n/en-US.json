@@ -393,6 +393,7 @@
       "pluginsBadManifest": "Invalid manifest: {error}",
       "pluginsDisable": "Disable",
       "tabChat": "Chat",
+      "compacted": "Context compacted: {dropped} earlier turns summarized, ~{before} → {after} tokens",
       "tabTrajectory": "Trajectory",
       "trajectoryEmpty": "No trajectory yet — after one run this lists tools, timings and changed files.",
       "trajectoryTools": "{n} tool calls · {s}s",

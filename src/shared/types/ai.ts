@@ -87,6 +87,14 @@ export interface ChatMessage {
    * 只有用户消息会带它；助手回话与工具结果永远是纯文本。
    */
   images?: string[];
+  /**
+   * 界面提示的**类别**（2026-10-25）。目前只有 `'compaction'`：
+   * 循环里的上下文被压缩时，界面要留一条"刚才丢掉了什么"的痕迹 ——
+   * 否则模型忽然忘了前面的事，用户只会觉得它变笨了。
+   *
+   * 只是**界面标签**：不进记忆、不发模型（记忆里另有一条压缩注记，见 contextGate）。
+   */
+  notice?: 'compaction';
   toolCalls?: AiToolCall[];
   toolResult?: string;
 }

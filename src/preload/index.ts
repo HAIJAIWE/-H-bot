@@ -523,6 +523,25 @@ const api = {
       return () => ipcRenderer.removeListener('ai:chunk', listener);
     },
     /**
+     * 循环内上下文被压缩（**循环独有**：助手链路的压缩在发起前就做完了）。
+     * dropped = 被换掉的早先回合条数；tokensBefore/After 是估算值，只用于界面上的"少了多少"。
+     */
+    onCompact: (
+      cb: (data: {
+        projectPath?: string;
+        dropped: number;
+        tokensBefore: number;
+        tokensAfter: number;
+      }) => void,
+    ) => {
+      const listener = (
+        _e: unknown,
+        data: { projectPath?: string; dropped: number; tokensBefore: number; tokensAfter: number },
+      ) => cb(data);
+      ipcRenderer.on('ai:compact', listener);
+      return () => ipcRenderer.removeListener('ai:compact', listener);
+    },
+    /**
      * 工具调用事件（主进程在**开始/结束**时各发一条）。
      *
      * 为什么是**结构化事件**而不是让渲染层去解析 chunk 文本里的 `[工具调用] xxx(...)`：

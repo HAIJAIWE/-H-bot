@@ -838,6 +838,18 @@ export interface QqbatApi {
     onAgentStep: (
       callback: (data: { projectPath?: string; step: number; maxSteps: number }) => void,
     ) => () => void;
+    /**
+     * 循环内上下文被压缩（循环独有）。界面据此留一条"丢掉了什么"的痕迹，
+     * 否则模型忽然忘了前面的事，用户只会觉得它变笨了。
+     */
+    onCompact?: (
+      callback: (data: {
+        projectPath?: string;
+        dropped: number;
+        tokensBefore: number;
+        tokensAfter: number;
+      }) => void,
+    ) => () => void;
     onResponse: (
       callback: (data: { projectPath?: string; message: string; toolCalls?: unknown[] }) => void,
     ) => () => void;

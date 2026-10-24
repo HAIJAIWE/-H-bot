@@ -393,6 +393,7 @@
       "pluginsBadManifest": "清单不合法：{error}",
       "pluginsDisable": "停用",
       "tabChat": "对话",
+      "compacted": "上下文已压缩：省略 {dropped} 条早先回合，约 {before} → {after} tokens",
       "tabTrajectory": "轨迹",
       "trajectoryEmpty": "还没有可看的轨迹：跑一轮之后这里会列出工具、耗时和动过的文件。",
       "trajectoryTools": "{n} 次工具 · {s}s",

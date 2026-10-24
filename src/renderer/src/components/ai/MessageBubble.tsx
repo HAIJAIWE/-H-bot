@@ -2,38 +2,52 @@
 //
 // **消息气泡与流式气泡**（从 ChatPanel 拆出，2026-10-18）。
 // 自包含：只吃 msg / toolCalls / 流式文本；系统回执的隐藏规则也在这里（真机踩过：把错误横幅一起藏了）。
-import { t } from '../../i18n';
-import { useLocaleSubscription } from '../../stores/i18nStore';
-import type { ChatMessageWithTrace, ToolCallRecord } from '../../stores/aiStore';
-import { AI_TURN_NOTE_PREFIX } from '@shared/types/ai';
-import { MiniMarkdown } from '../ui/MiniMarkdown';
-import { ZoomableImage } from '../ui/ZoomableImage';
-import { ToolCallCard, ToolTrace } from './ToolRows';
+import { t } from '../../i18n'
+import { useLocaleSubscription } from '../../stores/i18nStore'
+import type { ChatMessageWithTrace, ToolCallRecord } from '../../stores/aiStore'
+import { AI_TURN_NOTE_PREFIX } from '@shared/types/ai'
+import { MiniMarkdown } from '../ui/MiniMarkdown'
+import { ZoomableImage } from '../ui/ZoomableImage'
+import { ToolCallCard, ToolTrace } from './ToolRows'
 
 export function MessageBubble({
   msg,
   toolCalls,
 }: {
-  msg: ChatMessageWithTrace;
-  toolCalls?: ToolCallRecord[];
+  msg: ChatMessageWithTrace
+  toolCalls?: ToolCallRecord[]
 }): React.ReactNode {
-  useLocaleSubscription();
-  const isUser = msg.role === 'user';
-  const isSystem = msg.role === 'system';
+  useLocaleSubscription()
+  const isUser = msg.role === 'user'
+  const isSystem = msg.role === 'system'
 
   /**
    * system 消息里**只有「给模型看的回执」该藏**（`[系统回执] …` 是主进程写进记忆的）。
    * ⚠️ 不能写成 `if (isSystem) return null` —— 错误/警告横幅也是 system，
    * 一起藏掉的结果是"模型调用失败时界面一片空白"（2026-10-08 真机 403 事件）。
    */
-  if (isSystem && msg.content.startsWith(AI_TURN_NOTE_PREFIX)) return null;
+  if (isSystem && msg.content.startsWith(AI_TURN_NOTE_PREFIX)) return null
 
+  /**
+   * **压缩提示**不是警告（2026-10-25）：走系统消息那条路会被画成琥珀色横幅，
+   * 看着像出了错。它其实是一条"分隔线式的说明"—— 用两侧细线收在中间，
+   * 与"这里以前还有内容"的语义一致。
+   */
+  if (msg.notice === 'compaction') {
+    return (
+      // 上方一条细线当分隔：不靠"左右两条线 + flex-1"—— 窄栏（右栏 200px 上下）里
+      // 文字本身就把宽度吃满，两侧线会缩成 0，看着只是段孤立灰字。
+      <div className="mb-3 border-t border-zinc-800 pt-2 text-center text-[11px] break-words text-zinc-500 select-none">
+        {msg.content}
+      </div>
+    )
+  }
   if (isSystem) {
     return (
       <div className="mb-3 rounded-lg border border-amber-600/40 bg-amber-900/20 px-3 py-2 text-xs text-amber-200 break-words whitespace-pre-wrap">
         {msg.content}
       </div>
-    );
+    )
   }
 
   return (
@@ -93,7 +107,7 @@ export function MessageBubble({
 
         {toolCalls && toolCalls.length > 0 && (
           <div className="mt-1 space-y-1 w-full">
-            {toolCalls.map((tc) => (
+            {toolCalls.map(tc => (
               <ToolCallCard key={tc.id} call={tc} />
             ))}
           </div>
@@ -102,7 +116,7 @@ export function MessageBubble({
         {msg.trace && msg.trace.length > 0 && <ToolTrace trace={msg.trace} />}
       </div>
     </div>
-  );
+  )
 }
 
 /** 流式输出：与助手消息同一套排版（整栏正文 + 光标），不套气泡 */
@@ -110,9 +124,9 @@ export function StreamingBubble({
   text,
   reasoning,
 }: {
-  text: string;
+  text: string
   /** 思考过程（还没出正文时也要看得见"它在想"） */
-  reasoning?: string;
+  reasoning?: string
 }): React.ReactNode {
   return (
     <div className="flex gap-2 mb-5">
@@ -132,5 +146,5 @@ export function StreamingBubble({
         <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-0.5 align-text-bottom" />
       </div>
     </div>
-  );
+  )
 }

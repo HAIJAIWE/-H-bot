@@ -23,6 +23,8 @@ const h = vi.hoisted(() => ({
   appendTrace: vi.fn(),
   readPreset: vi.fn(),
   resolvePresetTools: vi.fn(),
+  /** 主进程发出去的事件（只在回调里发的那些，比如 ai:compact，要靠它断言） */
+  send: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -32,7 +34,8 @@ vi.mock('electron', () => ({
     },
   },
   BrowserWindow: {
-    fromWebContents: () => ({ webContents: { send: vi.fn() } }),
+    // send 必须是**稳定**的 mock：事件在循环回调里才发，用例要先拿到同一个函数
+    fromWebContents: () => ({ webContents: { send: h.send } }),
   },
 }));
 
@@ -76,6 +79,7 @@ describe('ai:agentCoreRun 接线', () => {
     h.appendTrace.mockReset();
     h.readPreset.mockReset().mockResolvedValue(undefined);
     h.resolvePresetTools.mockReset().mockResolvedValue(undefined);
+    h.send.mockReset();
   });
 
   it('★ 载荷过 schema：缺 requirement 直接拒，不往下跑', async () => {
@@ -325,5 +329,26 @@ describe('ai:agentCoreRun 接线', () => {
     }).approval;
     await expect(second({ kind: 'write', summary: 'src/a.ts' })).resolves.toBe(true);
     expect(h.requestApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('★ 循环内压缩要发 ai:compact（不然"模型突然变笨"没法解释）', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '跑个长任务' });
+    const onCompact = (h.runAgentTurn.mock.calls[0][0] as {
+      onCompact?: (info: { dropped: number; tokensBefore: number; tokensAfter: number }) => void;
+    }).onCompact;
+    expect(typeof onCompact, '循环压缩的回调必须接上').toBe('function');
+
+    h.send.mockClear();
+    onCompact!({ dropped: 7, tokensBefore: 91234, tokensAfter: 12045 });
+    /**
+     * 通道 + 四个键都要对：少 projectPath → 渲染层 routeTo 不知道往哪个项目挂，
+     * 少 dropped / tokensBefore / tokensAfter → 界面上那句话没有数字可填。
+     */
+    expect(h.send).toHaveBeenCalledWith('ai:compact', {
+      projectPath: 'D:/p',
+      dropped: 7,
+      tokensBefore: 91234,
+      tokensAfter: 12045,
+    });
   });
 });
