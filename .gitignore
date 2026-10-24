@@ -38,3 +38,7 @@ test_data.db
 *.db-journal
 *.db-wal
 *.db-shm
+
+# 上游参考源码快照（zip 47 MB + 解出的 19,188 文件，仅本地对照，不入库）
+deepseek-harness-master/
+deepseek-harness-master.zip
