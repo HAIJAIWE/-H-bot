@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T23:05:27.614Z",
+  "generatedAt": "2026-10-24T00:22:52.769Z",
   "baseline": {
     "kind": "packaged-client",
     "bundle": "_baseline/out-bundle",
@@ -8,7 +8,7 @@
     "regions": 594
   },
   "tree": {
-    "files": 830
+    "files": 828
   },
   "missing": {
     "total": 10,
@@ -72,7 +72,7 @@
     {
       "file": "src/main/ipc/runtime.ts",
       "regionChars": 7652,
-      "treeChars": 2621,
+      "treeChars": 2619,
       "ratio": 0.34
     },
     {
@@ -83,8 +83,8 @@
     }
   ],
   "delta": {
-    "total": 227,
-    "symbolHit": 95,
+    "total": 225,
+    "symbolHit": 93,
     "unshipped": 99,
     "unshippedFiles": [
       "src/main/ipc/aiAgentCore.ts",

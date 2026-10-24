@@ -253,6 +253,11 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
   'src\\main\\services\\bot\\segmentTranslator.ts:translateSegments':
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
+  // 扁平副本（生产走 services/bot/segmentTranslator.ts）：原先唯一引用是已删除的 onebot-translator 旧测试
+  'src\\main\\services\\segmentTranslator.ts:attachmentsToSegments':
+    '扁平副本，零生产引用；整文件去重时一并处理（与 bot/segmentTranslator.ts 合并）',
+  'src\\main\\services\\segmentTranslator.ts:translateSegments':
+    '扁平副本，零生产引用；整文件去重时一并处理（与 bot/segmentTranslator.ts 合并）',
   'src\\renderer\\src\\components\\launch\\characterFields.ts:extractCharacterFields':
     '仅测试引用，生产路径未接（2026-10 拆文件后从 dataBrowserConstants.ts 跟到这里）',
   'src\\renderer\\src\\components\\ui\\Input.tsx:Input':
@@ -385,7 +390,6 @@ const RESTORED_BASELINE: Record<string, string> = {
   'src\\main\\services\\napcat.ts:stopNapcat': RESTORED_REASON,
   'src\\main\\services\\napcatDownloader.ts:downloadNapCat': RESTORED_REASON,
   'src\\main\\services\\napcatDownloader.ts:napcatDirSize': RESTORED_REASON,
-  'src\\main\\services\\onebot-translator.ts:getTranslatorByPort': RESTORED_REASON,
   'src\\main\\services\\pluginLoader.ts:clearAllPlugins': RESTORED_REASON,
   'src\\main\\services\\pluginLoader.ts:getPluginCount': RESTORED_REASON,
   'src\\main\\services\\pluginLoader.ts:getPluginPackage': RESTORED_REASON,

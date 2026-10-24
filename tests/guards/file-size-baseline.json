@@ -26,9 +26,6 @@
   "src/main/runtime/FlowInterpreter.ts": {
     "lines": 1609
   },
-  "src/main/services/onebot-translator.ts": {
-    "lines": 1609
-  },
   "src/renderer/src/components/ai/ChatPanel.tsx": {
     "lines": 1587
   },
@@ -61,9 +58,6 @@
   },
   "src/shared/nodes/subflowTemplateDefs.ts": {
     "lines": 1073
-  },
-  "src/main/services/officialExtras.ts": {
-    "lines": 1036
   },
   "src/preload/index.ts": {
     "lines": 1036

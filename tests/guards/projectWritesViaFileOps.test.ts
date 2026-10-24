@@ -704,11 +704,6 @@ const ALLOWED: Record<string, Allowed> = {
       '【系统/非项目】错误监控：写 appData 下的日志目录（userDataPath(logs)），不是项目目录；这里用 require(fs/promises) 解构',
     counts: { writeFile: 1 },
   },
-  'src/main/services/onebot-translator.ts': {
-    why:
-      '【应用自有数据】翻译器 UID 映射表 .qqbat/uid_mapping.json（含 .bak 备份）：路径 = projectPath + 固定名',
-    counts: { writeFileSync: 3 },
-  },
   'src/main/services/project.ts': {
     why:
       '【系统/非项目】项目生命周期：新建项目的 .env、克隆到新目录、删除项目目录 —— 目标是用户选定的路径，不是当前项目的通用写通道',
