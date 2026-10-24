@@ -833,6 +833,21 @@ const ALLOWED: Record<string, Allowed> = {
     why: '【应用自有数据】翻译器 UID 映射 .qqbat/uid-map.json：重写并留 .bak 备份（写临时文件辅助函数在 :31）',
     counts: { writeFileSync: 3 },
   },
+  // ── 2026-10-24：内建模块具名导入修成命名空间导入后，这三处写才被扫描器认出来 ──
+  // 它们原先是 `import { fs } from "fs"`（拿到 undefined，调用直接抛
+  // "Cannot read properties of undefined (reading 'join')"），修好后闸门立刻看见写入。
+  'src/main/services/bot/uidMappingService.ts': {
+    why: '【应用自有数据】玩家 UID 映射表 .qqbat/uid_mapping.json 整体重写（QQ 号 ↔ openid 对照）',
+    counts: { writeFileSync: 1 },
+  },
+  'src/main/services/project/dataTemplateService.ts': {
+    why: '【应用自有数据】数据模板 .qqbat/data_template.json 整体重写（字段定义快照）',
+    counts: { writeFileSync: 1 },
+  },
+  'src/main/services/project/playerSchemaService.ts': {
+    why: '【应用自有数据】玩家字段表 data/players/player.schema.json 整体重写（玩家库表结构）',
+    counts: { writeFileSync: 1 },
+  },
 };
 
 // =============================================================================

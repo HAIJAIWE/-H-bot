@@ -1,6 +1,6 @@
 // @ts-nocheck
 // 由 10/18 打包产物还原（chunk: FlowRuntime-LedUoDmO.js）；见 _recovery/README-recovery.md
-import better_sqlite3 from "better-sqlite3";
+import { openSqlite } from "../infra/sqlite";
 import * as fs from "fs";
 import * as path from "path";
 import { getMergedSchema, init_schemaService } from "./schemaService";
@@ -86,7 +86,7 @@ function getDb(filePath) {
 	return db;
 }
 function createDb(filePath) {
-	const db = dbCtorOverride ? new dbCtorOverride(filePath) : new better_sqlite3(filePath);
+	const db = dbCtorOverride ? new dbCtorOverride(filePath) : openSqlite(filePath);
 	applyOpenPragmas(db);
 	return db;
 }

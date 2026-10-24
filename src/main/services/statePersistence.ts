@@ -12,7 +12,7 @@
 // 使用方式：必须通过 `BotStateStore.getInstance()` 获取单例。
 // 单例化目的：`BaseSqliteStore._dbCache` 是实例属性，若每次 `new` 都创建新实例，
 // 会重复打开数据库连接导致连接泄漏；单例保证全进程共享一个连接缓存。
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import { BaseSqliteStore } from './baseSqliteStore'
 
 // ---------------------------------------------------------------------------

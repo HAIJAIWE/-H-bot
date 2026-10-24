@@ -136,6 +136,10 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
   'src\\main\\services\\plugins\\host.ts:unregisterMainPlugin':
     '同上：卸载入口，测试清理用，等卸载流程接入后删。',
   'src\\main\\services\\plugins\\host.ts:listMainPlugins': '同上：清单，等插件页展示接入后删。',
+  'src\\main\\services\\infra\\sqlite.ts:setSqliteLoaderForTesting':
+    '**测试接缝**：注入会抛错的假 loader，证明「原生模块不可用 → 兜底/明确报错」这条路径；生产只走真实加载。',
+  'src\\main\\services\\infra\\sqlite.ts:setSqliteFallbackForTesting':
+    '**测试接缝**：模拟没有 node:sqlite 的运行时，验证兜底也缺失时的报错文案；生产靠自动探测。',
   'src\\main\\services\\agent-core\\computerUse.ts:CdpPage':
     '⚠️ 进行中：CDP 客户端（截图/求值/点击），**接进工具层（computer_use 工具）时**由循环持有。接线后删掉本条。',
   'src\\main\\services\\agent-core\\computerUse.ts:listCdpTargets':

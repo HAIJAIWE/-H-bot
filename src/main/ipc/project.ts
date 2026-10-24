@@ -3,7 +3,9 @@ import { ipcMain, dialog, shell } from 'electron'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { z } from 'zod'
-import { ProjectService } from '../services/project'
+// 运行时实例来自恢复副本 services/project/project.ts（serviceContainer.ts:7 从那里取），
+// 但那边是 @ts-nocheck 的 chunk 还原（没有可用的类类型），所以这里只借扁平那份的类型。
+import type { ProjectService } from '../services/project'
 import {
   createProjectSchema,
   openProjectSchema,
@@ -15,6 +17,7 @@ import {
 import { botManager } from '../services/botManager'
 import { atomicWrite } from '../services/fileOps'
 import { tryIpc, tryIpcAsync } from './_shared'
+import { logger } from '../services/infra/logger'
 import { assertOpenPathSafe, assertWithinProject } from '../services/pathGuard'
 import type { ProjectConfig } from '@shared/types/project'
 
@@ -45,6 +48,25 @@ export function registerProjectIpc(service: ProjectService): void {
     if (!parsed.success) return { ok: false, error: parsed.error.message }
     return tryIpcAsync(async () => {
       const config = await service.loadProjectConfig(parsed.data.path)
+      // 打开即记入最近列表：主页面「最近项目」和左栏机器人列表都以 recent.json 为准，
+      // 之前只有新建/克隆会写它 —— 从外面打开的项目下次启动就"消失"了。
+      // 记不上不该让打开失败（例如目录只读），所以失败只记日志。
+      try {
+        const meta = await service.getProjectMeta(parsed.data.path)
+        // getProjectMeta 读不到（目录刚被删/配置损坏）时返回 null，这时不记也不注册
+        if (meta) {
+          await service.recordRecentProject(meta)
+          try {
+            await botManager.registerBot(meta.path)
+          } catch {
+            /* 注册失败不影响打开 */
+          }
+        }
+      } catch (e) {
+        logger.warn(
+          `[project] 打开项目后写最近列表失败: ${e instanceof Error ? e.message : String(e)}`
+        )
+      }
       return { config, path: parsed.data.path }
     })
   })

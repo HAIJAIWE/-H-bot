@@ -338,9 +338,12 @@ describe('project IPC', () => {
   })
 
   describe('project:open', () => {
-    it('正常路径：返回 config + path', async () => {
+    it('正常路径：返回 config + path，并记入最近列表', async () => {
       const config = { name: 'demo', adapter: 'official' }
+      const meta = { id: '1', name: 'demo', path: '/proj/demo' }
       loadProjectConfigMock.mockResolvedValue(config)
+      getProjectMetaMock.mockResolvedValue(meta)
+      recordRecentProjectMock.mockResolvedValue(undefined)
 
       const handler = getHandler('project:open')
       const result = (await handler({}, { path: '/proj/demo' })) as { ok: boolean; data: { config: unknown; path: string } }
@@ -348,6 +351,21 @@ describe('project IPC', () => {
       expect(result.ok).toBe(true)
       expect(result.data.config).toBe(config)
       expect(result.data.path).toBe('/proj/demo')
+      // 打开的项目必须进最近列表，否则重启后主页面和左栏都找不到它
+      expect(getProjectMetaMock).toHaveBeenCalledWith('/proj/demo')
+      expect(recordRecentProjectMock).toHaveBeenCalledWith(meta)
+      expect(registerBotMock).toHaveBeenCalledWith('/proj/demo')
+    })
+
+    it('记入最近列表失败不影响打开项目', async () => {
+      loadProjectConfigMock.mockResolvedValue({ name: 'demo' })
+      getProjectMetaMock.mockRejectedValue(new Error('meta boom'))
+
+      const handler = getHandler('project:open')
+      const result = (await handler({}, { path: '/proj/keep' })) as { ok: boolean; data?: unknown }
+
+      expect(result.ok).toBe(true)
+      expect(recordRecentProjectMock).not.toHaveBeenCalled()
     })
 
     it('参数校验：缺少 path 返回 ok:false', async () => {

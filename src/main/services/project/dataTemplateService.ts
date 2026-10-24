@@ -2,8 +2,10 @@
 // 由 10/18 打包产物还原（chunk: index.js）；见 _recovery/README-recovery.md
 import { isPersistenceKind } from "../../../shared/nodes/kindSets";
 import { KNOWN_ENUM_OPTIONS, canonicalFieldName, groupFor, inferDefaultValue, inferFieldType, isAutoManaged, isTemplateExcludedField, semanticLabel, semanticOf, toFieldCategory } from "../../../shared/persist/fieldSemantics";
-import { path } from "path";
-import { fs } from "fs";
+// 命名空间导入：`import { path }` 拿到的是 undefined（node 内建模块没有名为 path/fs 的
+// 具名导出），一调用就是「Cannot read properties of undefined (reading 'join')」。
+import * as path from "path";
+import * as fs from "fs";
 import { getDb, init_dataService } from "./dataService";
 import { BASE_DATA_KEYS, BASE_DATA_KEY_LIST, isBaseDataKey } from "../../../shared/persist/baseKeys";
 import { buildKey, columnsForKey } from "../../../shared/persist/persistentKey";

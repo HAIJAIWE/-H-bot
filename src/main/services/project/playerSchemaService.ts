@@ -1,7 +1,8 @@
 // @ts-nocheck
 // 由 10/18 打包产物还原（chunk: index.js）；见 _recovery/README-recovery.md
-import { path } from "path";
-import { fs } from "fs";
+// 命名空间导入，理由同 project/dataTemplateService.ts（具名导入拿到 undefined）
+import * as path from "path";
+import * as fs from "fs";
 import { collectFieldUsages } from "../../../shared/persist/fieldUsages";
 import { inferFieldType, isEngineStateField, semanticLabel, semanticOf, toFieldCategory } from "../../../shared/persist/fieldSemantics";
 import { getDb, init_dataService } from "./dataService";

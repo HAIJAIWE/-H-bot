@@ -2,7 +2,8 @@
 // SQLite 存储基类：封装 better-sqlite3 连接缓存、事务包装、清理等通用逻辑。
 // 子类需实现 getDbFileName 和 _initSchema。
 
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
+import { openSqlite } from './infra/sqlite'
 import { existsSync, mkdirSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { logger } from './logger'
@@ -57,7 +58,7 @@ export abstract class BaseSqliteStore {
       mkdirSync(dir, { recursive: true })
     }
     const dbPath = this.getDbFilePath(projectPath)
-    const db = new Database(dbPath)
+    const db = openSqlite(dbPath)
     // 启用 WAL 模式提升并发读性能
     db.pragma('journal_mode = WAL')
     // 初始化 schema（幂等）

@@ -11,7 +11,7 @@
 // 两者 db 文件相互独立，避免渲染层浏览操作影响 main 进程运行时状态读写。
 // 使用方式：必须通过 `StateStore.getInstance()` 获取单例（与 BotStateStore 一致）。
 
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import { existsSync, statSync } from 'fs'
 import { BaseSqliteStore } from './baseSqliteStore'
 

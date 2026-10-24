@@ -29,6 +29,7 @@ import {
   migrateUserDataLayout,
 } from './services/infra/userDataMigration';
 import { userDataPath } from './services/infra/paths';
+import { sqliteEngine, sqliteStatus } from './services/infra/sqlite';
 
 // 崩溃日志收集：尽早注册，覆盖 bootstrap 阶段之后的未捕获异常
 initCrashLogger();
@@ -68,6 +69,22 @@ async function bootstrap(): Promise<void> {
     }
   }
   await mkdir(projectBase, { recursive: true });
+
+  // SQLite 自检：原生模块的 ABI 跟运行环境绑定（Electron 146 / 纯 Node 137），
+  // 用错时 better-sqlite3 在加载阶段就抛。改成懒加载 + node:sqlite 兜底后应用还能起来，
+  // 但这条日志必须显眼 —— 否则用户只会看到"数据面板空着"。
+  const sqlite = sqliteStatus();
+  if (!sqlite.ok) {
+    logger.error('[bootstrap] ' + sqlite.error);
+  } else if (sqlite.engine === 'node:sqlite') {
+    logger.warn(
+      '[bootstrap] SQLite 正在用 Node 内置 node:sqlite 兜底（better-sqlite3 的 ABI 与当前运行时不匹配）。' +
+        '功能可用；要换回原生模块，跑 node scripts/ensure-sqlite.js electron 后重启。',
+    );
+  } else {
+    // 落到这条说明原生模块真的在工作 —— 排查 ABI 问题时先看这一行
+    logger.info('[bootstrap] SQLite 引擎：' + sqliteEngine());
+  }
 
   // 初始化全局服务容器（自动配置 botManager 等核心服务）
   initializeGlobalContainer(projectBase);

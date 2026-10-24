@@ -346,15 +346,76 @@ var ProjectService = class {
 		const trimmed = filtered.slice(0, MAX_RECENT_PROJECTS);
 		await atomicWrite((0, path.join)(this.appData, "recent.json"), JSON.stringify(trimmed, null, 2));
 	}
+	/**
+	* 最近项目列表（主页面卡片的数据源）。
+	*
+	* 除了读 recent.json，还会**扫一遍工作区**把真实存在的项目补回来：
+	* 项目目录被改名/迁移、recent.json 丢失或清空后，主页面不该变成空白
+	* （2026-10-24 真机踩到：仓库改名后 recent.json 里全是死路径，剪完就剩空列表，
+	* 用户看到的是"项目没了"）。扫描只认 <目录>/.qqbat/project.json，一层深。
+	*/
 	async listRecentProjects() {
 		const file = (0, path.join)(this.appData, "recent.json");
-		if (!(0, fs.existsSync)(file)) return [];
-		const raw = await (0, fs_promises.readFile)(file, "utf-8");
-		try {
-			return JSON.parse(raw);
-		} catch {
-			return [];
+		let entries = [];
+		if ((0, fs.existsSync)(file)) {
+			try {
+				const raw = await (0, fs_promises.readFile)(file, "utf-8");
+				const parsed = JSON.parse(raw);
+				if (Array.isArray(parsed)) entries = parsed;
+			} catch {
+				entries = [];
+			}
 		}
+		// 项目目录被改名/移动/删除后 recent.json 会残留死路径：列表照旧返回，点开才报错
+		// （"路径越界""ENOENT project.json"）。读的时候按 .qqbat/project.json 过滤并写回，
+		// 免得死条目一直占着最近的 MAX_RECENT_PROJECTS 个位置。
+		// 外部盘暂时不可用也会被剪掉 —— 项目就在工作区里的话下面会补回来。
+		const alive = entries.filter((r) => typeof r?.path === "string" && (0, fs.existsSync)((0, path.join)(r.path, ".qqbat", "project.json")));
+		const known = new Set(alive.map((r) => (0, path.resolve)(r.path)));
+		const discovered = [];
+		try {
+			const dirs = await (0, fs_promises.readdir)(this.baseDir, { withFileTypes: true });
+			for (const d of dirs) {
+				if (!d.isDirectory() || d.name === (0, path.basename)(this.appData)) continue;
+				const dirPath = (0, path.join)(this.baseDir, d.name);
+				if (known.has((0, path.resolve)(dirPath))) continue;
+				const configPath = (0, path.join)(dirPath, ".qqbat", "project.json");
+				if (!(0, fs.existsSync)(configPath)) continue;
+				let cfg = null;
+				try {
+					cfg = JSON.parse(await (0, fs_promises.readFile)(configPath, "utf-8"));
+				} catch {
+					cfg = null;
+				}
+				if (!cfg || typeof cfg !== "object") continue;
+				let openedAt = (/* @__PURE__ */ new Date()).toISOString();
+				try {
+					openedAt = (await (0, fs_promises.stat)(configPath)).mtime.toISOString();
+				} catch {
+					// 时间读不到就按现在算：卡片排序不精确，但项目能出现
+				}
+				discovered.push({
+					id: typeof cfg.id === "string" ? cfg.id : `project-${(0, path.basename)(dirPath)}`,
+					name: typeof cfg.name === "string" && cfg.name ? cfg.name : d.name,
+					path: dirPath,
+					lastOpenedAt: openedAt
+				});
+				known.add((0, path.resolve)(dirPath));
+			}
+		} catch (e) {
+			logger.warn(`[project] 扫描工作区项目失败（不影响 recent.json 的读取）: ${e instanceof Error ? e.message : String(e)}`);
+		}
+		discovered.sort((a, b) => String(b.lastOpenedAt).localeCompare(String(a.lastOpenedAt)));
+		const merged = alive.concat(discovered).slice(0, MAX_RECENT_PROJECTS);
+		if (merged.length !== entries.length || discovered.length > 0) {
+			if (alive.length !== entries.length) logger.warn(`[project] 最近项目列表剪掉 ${entries.length - alive.length} 个已不存在的路径`);
+			try {
+				await atomicWrite(file, JSON.stringify(merged, null, 2));
+			} catch (e) {
+				logger.warn(`[project] 回写 recent.json 失败（下次读取仍会再算一遍）: ${e instanceof Error ? e.message : String(e)}`);
+			}
+		}
+		return merged;
 	}
 	async removeRecentProject(path$6) {
 		await (0, fs_promises.mkdir)(this.appData, { recursive: true });

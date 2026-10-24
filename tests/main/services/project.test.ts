@@ -26,7 +26,10 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { ProjectService } from '@main/services/project'
+// 运行时用的是恢复副本 services/project/project.ts：serviceContainer.ts:7 从那里取类，
+// 扁平的 services/project.ts 只剩类型被 ipc/project.ts 引用。测试必须打运行时那一份，
+// 否则测的是死代码（2026-10-24 发现：扁平版改了行为，界面上一点变化都没有）。
+import { ProjectService } from '@main/services/project/project'
 
 let tmpRoot: string
 
@@ -58,7 +61,9 @@ describe('ProjectService', () => {
     const meta = await svc.createProject(makeConfig({ name: 'my-bot' }))
     expect(meta.name).toBe('my-bot')
     const projectPath = join(tmpRoot, 'my-bot')
-    // 10/18 起的目录布局：.qqbat/history、data/{players,config/.schema,logs,backups}、src/plugins/{generated,custom}
+    // 10/18 起的目录布局（以打包产物为准：FlowRuntime chunk 的 _createProjectDirectories
+    // 只建 src/plugins/generated，没有 src/plugins/custom —— 扁平那份 project.ts 是自己加的，
+    // 别照它写断言）。
     for (const rel of [
       '.qqbat',
       join('.qqbat', 'history'),
@@ -66,15 +71,15 @@ describe('ProjectService', () => {
       join('data', 'config', '.schema'),
       join('data', 'logs'),
       join('data', 'backups'),
-      join('src', 'plugins', 'generated'),
-      join('src', 'plugins', 'custom')
+      join('src', 'plugins', 'generated')
     ]) {
       expect(existsSync(join(projectPath, rel)), rel).toBe(true)
     }
-    // project.json 由 _buildFullConfig 补端口块：官方翻译器 = 1000 + block（ADR-003）
+    // project.json 由 _buildFullConfig 补端口块；翻译器端口 = TRANSLATOR_BASE(43100) + block
+    // （shared/config/ports.ts 的 translatorPortForBlock；10/18 产物里就是这个公式，不是 1000+block）
     const raw = JSON.parse(await readFile(join(projectPath, '.qqbat', 'project.json'), 'utf-8'))
     expect(raw.portBlock).toBeGreaterThanOrEqual(1)
-    expect(raw.translatorPort).toBe(1000 + raw.portBlock)
+    expect(raw.translatorPort).toBe(43100 + Math.min(raw.portBlock, 80))
     // 新项目从空白画布开始：flow.json 存在且没有节点
     const flow = JSON.parse(await readFile(join(projectPath, '.qqbat', 'flow.json'), 'utf-8'))
     expect(typeof flow.schemaVersion).toBe('string')
@@ -121,8 +126,51 @@ describe('ProjectService', () => {
     expect((await svc.listRecentProjects()).filter((r) => r.path === a.path)).toHaveLength(1)
 
     await svc.removeRecentProject(a.path)
+    // 从 recent.json 里移除后，工作区扫描会把仍存在的 bot-a 自动补回（项目没删，不该凭空消失）
+    const recentFileAfterRemove = JSON.parse(await readFile(join(tmpRoot, 'qqbat', 'recent.json'), 'utf-8'))
+    expect(recentFileAfterRemove.map((r: { name: string }) => r.name)).toEqual(['bot-b'])
     const after = await svc.listRecentProjects()
-    expect(after.map((r) => r.name)).toEqual(['bot-b'])
+    expect(after.map((r) => r.name)).toEqual(['bot-b', 'bot-a'])
+  })
+
+  it('recent.json 为空时，按工作区里真实存在的项目自愈', async () => {
+    const svc = new ProjectService(tmpRoot)
+    const a = await svc.createProject(makeConfig({ name: 'bot-heal-a', qq: '1' }))
+    const b = await svc.createProject(makeConfig({ name: 'bot-heal-b', qq: '2' }))
+    await svc.recordRecentProject(a)
+    await svc.recordRecentProject(b)
+
+    // 模拟「最近项目被剪空 / 文件丢了」后重开应用
+    const recentFile = join(tmpRoot, 'qqbat', 'recent.json')
+    await writeFile(recentFile, '[]')
+
+    const healed = await svc.listRecentProjects()
+    expect(healed.map((r) => r.name).sort()).toEqual(['bot-heal-a', 'bot-heal-b'])
+    // 补回来的条目也会落盘，下次开就不用再扫
+    const persisted = JSON.parse(await readFile(recentFile, 'utf-8'))
+    expect(persisted.map((r: { name: string }) => r.name).sort()).toEqual(['bot-heal-a', 'bot-heal-b'])
+  })
+
+  it('最近项目里混进已不存在的路径时，读列表会剪掉并回写', async () => {
+    const svc = new ProjectService(tmpRoot)
+    const alive = await svc.createProject(makeConfig({ name: 'bot-alive', qq: '1' }))
+    await svc.recordRecentProject(alive)
+
+    // 模拟「项目目录被改名/删除」后残留的死路径
+    const recentFile = join(tmpRoot, 'qqbat', 'recent.json')
+    const raw = JSON.parse(await readFile(recentFile, 'utf-8'))
+    raw.unshift({
+      id: 'dead-beef',
+      name: 'ghost',
+      path: join(tmpRoot, 'ghost-project'),
+      lastOpenedAt: new Date().toISOString(),
+    })
+    await writeFile(recentFile, JSON.stringify(raw, null, 2))
+
+    expect((await svc.listRecentProjects()).map((r) => r.name)).toEqual(['bot-alive'])
+    // 回写后文件里也不再留死路径，不会一直占着最近列表的位置
+    const persisted = JSON.parse(await readFile(recentFile, 'utf-8'))
+    expect(persisted.map((r: { name: string }) => r.name)).toEqual(['bot-alive'])
   })
 })
 

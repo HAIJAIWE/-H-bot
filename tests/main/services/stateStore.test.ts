@@ -4,32 +4,19 @@
 // 测试策略：使用 mkdtemp 创建临时项目目录，通过 StateStore.resetInstanceForTesting()
 // 在每个测试前重置单例，避免跨测试状态污染。
 //
-// 注：本测试文件依赖 better-sqlite3 原生模块。若环境 NODE_MODULE_VERSION 不匹配
-// （npm rebuild better-sqlite3 失败时），所有 describe.skip 会被触发，
-// 测试将以 skipped 状态显示而非 failed。修复环境后取消 skip 即可。
+// 数据库走 src/main/services/infra/sqlite 的统一入口：原生 better-sqlite3 不可用时
+// 会自动降级到 node:sqlite（ABI 无关），所以这里不该再因为 ABI 跳过 —— 跳过等于
+// 把「状态库到底能不能用」这条最重要的路径从测试里摘掉。
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
-// 尝试加载 better-sqlite3 并创建 Database 实例，若失败则跳过所有测试
-// 注：require('better-sqlite3') 仅加载 JS 包装，原生 .node 文件在 new Database() 时才加载
-let betterSqliteAvailable = false
-try {
-  const Database = require('better-sqlite3')
-  // 尝试创建内存数据库实例以验证原生模块可用
-  const testDb = new Database(':memory:')
-  testDb.close()
-  betterSqliteAvailable = true
-} catch {
-  betterSqliteAvailable = false
-}
-
-// 使用 ESM import（走 vitest 别名解析）；better-sqlite3 不可时整体跳过
+import { sqliteStatus } from '@main/services/infra/sqlite'
 import { StateStore } from '@main/services/stateStore'
 
-// 跳过标志：better-sqlite3 不可用时整体跳过
-const describeOrSkip = betterSqliteAvailable ? describe : describe.skip
+// 两个引擎都不可用（极少见）时跳过；否则一定跑
+const describeOrSkip = sqliteStatus().ok ? describe : describe.skip
 
 let tmpProjectDir: string
 let store: InstanceType<typeof StateStore>

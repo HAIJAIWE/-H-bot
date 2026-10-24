@@ -1,6 +1,6 @@
 // @ts-nocheck
 // 由 10/18 打包产物还原（chunk: ai-DvGDTK0D.js）；见 _recovery/README-recovery.md
-import better_sqlite3 from "better-sqlite3";
+import { openSqlite } from "./sqlite";
 import * as path from "path";
 import * as fs from "fs";
 import { removeSqliteFiles } from "./sqliteFiles";
@@ -44,7 +44,7 @@ var BaseSqliteStore = class {
 		const dir = this.getDir(projectPath);
 		if (!(0, fs.existsSync)(dir)) (0, fs.mkdirSync)(dir, { recursive: true });
 		const dbPath = this.getDbFilePath(projectPath);
-		const db = new better_sqlite3(dbPath);
+		const db = openSqlite(dbPath);
 		db.pragma("journal_mode = WAL");
 		this._initSchema(db);
 		this._dbCache.set(projectPath, db);
