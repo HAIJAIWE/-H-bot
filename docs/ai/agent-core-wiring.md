@@ -1065,10 +1065,10 @@ i18n `ai.preset.impact.*` 共 20 键（中英各一份，两文件 3216 键对�
 第一次真机打开预览，看到「白名单里 1 个不认识：list_dir」—— 而 `list_dir` 是循环里**确实有**的工具。
 查下去是两处口径不同：
 
-| 地方 | 给的什么 |
-| ---- | -------- |
-| `src/main/ipc/ai.ts` 的 `ai:tools`（旧） | `ALL_TOOL_DEFINITIONS`：助手链路 27 个领域定义（`add_node` / `read_flow` / …） |
-| `src/main/ipc/aiAgentCore.ts:345` 预设白名单过滤的 | `scopeToolsByPlugins(listTools(), …)` —— **循环注册表** |
+| 地方                                               | 给的什么                                                                       |
+| -------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `src/main/ipc/ai.ts` 的 `ai:tools`（旧）           | `ALL_TOOL_DEFINITIONS`：助手链路 27 个领域定义（`add_node` / `read_flow` / …） |
+| `src/main/ipc/aiAgentCore.ts:345` 预设白名单过滤的 | `scopeToolsByPlugins(listTools(), …)` —— **循环注册表**                        |
 
 循环注册表只有 6 个：`read_file` / `write_file` / `run_command` / `validate_flow` / `list_dir` / `search_text`
 （`src/main/services/agent-core/core.ts:231-369`，`CORE_TOOLS` 在 `:449` 注册），另外是插件市场装进来的工具。于是：
@@ -1099,3 +1099,97 @@ i18n `ai.preset.impact.*` 共 20 键（中英各一份，两文件 3216 键对�
 - 真机：`_recovery/cdp-preset-verify.mjs` 打开「编辑预设…」，impact 块 w=538 h=114；文本
   「能改：界面…不能写 · 代码…能写 / 工具 只留 2 个 · 改 0 · 查 1 · 白名单里 1 个不认识：list_dir / 审批 逐次问」，
   改完 `ai:tools` 后那句「不认识」消失。
+
+## 32. 旧 27 个工具真正进循环了（2026-10-25）
+
+上一节记的账（`adaptLegacyTools` 零调用点）这轮还掉：循环现在把**两半工具表**接在一起，
+模型能直接看见、直接调 `add_node` / `read_flow` 这类领域工具，而不再只会读写文件。
+
+### 32.1 形状：一个 per-run 的 bridge，一个 per-turn 的账本
+
+`src/main/ipc/aiAgentCore.ts` 在算出 `role` 之后建两样东西：
+
+```ts
+const pendingOperations: ProposalOperation[] = []
+const legacyBridge: LegacyToolBridge = {
+  projectPath,
+  signal: ctrl.signal,
+  role,
+  pendingOperations,
+  context: () => buildPendingContext(projectPath, pendingOperations),
+  dispatch: async instruction => {
+    const res = await dispatchInstruction(win, {
+      name: instruction.name,
+      args: instruction.args,
+      projectPath,
+    })
+    return res.outcome
+  },
+}
+const mergedTools = mergeTools(listTools(), adaptLegacyTools(legacyBridge))
+```
+
+三处取舍：
+
+- **`pendingOperations` 在每一轮 `for (;;)` 开头清空**（`pendingOperations.length = 0`，原地清、不换数组 ——
+  bridge 闭包里抓的是同一个引用）。提案是**这一轮**的产物；不清空的话第二轮会把上一轮攒的操作再发一次。
+- **`dispatch` 永不 reject**：`dispatchInstruction` 返回 `{ requestId, outcome }`，适配层要求 query 工具的
+  `outcome.status === "applied"`，否则按失败回灌模型。
+- **`context` 是惰性的**：`buildPendingContext` 要读 pendingOperations 的当前快照（生成「确认后长什么样」的预览），
+  所以是 `() => Promise<...>` 而不是值。顺带修掉一个洞：`legacyTools.ts` 的默认执行器以前只把 `signal` 交给
+  `executeTool`、**`bridge.context` 从来没被 await 过**（`ctxOf()` 只返回 `{ signal }`）—— 现在先 await context 再并上 signal。
+
+### 32.2 同名冲突：循环版优先（规则只有一份）
+
+两半里有三个重名：`read_file` / `write_file` / `validate_flow`。合并规则写在新文件
+`src/main/services/agent-core/toolCatalog.ts` 的 `mergeTools(loopTools, legacyTools)`：**同名时第一半（循环版）优先**，
+顺序保持稳定。理由不是「新的更好」，而是**闸门**：循环版认工作区相对路径、写盘要过审批；旧版直接执行、不认这套边界。
+留错那一份 = 同一个名字在两条路径上遵守两套规则。
+
+规则放在一个函数里，是因为**有两处必须按同一条合并**：
+
+| 调用点                             | 用途                                              |
+| ---------------------------------- | ------------------------------------------------- |
+| `src/main/ipc/aiAgentCore.ts`      | 真正交给循环的可执行工具（走 `adaptLegacyTools`） |
+| `src/main/ipc/ai.ts` 的 `ai:tools` | 界面上预设白名单能勾的那张表                      |
+
+两边各写一遍 `[...a, ...b.filter(不在 a 里)]`，迟早有一边漏掉某个名字 —— §31 那次的
+「勾了拦不住 / 真能用的被标不认识」就是这么来的。现在 `ai:tools` 也广告合并表（`listTools()` 映射 +
+`ALL_TOOL_DEFINITIONS` 映射，交给同一个 `mergeTools`），界面上勾 `add_node` 才第一次是真收紧。
+
+### 32.3 提案口径：发 `ai:proposal` 就不发 `ai:response`
+
+轮末（`last = result` 之后、`emit("ai:response")` 之前）：
+
+```ts
+const validation = await validateProposalOperations(projectPath, pendingOperations)
+const verdict = buildVerdict(pendingOperations, validation) as unknown as Verdict
+const proposal = createProposal(currentRequirement, pendingOperations, validation, verdict)
+emit('ai:proposal', { projectPath, proposal })
+```
+
+- **有提案就只发 `ai:proposal`**，正文不发。这是助手链路既有口径（`aiStore.ts` 两处注释：
+  「主进程有提案时只发 ai:proposal、不发 ai:response」），两条都发界面上会长出两份尾巴。
+- **组装失败（校验抛错）退回正文**：`try/catch` 里 `logger.warn` + 照常发 `ai:response`。
+  宁可少一个提案面板，不能因为校验炸掉就让这一轮彻底没有回复。
+- `as unknown as Verdict` 的强转写在注释里：`verifier.ts` 是还原文件、参数没有类型，
+  `issues[].severity` 被推成 `string`，与 `Verdict` 的 `"error" | "warn"` 不兼容。**不改那个文件** ——
+  改它等于整篇重排（本仓库还原文件一律不打散重排）。
+- 事件契约跟着登记：`tests/guards/agentCoreEventContract.test.ts` 的 `REQUIRED_KEYS` 加
+  `"ai:proposal": ["projectPath", "proposal"]`，`aiAgentCore.ts` 的期望 emit 列表加一条（13 → 14）。
+
+### 32.4 还没做的（记清楚，别当成已经有）
+
+- **模型复核**：助手链路 `emitProposal` 里有 `shouldReviewWithModel` / `verifyPlanWithModel`（让模型再审一遍计划），
+  循环这边只走「结构校验 + `buildVerdict`」。想加得先决定用哪个模型、算谁的 token。
+- **lanes / runSummary**：助手链路那套分流与轮次摘要，循环里没有。
+- **提案被拒后的回灌**：助手链路会把用户对提案的处置写成 system 注记喂回下一轮；循环目前只管发。
+
+### 32.5 测试
+
+- `tests/main/services/agent-core/legacyTools.test.ts`（11 例）新增 2 例：**默认执行器要并上 context**，以及
+  「没有 context 时 `toEqual({ signal })`」。
+- `tests/main/ipc/aiAgentCore-ipc.test.ts`（20 例）新增/改 4 例：旧工具真进循环表且同名让位循环版；
+  mutation 只攒提案、**只发 `ai:proposal` 不发 `ai:response`**；组装失败退回正文；白名单收窄到只剩勾中的那个。
+- `tests/main/ipc/ai-ipc.test.ts` / `remaining-ipc-1.test.ts`：`ai:tools` 的断言从前两条精确相等改成
+  「前两条是循环版 + 表里有旧定义 + 同名只出现一次」。

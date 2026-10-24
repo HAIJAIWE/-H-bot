@@ -25,6 +25,10 @@ const h = vi.hoisted(() => ({
   resolvePresetTools: vi.fn(),
   /** 主进程发出去的事件（只在回调里发的那些，比如 ai:compact，要靠它断言） */
   send: vi.fn(),
+  /** 旧 27 工具适配器：这里只验接线（真适配器另有 legacyTools 的测试） */
+  adaptLegacyTools: vi.fn(),
+  validateProposal: vi.fn(),
+  buildVerdict: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -43,6 +47,12 @@ vi.mock('@main/services/ai/appAiConfig', () => ({ resolveAuthorAiConfig: h.resol
 vi.mock('@main/services/ai/trace', () => ({ appendTrace: h.appendTrace }));
 vi.mock('@main/services/ai/toolApproval', () => ({ requestApproval: h.requestApproval }));
 vi.mock('@main/services/agent-core/runTurn', () => ({ runAgentTurn: h.runAgentTurn }));
+vi.mock('@main/services/agent-core/legacyTools', () => ({
+  adaptLegacyTools: h.adaptLegacyTools,
+  adaptLegacyTool: vi.fn(),
+}));
+vi.mock('@main/services/ai/proposalValidation', () => ({ validateProposalOperations: h.validateProposal }));
+vi.mock('@main/services/ai/verifier', () => ({ buildVerdict: h.buildVerdict }));
 vi.mock('@main/services/ai/presets', () => ({
   readPreset: h.readPreset,
   resolvePresetTools: h.resolvePresetTools,
@@ -80,6 +90,35 @@ describe('ai:agentCoreRun 接线', () => {
     h.readPreset.mockReset().mockResolvedValue(undefined);
     h.resolvePresetTools.mockReset().mockResolvedValue(undefined);
     h.send.mockReset();
+    h.validateProposal.mockReset().mockResolvedValue({ issues: [], introduced: [] });
+    h.buildVerdict.mockReset().mockReturnValue({ ok: true, issues: [], evidence: "", by: "static" });
+    /**
+     * 假旧工具表：一条 mutation（往 bridge 里攒操作）+ 一条与循环同名的 query。
+     * 同名那条是为了钉住「循环版优先」—— 留错那份，闸门就变成两套。
+     */
+    h.adaptLegacyTools.mockReset().mockImplementation(
+      (bridge: { pendingOperations: Array<Record<string, unknown>> }) => [
+        {
+          name: "add_node",
+          description: "加节点",
+          category: "mutation",
+          parameters: {},
+          async run() {
+            bridge.pendingOperations.push({ kind: "add_node", type: "message_send" });
+            return "操作已加入待确认计划（1 项）";
+          },
+        },
+        {
+          name: "read_file",
+          description: "旧版读文件",
+          category: "query",
+          parameters: {},
+          async run() {
+            return "（旧版）";
+          },
+        },
+      ],
+    );
   });
 
   it('★ 载荷过 schema：缺 requirement 直接拒，不往下跑', async () => {
@@ -193,10 +232,77 @@ describe('ai:agentCoreRun 接线', () => {
     const tools = (h.runAgentTurn.mock.calls[0][0] as { tools?: Array<{ name: string }> }).tools;
     expect(tools?.map((t) => t.name)).toEqual(['read_file']);
 
+    // 旧工具也在同一张表里，白名单一样收得住
     h.runAgentTurn.mockClear();
-    // 不裁就不带这个键（循环按注册表全量走）
-    await invoke({ projectPath: 'D:/p', requirement: '随便' });
-    expect('tools' in (h.runAgentTurn.mock.calls[0][0] as Record<string, unknown>)).toBe(false);
+    await invoke({ projectPath: 'D:/p', requirement: '只加节点', allowedTools: ['add_node'] });
+    const legacyOnly = (h.runAgentTurn.mock.calls[0][0] as { tools?: Array<{ name: string }> })
+      .tools;
+    expect(legacyOnly?.map((t) => t.name)).toEqual(['add_node']);
+  });
+
+  it('★ 旧工具真进循环工具表，同名时让位给循环版（闸门只能有一套）', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '给 /test 加个发消息节点' });
+    const tools = (h.runAgentTurn.mock.calls[0][0] as {
+      tools?: Array<{ name: string; description: string }>;
+    }).tools;
+    const names = tools?.map((t) => t.name) ?? [];
+    expect(names).toContain('add_node');
+    expect(names).toContain('read_file');
+    // 两张表都有 read_file：循环那份（工作区相对路径 + 审批闸）必须赢
+    expect(names.filter((n) => n === 'read_file')).toHaveLength(1);
+    expect(tools?.find((t) => t.name === 'read_file')?.description).not.toBe('旧版读文件');
+    expect(h.adaptLegacyTools).toHaveBeenCalledTimes(1);
+  });
+
+  it('★ mutation 只攒提案：轮末发 ai:proposal、不发 ai:response', async () => {
+    // 模拟模型这一轮真的调了 add_node（适配器把操作攒进 bridge，不落盘）
+    h.runAgentTurn.mockImplementation(
+      async (input: { tools?: Array<{ name: string; run: (a: Record<string, unknown>) => Promise<string> }> }) => {
+        const tool = input.tools?.find((t) => t.name === 'add_node');
+        const output = await tool!.run({});
+        return {
+          ...RESULT,
+          finalText: '我把它排进计划了',
+          toolResults: [{ name: 'add_node', args: {}, output }],
+        };
+      },
+    );
+    const res = (await invoke({
+      projectPath: 'D:/p',
+      requirement: '给 /test 加个发消息节点',
+    })) as { ok: boolean };
+    expect(res.ok).toBe(true);
+
+    const channels = h.send.mock.calls.map((c) => c[0]);
+    expect(channels).toContain('ai:proposal');
+    // 两条都发 = 同一轮长出「正文 + 提案」两份尾巴，渲染层的收尾分工靠这条口径
+    expect(channels).not.toContain('ai:response');
+    expect(channels).toContain('ai:agentState');
+
+    const payload = h.send.mock.calls.find((c) => c[0] === 'ai:proposal')![1] as {
+      projectPath: string;
+      proposal: { id: string; summary: string; operations: unknown[] };
+    };
+    expect(payload.projectPath).toBe('D:/p');
+    // 提案标题就是用户这一句：卡片上要能认出「这是刚才那个要求」
+    expect(payload.proposal.summary).toBe('给 /test 加个发消息节点');
+    expect(payload.proposal.operations).toHaveLength(1);
+    expect(typeof payload.proposal.id).toBe('string');
+  });
+
+  it('提案组装失败就退回正文（不许一片空白）', async () => {
+    h.validateProposal.mockRejectedValue(new Error('校验炸了'));
+    h.runAgentTurn.mockImplementation(
+      async (input: { tools?: Array<{ name: string; run: (a: Record<string, unknown>) => Promise<string> }> }) => {
+        const tool = input.tools?.find((t) => t.name === 'add_node');
+        await tool!.run({});
+        return RESULT;
+      },
+    );
+    await invoke({ projectPath: 'D:/p', requirement: '加个节点' });
+    const channels = h.send.mock.calls.map((c) => c[0]);
+    expect(channels).toContain('ai:response');
+    expect(channels).not.toContain('ai:proposal');
   });
 
   it('★ 角色的写域闸：builder 写 src/ 直接拒，连弹窗都不弹（点"允许"不能绕过角色边界）', async () => {

@@ -31,6 +31,8 @@ export const REQUIRED_KEYS: Record<string, string[]> = {
   'ai:agentStep': ['projectPath', 'step', 'maxSteps'],
   // 循环内压缩（aiAgentCore 独有）：渲染层要读 dropped 与两个 token 估算值
   'ai:compact': ['projectPath', 'dropped', 'tokensBefore', 'tokensAfter'],
+  // 循环里的提案（旧工具攒出来的操作）：渲染层按 projectPath 分档、直接渲染 proposal
+  'ai:proposal': ['projectPath', 'proposal'],
   'ai:response': ['message'],
   'ai:error': ['message'],
   'ai:warning': ['message'],
@@ -206,6 +208,7 @@ describe('★ 事件契约：主进程发 → preload 收 → 渲染层读', () 
       'ai:compact',
       'ai:error',
       'ai:error',
+      'ai:proposal',
       'ai:response',
       'ai:toolCall',
       'ai:toolCall',

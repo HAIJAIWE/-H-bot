@@ -15,6 +15,8 @@ import { clearThread, listThreads, threadFile } from "../services/ai/threads";
 import { appendHistoryEntries, loadHistory, readHistoryForUi, truncateHistoryAt } from "../services/ai/historyStore";
 import { AI_TURN_NOTE_PREFIX } from "../../shared/types/ai";
 import { listTools } from "../services/agent-core/core";
+import { mergeTools } from "../services/agent-core/toolCatalog";
+import { ALL_TOOL_DEFINITIONS } from "../services/ai/tools/defs";
 import { listTurns, readTurn, rollbackTurn, turnsFromMessage } from "../services/flow/turnJournal";
 import { loadProjectPlugins } from "../services/plugins/pluginLoader";
 import { readAppAiConfig, readProjectBotAiConfig, resolveAuthorAiConfig, writeAppAiConfig, writeAppAiFallbacks, writeProjectBotAiConfig } from "../services/ai/appAiConfig";
@@ -140,20 +142,31 @@ function registerAiIpc(projectService) {
 		});
 	});
 	/**
-	* ai:tools —— **循环注册表**里的工具（预设白名单过滤的就是这一张）。
+	* ai:tools —— **循环真正能调的那张表**（预设白名单过滤的就是这一张）。
 	*
-	* 以前返回的是助手链路那 27 个领域定义（ALL_TOOL_DEFINITIONS），但预设白名单真正
-	* 过滤的是 agent-core 的 listTools()（CORE_TOOLS + 插件注册的工具）—— 于是界面上
-	* 勾了 add_node 拦不住任何东西，而循环里**真能用**的 read_file 反倒被标成「不认识」。
-	* 工具表只广告真正能执行的：这条对界面同样成立。
+	* 这条通道踩过两个坑，都是「界面上勾的」与「循环里拦得住的」对不上：
+	*   ① 以前只返回循环注册表（6 个通用文件工具 + 插件工具）：勾 add_node 拦不住任何
+	*      东西，而循环里真能用的 read_file 反倒被标成「不认识」；
+	*   ② 更早以前只返回助手链路那 27 个定义：勾了循环里根本没有那些名字。
+	* 现在循环把两半接在一起了（aiAgentCore 的 legacyBridge + adaptLegacyTools），这里
+	* 必须广告同一张表。合并规则只用 toolCatalog.mergeTools 一份：同名（read_file /
+	* write_file / validate_flow）循环版优先，两边不会各说各话。
 	*/
 	electron.ipcMain.handle("ai:tools", async () => {
-		return tryIpc(() => listTools().map((tool) => ({
-			name: tool.name,
-			description: tool.description,
-			category: tool.category ?? "mutation",
-			parameters: tool.parameters ?? {}
-		})));
+		return tryIpc(() => mergeTools(
+			listTools().map((tool) => ({
+				name: tool.name,
+				description: tool.description,
+				category: tool.category ?? "mutation",
+				parameters: tool.parameters ?? {}
+			})),
+			ALL_TOOL_DEFINITIONS.map((def) => ({
+				name: def.name,
+				description: def.description,
+				category: def.category ?? "mutation",
+				parameters: def.parameters ?? {}
+			})),
+		));
 	});
 	electron.ipcMain.handle("ai:setConfig", async (_event, args) => {
 		const parsed = aiConfigSchema.safeParse(args);

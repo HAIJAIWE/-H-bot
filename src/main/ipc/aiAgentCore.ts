@@ -43,6 +43,14 @@ import { listTools } from '../services/agent-core/core';
 import { readPreset, resolvePresetTools, writePresets } from '../services/ai/presets';
 import { listMainPlugins, pluginOwnedTools } from '../services/plugins/host';
 import { scopeToolsByPlugins } from '../services/plugins/scoping';
+import { dispatchInstruction } from '../services/ai/instructionBridge';
+import { buildPendingContext } from '../services/ai/pendingContext';
+import { validateProposalOperations } from '../services/ai/proposalValidation';
+import { buildVerdict } from '../services/ai/verifier';
+import { createProposal, type ProposalOperation } from '@shared/types/proposal';
+import type { Verdict } from '@shared/types/agent';
+import { adaptLegacyTools, type LegacyToolBridge } from '../services/agent-core/legacyTools';
+import { mergeTools } from '../services/agent-core/toolCatalog';
 import { resolveSummaryLlm } from '../services/ai/summaryLlm';
 import { makeTurnSummarizer } from '../services/agent-core/contextGate';
 import { AUTHOR_PROFILE } from '@shared/agent/policy';
@@ -342,13 +350,47 @@ export function registerAiAgentCoreIpc(): void {
       const roleNote = [AGENT_ROLE_HINT[role], LOOP_ROLE_GATE_NOTE, fileNote, preset?.prompt]
         .filter(Boolean)
         .join('\n\n');
-      const scoped = scopeToolsByPlugins(listTools(), pluginOwnedTools(), preset?.plugins);
+      /**
+       * ── 旧工具接进循环（2026-10-25）────────────────────────────────────
+       *
+       * 循环手上原本只有 6 个通用文件工具；助手链路那 27 个领域工具
+       * （read_flow / list_nodes / add_node / validate_flow …）循环里**根本看不到** ——
+       * 「一个引擎」于是只能是句空话：用户说"给 /test 加个发消息节点"，
+       * 循环只能自己改 flow.json，改完没有提案、没有预览图、没有结构校验。
+       *
+       * 这里把同一批定义接进来（`adaptLegacyTools`），语义**照旧**，一件不新造：
+       *   · query 走 executeTool，要界面执行的走 dispatchInstruction 等回执；
+       *   · mutation **不执行**，只攒进 pendingOperations，轮末发提案等用户确认。
+       */
+      const pendingOperations: ProposalOperation[] = [];
+      const legacyBridge: LegacyToolBridge = {
+        projectPath,
+        signal: ctrl.signal,
+        role,
+        pendingOperations,
+        // 与助手链路同一个构造器：自检类工具拿"加上待确认操作后的流程图"，而不是磁盘现状
+        context: () => buildPendingContext(projectPath, pendingOperations),
+        // 界面指令：发出去并**等回执**；超时/无窗口都收敛成 failed，绝不假成功
+        dispatch: async (instruction) => {
+          const res = await dispatchInstruction(win, {
+            name: instruction.name,
+            args: instruction.args,
+            projectPath,
+          });
+          return res.outcome;
+        },
+      };
+      // 同名（read_file / write_file / validate_flow）循环版优先，规则见 toolCatalog
+      const mergedTools = mergeTools(listTools(), adaptLegacyTools(legacyBridge));
+      const scoped = scopeToolsByPlugins(mergedTools, pluginOwnedTools(), preset?.plugins);
+      /**
+       * 收窄后**总是**交出去：不传的话 runTurn 会退回 listTools()（只有 6 个），
+       * 旧工具就又白接了 —— 这是本仓库第 N 次"算完没交出去"。
+       */
       const turnTools =
         allowedToolNames && allowedToolNames.length > 0
           ? scoped.filter((t) => allowedToolNames.includes(t.name))
-          : scoped.length !== listTools().length
-            ? scoped
-            : undefined;
+          : scoped;
       let currentRequirement = requirement;
       /**
        * 贴图只属于**这一句**（用户说"你看这是怎么回事"附的图）：
@@ -362,6 +404,11 @@ export function registerAiAgentCoreIpc(): void {
       for (;;) {
         const turnImages = pendingImages;
         pendingImages = undefined;
+        /**
+         * 每轮清空待确认操作：提案是**这一轮**的产物。
+         * 留着上一轮的会让模型看见"已经提交过"的假历史，也会让提案越滚越大。
+         */
+        pendingOperations.length = 0;
         /**
          * 每轮开始都要把这一轮的要求记进记忆（顺序与以前一致：先读历史、再记要求）。
          * 图本身不落盘（一张截图 base64 就几 MB，会撑爆 JSONL），只在记忆里留一句
@@ -584,10 +631,39 @@ export function registerAiAgentCoreIpc(): void {
         }
         last = result;
         /**
+         * ── 提案（2026-10-25）──────────────────────────────────────────
+         *
+         * mutation 类旧工具**不执行**：操作攒在 pendingOperations 里，由这里统一校验、
+         * 出裁决、发提案 —— 用户点了确认才落盘。与助手链路同一个口径：
+         * **有提案时只发 ai:proposal、不发 ai:response**（渲染层按这条分工收尾；
+         * 两条都发会让同一轮长出"正文 + 提案"两份尾巴）。
+         */
+        let proposalSent = false;
+        if (pendingOperations.length > 0) {
+          try {
+            const validation = await validateProposalOperations(projectPath, pendingOperations);
+            // verifier 是还原文件（参数没有类型），它的 issues[].severity 被推成 string；
+            // 这里按它对外承诺的形状收一下，不改那个文件（改它等于把整篇还原代码重排一遍）。
+            const verdict = buildVerdict(pendingOperations, validation) as unknown as Verdict;
+            const proposal = createProposal(currentRequirement, pendingOperations, validation, verdict);
+            emit('ai:proposal', { projectPath, proposal });
+            proposalSent = true;
+            logger.info(
+              '[ipc/aiAgentCore] 已发出提案：' +
+                pendingOperations.length +
+                ' 个操作；结构校验' +
+                (verdict.ok ? '通过' : '有 ' + verdict.issues.length + ' 条问题'),
+            );
+          } catch (e) {
+            // 提案发不出去时**退回正文**：至少让用户看见模型说了什么，而不是一片空白
+            logger.warn('[ipc/aiAgentCore] 组装提案失败（退回正文）:', String(e));
+          }
+        }
+        /**
          * 收尾交给渲染层那套现有逻辑（它会把正文 + 本轮工具行合成一条消息）。
          * 顺序：先 response（提交正文与工具），再 idle（状态栏回"就绪"）。
          */
-        emit('ai:response', { projectPath, message: result.finalText });
+        if (!proposalSent) emit('ai:response', { projectPath, message: result.finalText });
         emit('ai:agentState', { projectPath, state: 'idle' });
         /**
          * 还有排队的下一轮吗？有就接着开（用户的"排队"消息**不能**等他再发一次）。

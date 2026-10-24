@@ -18,6 +18,12 @@ import { ALL_TOOL_DEFINITIONS } from '@main/services/ai/tools/defs';
 import type { AiToolDefinition } from '@shared/types/ai';
 import type { ToolContext } from '@main/services/agent-core/core';
 
+// 默认执行器（不传 execute 的那条路）走的是真 executeTool —— 这里换成 spy，
+// 好断言上下文到底有没有传进去（2026-10-25 修的那个洞：以前只给 signal，
+// bridge.context 被静默忽略）。
+const h = vi.hoisted(() => ({ executeTool: vi.fn() }));
+vi.mock('@main/services/ai/tools/execute', () => ({ executeTool: h.executeTool }));
+
 /** Tool 契约要求 (args, ctx)；这批用例只关心提案/回执，ctx 里给个 workspace 占位 */
 const ctx: ToolContext = { workspace: 'C:/proj' };
 
@@ -110,6 +116,34 @@ describe('★ query：要等回执', () => {
     }));
     const text = await adaptLegacyTool(def, bridgeOf({ execute })).run({}, ctx);
     expect(text).toContain('[工具失败]');
+  });
+});
+
+describe('★ 默认执行器：上下文与信号都要传到位', () => {
+  const def: AiToolDefinition = {
+    name: 'fake_query',
+    description: 'query',
+    parameters: { type: 'object', properties: {} },
+    category: 'query',
+  };
+
+  it('★ 上下文（待确认预览图）并进执行上下文，signal 也照样带上', async () => {
+    h.executeTool.mockReset().mockResolvedValue({ result: 'ok' });
+    const signal = new AbortController().signal;
+    const context = vi.fn(async () => ({ pendingNote: '这是确认后的样子' }));
+    const text = await adaptLegacyTool(def, bridgeOf({ context, signal })).run({}, ctx);
+    expect(context).toHaveBeenCalledOnce();
+    const passed = h.executeTool.mock.calls[0][2];
+    expect(passed.pendingNote).toBe('这是确认后的样子');
+    expect(passed.signal).toBe(signal);
+    expect(text).toBe('ok');
+  });
+
+  it('没有 context 时也要带 signal（以前是二选一）', async () => {
+    h.executeTool.mockReset().mockResolvedValue({ result: 'ok' });
+    const signal = new AbortController().signal;
+    await adaptLegacyTool(def, bridgeOf({ signal })).run({}, ctx);
+    expect(h.executeTool.mock.calls[0][2]).toEqual({ signal });
   });
 });
 

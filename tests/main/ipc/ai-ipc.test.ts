@@ -159,10 +159,17 @@ describe('接线', () => {
   it('ai:tools 返回的是循环注册表（预设白名单过滤的那张），字段补全成工具定义', async () => {
     const res = await call('ai:tools', {});
     expect(res.ok).toBe(true);
-    expect(res.data).toEqual([
+    // 前两条是循环注册表（mock 的两个），字段缺省就地补全
+    expect(res.data.slice(0, 2)).toEqual([
       { name: 'read_file', description: '读一个文件', category: 'query', parameters: { type: 'object' } },
       { name: 'write_file', description: '写一个文件', category: 'mutation', parameters: {} },
     ]);
+    const names = res.data.map((tool: { name: string }) => tool.name);
+    // 旧 27 个定义也在这张表里 —— 循环接上 adaptLegacyTools 之后，界面上勾的就是它们
+    expect(names).toContain('apply_template');
+    // 同名（read_file / write_file / validate_flow）只留循环版：一个名字一套规则
+    expect(names.filter((name: string) => name === 'read_file')).toHaveLength(1);
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it('ai:cancelChat 把 projectPath 交给 cancelAiChat，并回执是否真取消了', async () => {

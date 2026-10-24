@@ -314,10 +314,14 @@ describe('ai IPC', () => {
     it('正常路径：返回循环注册表，缺 category 的按 mutation 补、缺 parameters 的补空对象', async () => {
       const res = (await getHandler('ai:tools')()) as IpcResult
       expect(res.ok).toBe(true)
-      expect(res.data).toEqual([
+      const rows = res.data as Array<{ name: string; category: string; parameters: unknown }>
+      expect(rows.slice(0, 2)).toEqual([
         { name: 'list_dir', description: '列目录', category: 'query', parameters: { type: 'object' } },
         { name: 'write_file', description: '写文件', category: 'mutation', parameters: {} }
       ])
+      // 旧助手定义也并进来了（同一个名字只留循环版）
+      expect(rows.map((row) => row.name)).toContain('apply_template')
+      expect(new Set(rows.map((row) => row.name)).size).toBe(rows.length)
     })
   })
 

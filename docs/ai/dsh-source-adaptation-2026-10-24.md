@@ -296,3 +296,4 @@ src/main/vendor/dsh/
 | 2026-10-25（四次） | **本轮边界一行**：`TurnBoundary` 把主进程真正生效的角色来源 / 工具与插件收窄数 / 审批口径 / 先计划摆在输入框上方（默认态不渲染）—— 对照见 `agent-core-wiring.md` §29                                                                                                                                   |
 | 2026-10-25（五次） | **角色/预设合成一个菜单**：删掉 `RoleChips` + `PresetSelect`（同一件事两处选、还多一条「跟页面」），按 DSH `ui-agent-preset` 的形状改成 `AgentPresetMenu`（跟随页面 / 角色 / 我的预设三组互斥、当前项 `aria-pressed`、编辑另开入口）；`TurnBoundary` 不再复述角色 —— 对照见 `agent-core-wiring.md` §30 |
 | 2026-10-25（六次） | **预设「会放开什么」预览**：PresetImpact 复用主进程的 mayRoleWritePath 翻译角色边界、工具量与审批口径；顺带发现 ai:tools 给的是助手链路 27 个定义而预设过滤的是循环注册表（6 个），改成说真话 —— 对照见 agent-core-wiring.md §31 |
+| 2026-10-25（七次） | **旧工具进循环**：`adaptLegacyTools` 从零调用点接进 `aiAgentCore`（per-run bridge + per-turn `pendingOperations`），轮末有操作就发 `ai:proposal`（只发提案不发正文）；新建 `toolCatalog.mergeTools` 把「同名循环版优先」写成一份规则，`ai:tools` 同步广告合并表，预设白名单才第一次能勾 `add_node` 并真收紧 —— 对照见 `agent-core-wiring.md` §32 |

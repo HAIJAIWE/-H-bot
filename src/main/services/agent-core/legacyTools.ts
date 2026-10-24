@@ -40,7 +40,7 @@ export interface LegacyToolBridge {
    */
   pendingOperations: ProposalOperation[];
   /** 执行前的上下文（预览图等）；不传 = 只带 signal */
-  context?: () => Promise<ToolExecutionContext>;
+  context?: () => Promise<ToolExecutionContext | undefined>;
   /** 需要渲染层执行的指令；不传 = 这类工具直接失败并说明原因 */
   dispatch?: (instruction: { name: string; args: Record<string, unknown> }) => Promise<LegacyInstructionOutcome>;
   /** 执行器（诊断/测试注入；默认走真实 executeTool） */
@@ -79,7 +79,16 @@ export function adaptLegacyTool(def: AiToolDefinition, bridge: LegacyToolBridge)
           '用户确认后才会落盘。现在不要重复提交同一组操作。'
         );
       }
-      const run = bridge.execute ?? ((call) => executeTool(call, bridge.projectPath, ctxOf(bridge)));
+      /**
+       * 上下文在**执行时**才取：待确认计划在这一轮里还在长（前一个 mutation 刚 push 进去），
+       * 建 bridge 那一刻的预览图到执行时已经过期。
+       */
+      const run =
+        bridge.execute ??
+        (async (call) => {
+          const ctx = bridge.context ? await bridge.context() : undefined;
+          return executeTool(call, bridge.projectPath, withSignal(ctx, bridge.signal));
+        });
       const call = { id: `${def.name}-${Date.now()}`, name: def.name, args };
       const res = await run(call);
       if (res.needsClientExecution && res.clientInstruction) {
@@ -103,8 +112,16 @@ export function adaptLegacyTools(bridge: LegacyToolBridge): Tool[] {
   return ALL_TOOL_DEFINITIONS.map((def) => adaptLegacyTool(def, bridge));
 }
 
-function ctxOf(bridge: LegacyToolBridge): ToolExecutionContext | undefined {
-  return bridge.signal ? { signal: bridge.signal } : undefined;
+/**
+ * 取消信号**总是**要并上：execute.ts 靠 ctx.signal.aborted 在执行前拦一刀。
+ * 上下文里已经带了 signal 时以 bridge 的为准（它属于当前这一轮）。
+ */
+function withSignal(
+  ctx: ToolExecutionContext | undefined,
+  signal: AbortSignal | undefined,
+): ToolExecutionContext | undefined {
+  if (!signal) return ctx;
+  return { ...(ctx ?? {}), signal };
 }
 
 /** 工具结果 → 回给模型的文本（对象就序列化；空值给一句明确的"没内容"） */
