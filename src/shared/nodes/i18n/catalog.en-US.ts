@@ -283,8 +283,8 @@ export const CATALOG_EN_US: CatalogCopy = {
   },
   "button_clicked": {
     "label": "Button click",
-    "description": "Listen for users clicking InlineKeyboard buttons",
-    "summary": "Fires when a button from \"Send message\" (Button UI) is clicked. The official QQ API surfaces command-button clicks as a message whose content equals the button's action.data, so catch it with the \"Message received\" trigger",
+    "description": "Listen for button / quick-menu clicks (QQ official INTERACTION_CREATE event)",
+    "summary": "Fires when a user clicks a button in a button UI or a quick menu. The official API pushes INTERACTION_CREATE (intent 1<<26) and the framework subscribes automatically (falls back and logs when unauthorized). Wire \"Interaction ID\" into the \"Button response\" node to acknowledge; the client keeps spinning until timeout if you do not reply within 3 seconds",
     "tags": [
       "QQ",
       "Button",
@@ -315,6 +315,10 @@ export const CATALOG_EN_US: CatalogCopy = {
       "outputs.group_id": {
         "name": "Group",
         "description": "Group number the button belongs to (empty in private chat)"
+      },
+      "outputs.interaction_id": {
+        "name": "Interaction ID",
+        "description": "Interaction ID of this click; pass it to the \"Button response\" node to acknowledge (valid for 3 seconds)"
       }
     }
   },

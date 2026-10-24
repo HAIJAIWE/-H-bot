@@ -44,6 +44,8 @@ const CLAIMS: { row: string; anchors: string[] }[] = [
   { row: 'QQ 频道', anchors: ['send_channel_message', 'AT_MESSAGE_CREATE'] },
   // ── 台账：事件层 ──
   { row: '✅ 已翻译', anchors: ['C2C_MESSAGE_CREATE', 'GROUP_AT_MESSAGE_CREATE'] },
+  // 互动事件从「只翻一半」到端到端接通（10/24）：订阅位、翻译、回执 id 三处都要在
+  { row: 'INTERACTION_CREATE', anchors: ['INTERACTION_CREATE', 'interaction_id'] },
   {
     row: '✅ 2026-10-04 补上',
     anchors: ['GROUP_ADD_ROBOT', 'SUBSCRIBE_MESSAGE_STATUS', 'GUILD_CREATE'],

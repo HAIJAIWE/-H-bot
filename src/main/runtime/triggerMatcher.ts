@@ -306,6 +306,7 @@ export function matchTrigger(trigger: TriggerNode, event: TriggerEvent | null): 
           event,
           button_id: btnId,
           button_data: btnData,
+          interaction_id: String(event?.interaction_id ?? ''),
           user_id: String(event?.user_id ?? ''),
           group_id: String(event?.group_id ?? ''),
         };
@@ -319,6 +320,7 @@ export function matchTrigger(trigger: TriggerNode, event: TriggerEvent | null): 
         event,
         button_id: '',
         button_data: String(targetData),
+        interaction_id: String(event?.interaction_id ?? ''),
         user_id: String(event?.user_id ?? ''),
         group_id: String(event?.group_id ?? ''),
       };

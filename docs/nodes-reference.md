@@ -30,7 +30,7 @@
 | `scheduled` | 定时触发 | trigger | — | — | next、time(datetime) |  |
 | `request_received` | 请求事件 | trigger | — | — | next、event(event)、request_type(string)、user_id(string)、group_id(string)、comment(string)、flag(string) |  |
 | `notice_received` | 通知事件 | trigger | — | — | next、event(event)、notice_type(string)、user_id(string)、group_id(string)、sub_type(string)、operator_id(string) |  |
-| `button_clicked` | 按钮点击 | trigger | — | — | next、event(event)、button_id(string)、button_data(string)、user_id(string)、group_id(string) |  |
+| `button_clicked` | 按钮点击 | trigger | — | — | next、event(event)、button_id(string)、button_data(string)、user_id(string)、group_id(string)、interaction_id(string) |  |
 | `on_ready` | 连接就绪 | trigger | — | — | next、event(event)、ready_at(number) |  |
 | `on_startup` | 机器人启动 | trigger | — | — | next、event(event)、started_at(number) |  |
 

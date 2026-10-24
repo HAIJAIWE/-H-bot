@@ -3,6 +3,7 @@
 import { emitSystemLog } from "../runner/runtimeEvents";
 import { emitStatus, emitter, ensureToken, getGatewayUrl, projectPathIndex, sessions } from "./client";
 import { loadOfficialConfig } from "./config";
+import { BASE_INTENTS, OPTIONAL_INTENTS, dropLowestOptionalIntent, intentLabel, intentsOf, officialIntents } from "./intents";
 
 function connectWs(session, url, isResume) {
 	if (session.ws) try {
@@ -41,7 +42,7 @@ function connectWs(session, url, isResume) {
 						op: 2,
 						d: {
 							token: `QQBot ${session.accessToken}`,
-							intents: officialIntents(session.memberIntentEnabled),
+							intents: officialIntents(session.optionalIntents),
 							shard: [0, 1],
 							properties: {
 								$os: "windows",
@@ -100,9 +101,13 @@ function connectWs(session, url, isResume) {
 	ws.onclose = (event) => {
 		stopHeartbeat(session);
 		session.ws = null;
-		if (event.code === 4014 && session.memberIntentEnabled) {
-			session.memberIntentEnabled = false;
-			emitSystemLog(session.projectPath, "官方拒绝订阅「群成员 / 入群申请」事件（4014 无权限）—— 已自动退回，其余功能不受影响。要让「有人入群/退群/申请加群」触发流程，需先在 QQ 开放平台为这个机器人申请该权限。");
+		if (event.code === 4014) {
+			const fallback = dropLowestOptionalIntent(session.optionalIntents || []);
+			if (fallback.dropped) {
+				session.optionalIntents = fallback.remaining;
+				session.retryCount = 0;
+				emitSystemLog(session.projectPath, "官方拒绝订阅「" + intentLabel(fallback.dropped) + "」事件（4014 无权限）—— 已退回重连，其余功能不受影响。要用这个事件，需先在 QQ 开放平台为机器人申请对应权限。");
+			} else emitSystemLog(session.projectPath, "官方拒绝了全部事件订阅（4014）—— 请到 QQ 开放平台检查这个机器人的事件权限。", "error");
 		}
 		emitter.emit("official:message", session.projectPath, {
 			type: "ws:close",
@@ -215,18 +220,6 @@ function stopHeartbeat(session) {
 * 表现为"官方渠道拿不到昵称"，看起来像平台限制。导出后可以对着
 * 官方文档的示例负载**逐字段**钉住（见 tests/main/services/officialEventParse.test.ts）。
 */
-/**
-* 连接时订阅的 intents。
-*
-* 基础部分（`1<<0` GUILDS + `1<<25` GROUP_AND_C2C_EVENT）在文档里都有明确权限口径：
-* GUILDS **默认有权限**，GROUP_AND_C2C_EVENT 是本项目已申请到的。
-*
-* `1<<24`（群成员/入群申请）**单独一个开关**：官方文档未把它写进位表，且无权限时订阅会让
-* WebSocket 直接 4014 关闭 —— 所以由会话层的 `memberIntentEnabled` 控制"先试订、被拒退回"。
-*/
-function officialIntents(memberEventEnabled) {
-	return memberEventEnabled ? 1124073473 : 1107296257;
-}
 function parseOfficialEvent(t, d) {
 	const event = {
 		type: t,
@@ -285,7 +278,7 @@ async function startOfficial(projectPath) {
 		reconnecting: false,
 		reconnectTimer: null,
 		alive: false,
-		memberIntentEnabled: true
+		optionalIntents: OPTIONAL_INTENTS.slice()
 	};
 	sessions.set(sessionKey, session);
 	projectPathIndex.set(projectPath, sessionKey);
@@ -332,4 +325,4 @@ var RECONNECT_MAX_DELAY_MS = 3e4;
 /** 默认心跳间隔（毫秒，服务端未下发时使用） */
 var DEFAULT_HEARTBEAT_INTERVAL_MS = 45e3;
 
-export { connectWs, doReconnect, scheduleReconnect, startHeartbeat, stopHeartbeat, officialIntents, parseOfficialEvent, startOfficial, stopOfficial, HEARTBEAT_CHECK_INTERVAL_MS, HEARTBEAT_TIMEOUT_THRESHOLD_MS, RECONNECT_MAX_DELAY_MS, DEFAULT_HEARTBEAT_INTERVAL_MS };
+export { connectWs, doReconnect, scheduleReconnect, startHeartbeat, stopHeartbeat, officialIntents, intentsOf, intentLabel, BASE_INTENTS, OPTIONAL_INTENTS, parseOfficialEvent, startOfficial, stopOfficial, HEARTBEAT_CHECK_INTERVAL_MS, HEARTBEAT_TIMEOUT_THRESHOLD_MS, RECONNECT_MAX_DELAY_MS, DEFAULT_HEARTBEAT_INTERVAL_MS };

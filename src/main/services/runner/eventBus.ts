@@ -13,6 +13,7 @@ import { pruneMessageContexts } from "../translator/messageContext";
 import { BUS_WS_PATH } from "../../../shared/protocol/bus";
 import { officialApiRequest, onOfficialMessage, onOfficialStatusChange } from "../official/client";
 import { noticeEventOf } from "../official/noticeEvents";
+import { interactionEventOf } from "../official/interactionEvent";
 import { ALL_ACTION_HANDLERS, normalizeActionName } from "../translator/actions/index";
 import { init_logger, logger } from "../infra/logger";
 
@@ -887,6 +888,28 @@ var EventBus = class {
 				operator_id: notice.operatorOpenid,
 				channel_id: notice.channelId ?? ""
 			});
+			return;
+		}
+		/**
+		* 互动事件（按钮 / 快捷菜单点击）：`INTERACTION_CREATE`，**intent 1<<26**，
+		* 由 ws.ts 的可选 intent 渐进订阅（没权限时网关不推，收不到就是没订上）。
+		*
+		* 只有 type=11（消息按钮）/ type=12（快捷菜单）需要回执；负载里的 `id` 就是回执
+		* 用的 `interaction_id`。广播形状对齐通知事件并带上 button_id/button_data/
+		* interaction_id，于是「按钮点击」触发器能匹配、「按钮响应」节点能回执。
+		*/
+		if (type === "INTERACTION_CREATE") {
+			const interactionEvent = interactionEventOf(data, {
+				time: ts,
+				selfId: this.selfIdNum,
+				resolveUid: (openid) => openid ? this.resolvePlayerUid({ userOpenid: openid }) : ""
+			});
+			if (!interactionEvent) {
+				emitSystemLog(this.projectPath, "互动事件: type=" + String(data?.data?.type ?? data?.type ?? "") + "（无需回执，已忽略）");
+				return;
+			}
+			emitSystemLog(this.projectPath, "互动事件: id=" + String(interactionEvent.interaction_id).slice(0, 12) + ", type=" + String(interactionEvent.interaction_type) + ", button=" + String(interactionEvent.button_id || interactionEvent.button_data).slice(0, 24));
+			this.broadcast(interactionEvent);
 			return;
 		}
 		/**

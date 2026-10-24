@@ -161,8 +161,11 @@ export const INTENT_BITS: ReadonlyArray<{ bit: number; name: string; note: strin
 export const DEFAULT_INTENTS = 1 << 25;
 
 /**
- * 推荐 intents：群成员事件 | 单聊群聊事件 | 互动回调 | 消息审核。
- * 已实测该组合可被网关接受（identify 返回 READY）。
+ * 全量候选 intents：群成员事件 | 单聊群聊事件 | 互动回调 | 消息审核。
+ *
+ * 注意：这是一台「权限齐全」的机器人能订的上界，不是无条件可用的组合 ——
+ * 官方对没权限的位直接 4014 断开整个连接。实际订阅走
+ * `src/main/services/official/intents.ts`（BASE_INTENTS + 可选位渐进退回）。
  */
 export const RECOMMENDED_INTENTS = (1 << 24) | (1 << 25) | (1 << 26) | (1 << 27);
 

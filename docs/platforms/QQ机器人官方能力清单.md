@@ -115,7 +115,7 @@
 | --- | --- | --- |
 | `C2C_MESSAGE_CREATE` / `GROUP_AT_MESSAGE_CREATE` | ✅ 已翻译 | 单聊与群 @ 消息，转成运行时的 message 事件（带 openid、msg_id、event_id） |
 | 机器人入群/退群、消息状态、好友、群成员、入群申请、频道与子频道变更 | ✅ 2026-10-04 补上 | 9 个通知事件由 `1<<25` 送达；`GROUP_ADD_ROBOT` / `SUBSCRIBE_MESSAGE_STATUS` / `GUILD_CREATE` 等统一转成运行时的 notice 事件 |
-| `INTERACTION_CREATE` | ✅ 已翻译 | 按钮/快捷菜单互动，转成 `answer_interaction` 可回执的 notice |
+| `INTERACTION_CREATE` | ✅ 已接通（10/24） | 走 `1<<26`，由可选订阅自动带上（4014 时逐位退回）；eventBus 转成 `notice:interaction`，带 `interaction_id` / `button_id` / `button_data`。画布用「按钮点击」触发器接住，「交互 ID」接到「按钮响应」回执（3 秒内） |
 | `MESSAGE_CREATE`（频道全量） | ⚠️ 需私域权限 `1<<9` | 代码同一分支也认它；普通机器人收不到，别把它当成「频道消息收不到」的 bug |
 | `MESSAGE_AUDIT_PASS` / `MESSAGE_AUDIT_REJECT` | ⚠️ 主动消息审核结果 | 走 `1<<27`；只有被审核的主动消息才会有，普通对话看不到 |
 
@@ -137,15 +137,17 @@
 | `1<<12` | DIRECT_MESSAGE | 需申请，不支持沙箱 |
 | `1<<24` | GROUP_MEMBER_EVENT | **位表外**：群成员变动 / 入群申请，容易漏订 |
 | `1<<25` | GROUP_AND_C2C_EVENT | 单聊与群聊消息主事件 |
-| `1<<26` | INTERACTION | 按钮 / 菜单互动回调 |
+| `1<<26` | INTERACTION | 按钮 / 菜单互动回调；可选订阅里优先级最高 —— 4014 时**最后**才退回 |
 | `1<<27` | MESSAGE_AUDIT | 主动消息审核结果 |
 | `1<<28` | FORUMS_EVENT | 仅私域机器人 |
 | `1<<29` | AUDIO_ACTION | 需申请，音频类机器人 |
 | `1<<30` | PUBLIC_GUILD_MESSAGES | 基础事件，默认有权限（频道 @ 消息） |
 
-网关鉴权用的组合（`officialIntents`）：
-`GUILDS(1<<0) | GROUP_AND_C2C_EVENT(1<<25) | PUBLIC_GUILD_MESSAGES(1<<30)` = `1107296257`；
-打开群成员事件后再加 `GROUP_MEMBER_EVENT(1<<24)` = `1124073473`。
+网关鉴权用的组合（`officialIntents`，见 `src/main/services/official/intents.ts`）：
+
+- 基础位 `BASE_INTENTS` = `GUILDS(1<<0) | GROUP_AND_C2C_EVENT(1<<25) | PUBLIC_GUILD_MESSAGES(1<<30)` = `1107296257`，任何情况都订；
+- 可选位 `OPTIONAL_INTENTS` = `[1<<26 互动, 1<<24 群成员/入群申请, 1<<27 审核]`（按优先级从高到低）。官方对没权限的位直接 `4014` 断开整个连接，所以策略是「先全订，被拒就从优先级最低的丢一位再重连」：丢位顺序 27 → 24 → 26，收敛到这台机器人真有的权限集合，日志会写清退了哪一位。
+- 旧布尔签名仍兼容：`officialIntents(true)` = 基础位 + `1<<24`（= `1124073473`），`officialIntents(false)` = 基础位。
 
 ### 7.3 心跳与重连
 
