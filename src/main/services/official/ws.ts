@@ -4,6 +4,7 @@ import { emitSystemLog } from "../runner/runtimeEvents";
 import { emitStatus, emitter, ensureToken, getGatewayUrl, projectPathIndex, sessions } from "./client";
 import { loadOfficialConfig } from "./config";
 import { BASE_INTENTS, OPTIONAL_INTENTS, dropLowestOptionalIntent, intentLabel, intentsOf, officialIntents } from "./intents";
+import { closeActionOf, closeReasonOf, fatalAdviceOf } from "./gatewayClose";
 
 function connectWs(session, url, isResume) {
 	if (session.ws) try {
@@ -57,6 +58,7 @@ function connectWs(session, url, isResume) {
 						session.sessionId = d.session_id;
 						session.alive = true;
 						session.retryCount = 0;
+						session.authFailureCount = 0;
 						emitter.emit("official:message", session.projectPath, {
 							type: "READY",
 							data: d
@@ -99,33 +101,69 @@ function connectWs(session, url, isResume) {
 		}
 	};
 	ws.onclose = (event) => {
+		// 旧连接的 close 事件可能迟到（connectWs 会先关旧 ws）；
+		// 此时 session.ws 已经指向新连接，别让旧事件停掉新连接的心跳。
+		if (session.ws && session.ws !== ws) return;
 		stopHeartbeat(session);
 		session.ws = null;
-		if (event.code === 4014) {
-			const fallback = dropLowestOptionalIntent(session.optionalIntents || []);
-			if (fallback.dropped) {
-				session.optionalIntents = fallback.remaining;
-				session.retryCount = 0;
-				emitSystemLog(session.projectPath, "官方拒绝订阅「" + intentLabel(fallback.dropped) + "」事件（4014 无权限）—— 已退回重连，其余功能不受影响。要用这个事件，需先在 QQ 开放平台为机器人申请对应权限。");
-			} else emitSystemLog(session.projectPath, "官方拒绝了全部事件订阅（4014）—— 请到 QQ 开放平台检查这个机器人的事件权限。", "error");
-		}
 		emitter.emit("official:message", session.projectPath, {
 			type: "ws:close",
 			data: {
 				code: event.code,
-				reason: event.reason
+				reason: event.reason,
+				detail: closeReasonOf(event.code)
 			}
 		});
-		if ((session.status === "connected" || session.status === "connecting") && !session.reconnecting) {
+		// 主动 stop：不要当成断线去重连或报错
+		if (session.stopping) return;
+		const action = closeActionOf(event.code, Boolean(session.sessionId && session.seq));
+		if (action === "fatal") {
+			stopSession(session, "官方网关拒绝连接（" + event.code + " " + closeReasonOf(event.code) + "）：" + fatalAdviceOf(event.code, Boolean(session.sandbox)));
+			return;
+		}
+		if (action === "refresh") {
+			// 4004：旧 token 已失效。清 token 与 session，交给 doReconnect 里的 ensureToken 重新取。
+			session.accessToken = "";
+			session.tokenExpiresAt = 0;
+			session.sessionId = null;
+			session.seq = null;
+			session.authFailureCount = (session.authFailureCount || 0) + 1;
+			if (session.authFailureCount > 2) {
+				stopSession(session, "官方网关连续 3 次鉴权失败（4004 TOKEN_INVALID）：AppID/AppSecret 可能不正确，或机器人已被下架/封禁。请到 QQ 开放平台核对凭证与机器人状态后再启动。");
+				return;
+			}
+			emitSystemLog(session.projectPath, "官方网关鉴权失败（4004）：已清掉旧 token，重新获取后再连（连续第 " + session.authFailureCount + " 次）。", "warn");
+		}
+		if (action === "intents") {
+			const fallback = dropLowestOptionalIntent(session.optionalIntents || []);
+			if (!fallback.dropped) {
+				// 基础 intents 也被拒：再重连只会重复撞墙，直接停下让用户去开权限
+				stopSession(session, "官方拒绝了全部事件订阅（" + event.code + " " + closeReasonOf(event.code) + "）—— 连基础 intents 也被拒，请到 QQ 开放平台检查这个机器人的事件权限。");
+				return;
+			}
+			session.optionalIntents = fallback.remaining;
+			session.retryCount = 0;
+			emitSystemLog(session.projectPath, "官方拒绝订阅「" + intentLabel(fallback.dropped) + "」事件（" + event.code + " " + closeReasonOf(event.code) + "）—— 已退回重连，其余功能不受影响。要用这个事件，需先在 QQ 开放平台为机器人申请对应权限。");
+		}
+		if (action === "identify") {
+			// 协议参数类错误：保留 session 去 resume 会再次被拒，清掉重新鉴权
+			session.sessionId = null;
+			session.seq = null;
+		}
+		// 能走到这里的都是「值得再试一次」的情况（fatal / 连续 4004 / 基础 intents 被拒都已 return）。
+		// 不按 status 判断：上一次断线已经把 status 置成 disconnected，按它判断会漏掉下一次重连。
+		if (!session.reconnecting) {
 			session.status = "disconnected";
 			emitStatus(session);
 			scheduleReconnect(session);
 		}
 	};
 	ws.onerror = () => {
+		if (session.stopping) return;
 		session.status = "error";
 		emitStatus(session);
-		if (!session.reconnecting && session.alive) scheduleReconnect(session);
+		// 首次连接失败也要能重试：只按 stopping / reconnecting 判断，不看 alive（READY 前它是 false）
+		if (!session.reconnecting) scheduleReconnect(session);
 	};
 }
 /**
@@ -135,7 +173,9 @@ function connectWs(session, url, isResume) {
 */
 async function doReconnect(session) {
 	if (session.reconnecting) return;
-	if (!session.alive) return;
+	// 主动 stop 之后不再重连；但**首次连接失败**时 alive 还是 false，
+	// 不能拿 alive 当闸门 —— 否则首次连不上就永远停在 error（以前就是这样）。
+	if (session.stopping) return;
 	session.reconnecting = true;
 	stopHeartbeat(session);
 	if (session.ws) {
@@ -148,15 +188,13 @@ async function doReconnect(session) {
 	}
 	session.retryCount++;
 	if (session.retryCount > session.maxRetries) {
-		session.alive = false;
-		session.status = "error";
-		emitStatus(session);
 		session.reconnecting = false;
+		stopSession(session, "官方网关连续 " + session.maxRetries + " 次重连失败，已停止重试。请检查网络与 AppID/AppSecret 后重新启动机器人。");
 		return;
 	}
 	const delay = Math.min(1e3 * Math.pow(2, session.retryCount), RECONNECT_MAX_DELAY_MS);
 	await new Promise((r) => setTimeout(r, delay));
-	if (!session.alive) {
+	if (session.stopping) {
 		session.reconnecting = false;
 		return;
 	}
@@ -182,6 +220,42 @@ function scheduleReconnect(session, delay = 0) {
 		session.reconnectTimer = null;
 		doReconnect(session);
 	}, delay);
+}
+/**
+* 不可恢复的断开：停掉所有定时器、交给界面「错误 + 原因」、清掉会话索引。
+*
+* 与 stopOfficial 的区别：stopOfficial 是用户主动停（状态 disconnected，正常收尾），
+* 这里是被官方拒绝（4914/4915/连续 4004/全部 intents 被拒）——重试不会恢复，
+* 所以不排重连，并把原因写进 session.lastError，供诊断页/日志直接读到。
+*/
+function stopSession(session, message) {
+	stopHeartbeat(session);
+	if (session.tokenRefreshTimer) {
+		clearTimeout(session.tokenRefreshTimer);
+		session.tokenRefreshTimer = null;
+	}
+	if (session.reconnectTimer) {
+		clearTimeout(session.reconnectTimer);
+		session.reconnectTimer = null;
+	}
+	session.alive = false;
+	session.reconnecting = false;
+	session.stopping = true;
+	session.status = "error";
+	session.lastError = message;
+	if (session.ws) try {
+		session.ws.close();
+	} catch {}
+	session.ws = null;
+	emitStatus(session);
+	emitSystemLog(session.projectPath, message, "error");
+	projectPathIndex.delete(session.projectPath);
+	for (const [key, s] of sessions) {
+		if (s === session) {
+			sessions.delete(key);
+			break;
+		}
+	}
 }
 function startHeartbeat(session, interval) {
 	stopHeartbeat(session);
@@ -276,6 +350,10 @@ async function startOfficial(projectPath) {
 		retryCount: 0,
 		maxRetries: 5,
 		reconnecting: false,
+		// 连续 4004 次数（token 刷新后仍然鉴权失败 → 多半是 AppSecret 错了/机器人下架）
+		authFailureCount: 0,
+		// 用户主动 stop 标志：让迟到的 onclose 知道「不是断线」
+		stopping: false,
 		reconnectTimer: null,
 		alive: false,
 		optionalIntents: OPTIONAL_INTENTS.slice()
@@ -297,6 +375,7 @@ async function startOfficial(projectPath) {
 function stopOfficial(projectPath) {
 	for (const [sessionKey, session] of sessions) {
 		if (session.projectPath !== projectPath) continue;
+		session.stopping = true;
 		stopHeartbeat(session);
 		if (session.tokenRefreshTimer) clearTimeout(session.tokenRefreshTimer);
 		if (session.reconnectTimer) {

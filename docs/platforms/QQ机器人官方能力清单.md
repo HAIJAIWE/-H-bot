@@ -65,7 +65,7 @@
 | 能力 | 状态 | 端点 / 说明 | 代码锚点 |
 | --- | --- | --- | --- |
 | AccessToken 获取 | ✅ | `POST /app/getAppAccessToken`，按 expires_in 提前刷新 | getAppAccessToken |
-| WebSocket 网关 | ✅ | op 2 鉴权 / op 6 心跳 / op 7 重连 / op 9 无效 session 重置；单分片 shard [0,1] | op: 2 / op: 6 |
+| WebSocket 网关 | ✅ | op 2 鉴权 / op 1 心跳（hello 下发间隔，op 11 ACK）/ op 6 恢复 / op 7 重连 / op 9 重置；单分片 shard [0,1]；关闭码按官方语义分流（见 §7.3） | op: 2 / op: 6 |
 | 发送单聊 / 群聊消息 | ✅ | `POST /v2/users/{openid}/messages`、`POST /v2/groups/{group_openid}/messages` | msg_type |
 | 流式消息 | ✅ | `POST /v2/users/{openid}/stream_messages`（仅单聊，增量 `input_mode=append`） | stream_messages |
 | 富媒体上传 | ✅ | 本地文件走分片四步，URL 直链直接传（见 §5） | uploadLocalFileByParts / upload_part_finish |
@@ -149,11 +149,17 @@
 - 可选位 `OPTIONAL_INTENTS` = `[1<<26 互动, 1<<24 群成员/入群申请, 1<<27 审核]`（按优先级从高到低）。官方对没权限的位直接 `4014` 断开整个连接，所以策略是「先全订，被拒就从优先级最低的丢一位再重连」：丢位顺序 27 → 24 → 26，收敛到这台机器人真有的权限集合，日志会写清退了哪一位。
 - 旧布尔签名仍兼容：`officialIntents(true)` = 基础位 + `1<<24`（= `1124073473`），`officialIntents(false)` = 基础位。
 
-### 7.3 心跳与重连
+### 7.3 心跳、重连与关闭码
 
-- 心跳按网关 `hello` 的 `heartbeat_interval` 发 op 6；op 11 是 ACK
+- 心跳：网关 `hello`（op 10）下发 `heartbeat_interval`，按它发 **op 1**（d = 最新 seq）；op 11 是 ACK
 - 心跳超时按阈值判定断开并重连；重连指数退避，带最大重试次数
-- 收到 op 7 直接重连；op 9 说明 session 无效，清掉 session 重来
+- 收到 op 7（服务端要求重连）直接重连；op 9（session 无效）清 session 重新 identify
+- 关闭码按官方 bot-node-sdk / botpy 的语义分流（判定集中在 `src/main/services/official/gatewayClose.ts`，表驱动单测见 `tests/main/services/officialGatewayClose.test.ts`）：
+  - `4004` 鉴权失败 → 清 token 重新取一次（不清就永远 4004），连续 3 次才停下
+  - `4013` / `4014` intents 被拒 → 丢一个可选位再连（丢位顺序见 §7.2）
+  - `4001` `4002` `4007` `4010` `4011` `4012` `9001` `9005` → session 已不可信，清 session 重新 identify
+  - `4008` `4009` `4900` 且还有 session → resume（op 6）
+  - `4914`（已下架，只允许沙箱）/ `4915`（已封禁）→ 不再重试，给出确定原因与下一步动作
 
 ### 7.9 频道事件翻译
 
