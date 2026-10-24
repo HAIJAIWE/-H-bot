@@ -1118,7 +1118,7 @@ var EventBus = class {
 		const run = async () => {
 			const handler = ALL_ACTION_HANDLERS[action];
 			if (!handler) {
-				const errMsg = `不支持的 协议动作: ${action}（已在 SUPPORTED_ACTIONS 登记的都支持；新增能力请先登记再写实现）`;
+				const errMsg = `不支持的协议动作: ${action}（已在 SUPPORTED_ACTIONS 登记的都支持；新增能力请先登记再写实现）`;
 				emitSystemLog(this.projectPath, errMsg, "warn");
 				responder.fail(echo, errMsg);
 				return;
