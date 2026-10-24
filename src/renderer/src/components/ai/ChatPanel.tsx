@@ -892,6 +892,9 @@ export const ChatPanel = React.memo(function ChatPanel() {
             ? (projectPath.split(/[\\/]/).filter(Boolean).pop() ?? '')
             : t('ai.chat.session')}
         </span>
+        {/* 计数 / 运行指示 / 插件数归成一组：窄栏放不下时整组落到第二行，而不是让某一个小字
+            单独掉下去（实测 869 档右栏内容宽 210，三者加起来 215 就会把插件数挤成孤儿行）。 */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
         <span className="shrink-0 text-zinc-500">
           {t('ai.chat.sessionMeta', { n: String(messages.length), t: String(turns.length) })}
         </span>
@@ -904,7 +907,7 @@ export const ChatPanel = React.memo(function ChatPanel() {
           </span>
         )}
         {(streaming || mainProcessRunning) && (
-          <span className="ml-auto flex shrink-0 items-center gap-1 text-emerald-400">
+          <span className="flex shrink-0 items-center gap-1 text-emerald-400">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
             {t('ai.chat.sessionRunning')}
           </span>
@@ -917,12 +920,13 @@ export const ChatPanel = React.memo(function ChatPanel() {
         <button
           type="button"
           // 极窄右栏（<220px）下这一串会被挤成独占一行，先让位给项目名/消息数（插件清单的设置页仍有入口）
-          className="ml-auto hidden shrink-0 text-zinc-500 hover:text-zinc-300 @min-[220px]:inline"
+          className="hidden shrink-0 text-zinc-500 hover:text-zinc-300 @min-[220px]:inline"
           onClick={() => setPluginsOpen(true)}
           title={t('ai.chat.pluginsTitle')}
         >
           {t('ai.chat.plugins', { n: String(pluginCount) })}
         </button>
+        </div>
       </div>
 
       <Modal
