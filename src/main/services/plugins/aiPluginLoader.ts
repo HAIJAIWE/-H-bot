@@ -50,7 +50,7 @@ export interface AiPluginManifestFile {
 const AI_PLUGIN_PERMISSIONS: readonly MainPluginPermission[] = ['tool', 'prompt'];
 
 /** 过滤成宿主认识的权限；没声明 = 全给（兼容老包），声明了就按声明的来 */
-function permissionsOf(raw: unknown): MainPluginPermission[] {
+export function aiPluginPermissionsOf(raw: unknown): MainPluginPermission[] {
   if (!Array.isArray(raw)) return [...AI_PLUGIN_PERMISSIONS];
   const declared = new Set(raw.filter((x): x is string => typeof x === 'string'));
   return AI_PLUGIN_PERMISSIONS.filter((p) => declared.has(p));
@@ -78,7 +78,7 @@ export async function loadAiPluginPackage(
   }
   const pluginId = aiPluginIdOf(manifest.name || basename(pluginDir));
   const aName = manifest.name || basename(pluginDir);
-  const permissions = permissionsOf(manifest.permissions);
+  const permissions = aiPluginPermissionsOf(manifest.permissions);
   const settingSpecs = normalizeSettingSpecs(manifest.settings);
   const dataDir = pluginDataDir();
   /**

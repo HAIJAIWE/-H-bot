@@ -920,7 +920,11 @@ const api = {
     marketAddSource: (source: string) => ipcRenderer.invoke('plugin:marketAddSource', { source }),
     marketRemoveSource: (source: string) =>
       ipcRenderer.invoke('plugin:marketRemoveSource', { source }),
-    marketInstall: (id: string) => ipcRenderer.invoke('plugin:marketInstall', { id }),
+    /** 安装前检查：只读，返回确认面板需要的版本/来源/文件/摘要 */
+    marketInspect: (id: string) => ipcRenderer.invoke('plugin:marketInspect', { id }),
+    /** expectDigest 来自用户确认时看到的检查结果；索引变了就不装 */
+    marketInstall: (id: string, expectDigest?: string) =>
+      ipcRenderer.invoke('plugin:marketInstall', { id, expectDigest }),
     marketUninstall: (id: string) => ipcRenderer.invoke('plugin:marketUninstall', { id }),
     getAllSpecs: () => ipcRenderer.invoke('plugin:getAllSpecs'),
   },

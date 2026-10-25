@@ -35,6 +35,7 @@ import { assertOpenPathSafe, assertWithinProject } from '../services/infra/pathG
 import { createCustomNode } from '../services/plugins/customNodeScaffold'
 import {
   addMarketSource,
+  inspectMarketPlugin,
   installMarketPlugin,
   listMarketPlugins,
   removeMarketSource,
@@ -54,6 +55,8 @@ import {
   pluginSaveSettingsSchema,
   pluginMarketSourceSchema,
   pluginMarketInstallSchema,
+  pluginMarketInspectSchema,
+  pluginMarketInstallConfirmedSchema,
   saveSchemaSchema,
 } from '../schemas/plugins'
 
@@ -424,14 +427,30 @@ export function registerPluginIpc(): void {
   })
 
   /**
+   * plugin:marketInspect — 安装前检查（只读）：版本、来源、文件、摘要、清单、更新关系。
+   * 界面拿到这些才让用户点"确认安装"。
+   */
+  ipcMain.handle('plugin:marketInspect', async (_e, payload: { id: string }) => {
+    const parsed = pluginMarketInspectSchema.safeParse(payload)
+    if (!parsed.success) return { ok: false, error: '插件 id 不合法' }
+    return tryIpcAsync(() => unwrapMarket(inspectMarketPlugin(parsed.data.id)))
+  })
+
+  /**
    * plugin:marketInstall — 安装一个市场插件。
    * 装进来的是**第三方代码**，与 plugin:install 同级：AI 不能直接调用（不进附录 C）。
+   * expectDigest 是用户确认时看到的摘要；索引在确认后变了就拒绝，防止 TOCTOU。
    */
-  ipcMain.handle('plugin:marketInstall', async (_e, payload: { id: string }) => {
-    const parsed = pluginMarketInstallSchema.safeParse(payload)
-    if (!parsed.success) return { ok: false, error: '插件 id 不合法' }
-    return tryIpcAsync(() => unwrapMarket(installMarketPlugin(parsed.data.id)))
-  })
+  ipcMain.handle(
+    'plugin:marketInstall',
+    async (_e, payload: { id: string; expectDigest?: string }) => {
+      const parsed = pluginMarketInstallConfirmedSchema.safeParse(payload)
+      if (!parsed.success) return { ok: false, error: '插件 id 或确认摘要不合法' }
+      return tryIpcAsync(() =>
+        unwrapMarket(installMarketPlugin(parsed.data.id, undefined, parsed.data.expectDigest)),
+      )
+    },
+  )
 
   /** plugin:marketUninstall — 卸载市场插件（撤销贡献 + 删目录 + 删记录 + 清覆盖层） */
   ipcMain.handle('plugin:marketUninstall', async (_e, payload: { id: string }) => {

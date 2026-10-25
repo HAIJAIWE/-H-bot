@@ -342,6 +342,7 @@ export const CAPABILITIES_BY_DOMAIN: Record<string, string[]> = {
     'plugin.load',
     'plugin.loadAi',
     'plugin.marketAddSource',
+    'plugin.marketInspect',
     'plugin.marketInstall',
     'plugin.marketList',
     'plugin.marketRemoveSource',

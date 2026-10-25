@@ -24,7 +24,7 @@ import type {
   FieldCategory,
 } from '@shared/types/launch'
 import type { ButtonPanel } from '@shared/types/buttonPanel'
-import type { MarketInstallInfo, MarketListResult } from '@shared/plugins/market'
+import type { MarketInstallInfo, MarketInstallPlan, MarketListResult } from '@shared/plugins/market'
 import type { PluginSettingSpec, PluginSettingValues } from '@shared/plugins/settings'
 
 export type { PluginSettingSpec, PluginSettingValues } from '@shared/plugins/settings'
@@ -1169,7 +1169,8 @@ export interface QqbatApi {
     marketList: () => Promise<ApiResult<MarketListResult>>
     marketAddSource: (source: string) => Promise<ApiResult<string[]>>
     marketRemoveSource: (source: string) => Promise<ApiResult<string[]>>
-    marketInstall: (id: string) => Promise<ApiResult<MarketInstallInfo>>
+    marketInspect: (id: string) => Promise<ApiResult<MarketInstallPlan>>
+    marketInstall: (id: string, expectDigest?: string) => Promise<ApiResult<MarketInstallInfo>>
     marketUninstall: (id: string) => Promise<ApiResult<{ id: string }>>
     getAllSpecs: () => Promise<ApiResult<NodeSpec[]>>
   }

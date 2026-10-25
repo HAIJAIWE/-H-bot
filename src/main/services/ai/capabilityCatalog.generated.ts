@@ -36,7 +36,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityLayer, string> = {
   X: '助手自身或内部管道，不对外开放',
 }
 
-/** 台账：274 条（R 0 / Q 84 / M 104 / P 8 / F 3 / X 75） */
+/** 台账：275 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 75） */
 export const CAPABILITY_CATALOG: CapabilityEntry[] = [
   {
     id: 'adapter.current',
@@ -2016,6 +2016,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'M',
     domain: '代码',
     channel: 'plugin:marketAddSource',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'plugin.marketInspect',
+    ns: 'plugin',
+    method: 'marketInspect',
+    layer: 'Q',
+    domain: '代码',
+    channel: 'plugin:marketInspect',
     channelKind: 'invoke',
   },
   {
