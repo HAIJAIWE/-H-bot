@@ -727,4 +727,69 @@ describe('★ 服务接线：审批/观测/会话', () => {
     expect(result.toolResults[0].output).toContain('失败')
     await expect(readFile(join(ws, 'denied.txt'), 'utf-8')).rejects.toThrow()
   })
+
+  describe('★ 厂商报上下文超了：强压一次再试一次', () => {
+    it('第二次请求拿到压缩后的消息，onCompact 标明 overflow', async () => {
+      let calls = 0
+      const seen: ChatTurn[][] = []
+      const compacts: { trigger: string; dropped: number }[] = []
+      const result = await runAgentLoop({
+        workspace: ws,
+        initialTurns: [
+          { role: 'system', content: 'SYS' },
+          { role: 'user', content: 'REQ' },
+          ...Array.from({ length: 6 }, () => ({ role: 'user' as const, content: 'x'.repeat(400) })),
+        ],
+        compaction: { budgetTokens: 100_000, pruneToolResults: false },
+        onCompact: c => compacts.push({ trigger: c.trigger, dropped: c.dropped }),
+        model: async messages => {
+          calls += 1
+          seen.push([...messages])
+          if (calls === 1) {
+            throw Object.assign(new Error('maximum context length exceeded'), { status: 400 })
+          }
+          return { text: 'recovered' }
+        },
+      })
+      expect(calls).toBe(2)
+      expect(result.finalText).toBe('recovered')
+      // 第一发是原样，第二发已经变成"头 + 注记 + 最后一条"
+      expect(seen[0]!.length).toBe(8)
+      expect(seen[1]!.length).toBe(4)
+      expect(compacts).toEqual([{ trigger: 'overflow', dropped: 5 }])
+    })
+
+    it('不是溢出的错误原样抛，只调一次模型', async () => {
+      let calls = 0
+      await expect(
+        runAgentLoop({
+          workspace: ws,
+          model: async () => {
+            calls += 1
+            throw new Error('boom')
+          },
+        }),
+      ).rejects.toThrow('boom')
+      expect(calls).toBe(1)
+    })
+
+    it('溢出但没得压：只调一次，原始 400 不被"压缩失败"盖掉', async () => {
+      let calls = 0
+      await expect(
+        runAgentLoop({
+          workspace: ws,
+          compaction: { budgetTokens: 100_000 },
+          initialTurns: [
+            { role: 'system', content: 'SYS' },
+            { role: 'user', content: 'REQ' },
+          ],
+          model: async () => {
+            calls += 1
+            throw Object.assign(new Error('maximum context length exceeded'), { status: 400 })
+          },
+        }),
+      ).rejects.toThrow('maximum context length exceeded')
+      expect(calls).toBe(1)
+    })
+  })
 })

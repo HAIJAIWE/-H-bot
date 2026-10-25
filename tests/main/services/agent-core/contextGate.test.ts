@@ -349,3 +349,89 @@ describe('★ 先剪工具结果，再考虑压回合', () => {
     expect(outcome!.dropped).toBe(2)
   })
 })
+
+describe('★ 到预算 80% 就开始压（不等撞线）', () => {
+  // 8 条 400 字符 ASCII 用户回合 ≈ 8×108 + 头尾 22 ≈ 886 token：高于 800、低于 1000
+  const nearLimit = (): ChatTurn[] => [
+    turn('system', 'SYS'),
+    turn('user', 'REQ'),
+    ...Array.from({ length: 8 }, () => turn('user', ascii(400))),
+  ]
+
+  it('总量在 80%~100% 之间：默认先压，旧语义（必须撞线）会漏', () => {
+    const turns = nearLimit()
+    expect(estimateTurns(turns)).toBeGreaterThan(800)
+    expect(estimateTurns(turns)).toBeLessThan(1000)
+    expect(planCompaction(turns, { budgetTokens: 1000, keepRecentTurns: 2 })).not.toBeNull()
+  })
+
+  it('thresholdRatio 调高到 0.95：同样的量不压（阈值可配）', () => {
+    expect(
+      planCompaction(nearLimit(), { budgetTokens: 1000, keepRecentTurns: 2, thresholdRatio: 0.95 }),
+    ).toBeNull()
+  })
+
+  it('非法 thresholdRatio（>1 / 0 / NaN）退回默认 0.8，不是放任不压', () => {
+    for (const bad of [2, 0, Number.NaN]) {
+      expect(
+        planCompaction(nearLimit(), {
+          budgetTokens: 1000,
+          keepRecentTurns: 2,
+          thresholdRatio: bad,
+        }),
+      ).not.toBeNull()
+    }
+  })
+})
+
+describe('★ 厂商报上下文超了：只留最后一条的救火', () => {
+  it('离阈值还很远也照压：只留最后一条，outcome 标明 overflow', async () => {
+    const messages: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      ...Array.from({ length: 6 }, () => turn('user', ascii(400))),
+    ]
+    const outcome = await applyCompaction(
+      messages,
+      { budgetTokens: 100_000, keepRecentTurns: 8, pruneToolResults: false },
+      'overflow',
+    )
+    expect(outcome).not.toBeNull()
+    expect(outcome!.trigger).toBe('overflow')
+    expect(outcome!.dropped).toBe(5)
+    expect(messages).toHaveLength(4)
+    expect(messages[0]!.content).toBe('SYS')
+    expect(messages[1]!.content).toBe('REQ')
+    expect(messages[2]!.role).toBe('system')
+    expect(messages[3]!.content).toBe(ascii(400))
+  })
+
+  it('★ 最后一条是工具结果时，连它的 assistant 调用一起留下', async () => {
+    const messages: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      turn('user', ascii(400)),
+      turn('user', ascii(400)),
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [{ id: 'c1', name: 'read_file', args: { path: 'a' } }],
+      },
+      turn('tool', ascii(400)),
+    ]
+    const outcome = await applyCompaction(messages, { budgetTokens: 100_000 }, 'overflow')
+    expect(outcome).not.toBeNull()
+    // 头两条 + 注记 + 配对的两条
+    expect(messages).toHaveLength(5)
+    expect(messages[2]!.content.startsWith(COMPACTION_NOTE_HEAD)).toBe(true)
+    expect(messages[3]!.role).toBe('assistant')
+    expect(messages[3]!.toolCalls?.[0]?.id).toBe('c1')
+    expect(messages[4]!.role).toBe('tool')
+  })
+
+  it('没得压（只有系统提示 + 一条用户）返回 null，调用方保留原始 400', async () => {
+    const messages: ChatTurn[] = [turn('system', 'SYS'), turn('user', 'REQ')]
+    expect(await applyCompaction(messages, { budgetTokens: 100_000 }, 'overflow')).toBeNull()
+    expect(messages).toHaveLength(2)
+  })
+})

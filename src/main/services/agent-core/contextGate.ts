@@ -6,15 +6,15 @@
 // 要么悄悄截掉最前面的系统提示。
 //
 // 四条边界：保住 index 0 的系统提示；保住紧随其后的那句 user（任务原文，90 字摘要顶不上）；
-// 保住尾部（条数下限 keepRecentTurns + 按 token 的保留区 retainTokens，推理链不能半剪）；
-// 中间那段换成一条 system 注记，并明说"摘要非原文、要细节就重读文件"。
+// 保住尾部（条数下限 + 按 token 的保留区，推理链不能半剪）；中间那段换成 system 注记，
+// 并明说"摘要非原文、要细节就重读文件"。
 //
-// **工具配对是硬约束**（2026-10-26，对齐 DSH `compaction/tool-pairing`）：循环从
-// 2026-10-25 起把 assistant(toolCalls) 与 tool(toolResult) 真的放进 messages
-// （core.ts:708 / scheduler.ts:147），切口落在"调用被丢进中段、结果留在尾部"之间，
-// 厂商下一次请求就是 400，而报错只有一个孤零零的 tool_call_id，看不出是压缩切坏的。
-// 所以切口要往回想，退到最近的配平位置（宁可多留一段，也不让协议断链）。
-//
+// **到预算的 80% 就压**（2026-10-26，对齐上游 `thresholdRatio`）：等撞线再压，下一次请求
+// 可能已经把尾部那几条大输出算进去了 —— 先压一次比 400 之后补救便宜。
+// **溢出兜底**（同日，对齐 `context-overflow`）：厂商已回 400 时不再讲保留策略，只留最后
+// 一条、其余全压，再由循环重试一次（见 contextOverflow.ts）。
+// **工具配对是硬约束**（同日，对齐 `compaction/tool-pairing`）：切口劈开 assistant(toolCalls)
+// 与 tool(toolResult) 就是下一次 400，所以切口往回想，退到配平点（宁可多留，不让协议断链）。
 // 摘要两档（与 ai/contextDigest 同一纪律）：有模型先用模型，失败/空退回确定性摘要。
 import type { DigestLlm } from '../ai/contextDigest'
 import type { ToolResultPruneConfig } from '../../vendor/dsh/tool-result-pruner/types'
@@ -25,6 +25,11 @@ import type { ChatTurn } from './core'
 
 /** 循环内预算默认值：与助手的 `AUTHOR_PROFILE.conversationTokenBudget` 同量级 */
 export const LOOP_TOKEN_BUDGET_DEFAULT = 80_000
+/**
+ * 到预算的这个比例就开始压（上游 `DEFAULT_THRESHOLD_RATIO` 也是 0.8）。
+ * 为什么不等到 100%：最后 20% 是留给模型输出与下一批工具结果的余量。
+ */
+export const THRESHOLD_RATIO_DEFAULT = 0.8
 /** 尾部至少留几条：一轮里通常 4 条（assistant + tool×N），8 条 ≈ 两轮 */
 export const KEEP_RECENT_TURNS_DEFAULT = 8
 /**
@@ -63,8 +68,13 @@ export function estimateTurns(turns: readonly ChatTurn[]): number {
 }
 
 export interface CompactionOptions {
-  /** 预算（token）。超了才压；默认 LOOP_TOKEN_BUDGET_DEFAULT */
+  /** 预算（token）。默认 LOOP_TOKEN_BUDGET_DEFAULT */
   budgetTokens?: number
+  /**
+   * 到预算的这个比例就进入压力区（默认 {@link THRESHOLD_RATIO_DEFAULT}）。
+   * 小于等于 0 或大于 1 的非法值退回默认 —— 这不是用户输入，静默兜底比整轮不压安全。
+   */
+  thresholdRatio?: number
   /** 尾部保留条数的**下限**。默认 KEEP_RECENT_TURNS_DEFAULT；与 retainTokens 取更宽的那个 */
   keepRecentTurns?: number
   /** 尾部按 token 至少保留多少。默认取预算的 {@link RETAIN_RATIO_DEFAULT}（16%） */
@@ -88,9 +98,14 @@ export interface CompactionPlan {
   tokensAfter: number
 }
 
+/** 这次压缩是被什么触发的：压力区（每轮预检）还是厂商已经报溢出（兜底） */
+export type CompactionTrigger = 'pressure' | 'overflow'
+
 export interface CompactionOutcome {
   /** 被摘要替换掉的回合数；只剪不压时为 0 */
   dropped: number
+  /** 触发来源（IPC 日志用它区分"提前压"与"400 后救火"） */
+  trigger: CompactionTrigger
   /** 摘要之前先剪了几条超长工具结果（剪完可能就不需要压了） */
   pruned: number
   tokensBefore: number
@@ -124,30 +139,60 @@ export function planCompaction(
   turns: readonly ChatTurn[],
   opts: CompactionOptions = {},
 ): CompactionPlan | null {
+  return planCompactionInMode(turns, opts, 'pressure')
+}
+
+/** 阈值比例的兜底：不是用户输入，宁可退回默认也不整轮不压 */
+function thresholdRatioOf(opts: CompactionOptions): number {
+  const ratio = opts.thresholdRatio
+  if (ratio === undefined) return THRESHOLD_RATIO_DEFAULT
+  if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1) return THRESHOLD_RATIO_DEFAULT
+  return ratio
+}
+
+/**
+ * @param trigger - `overflow` 时是"已经 400 了"的救火：跳过阈值与保留策略，只留最后一条；
+ *   其余规则（头两条、工具配对、最小收益）照旧。
+ */
+function planCompactionInMode(
+  turns: readonly ChatTurn[],
+  opts: CompactionOptions,
+  trigger: CompactionTrigger,
+): CompactionPlan | null {
   const budget = opts.budgetTokens ?? LOOP_TOKEN_BUDGET_DEFAULT
-  const keepFloor = Math.max(2, opts.keepRecentTurns ?? KEEP_RECENT_TURNS_DEFAULT)
-  const retainTokens = Math.max(0, opts.retainTokens ?? Math.round(budget * RETAIN_RATIO_DEFAULT))
   const tokensBefore = estimateTurns(turns)
-  if (tokensBefore <= budget) return null
+  // 救火**不看阈值**：本地估算低于预算、厂商仍可能报 400（tokenizer 与固定开销都不在估算里）
+  if (trigger === 'pressure' && tokensBefore <= Math.round(budget * thresholdRatioOf(opts))) {
+    return null
+  }
   const headEnd = turns.length > 0 && turns[0]?.role === 'system' ? 1 : 0
   // 头部紧随系统提示的那条 user 是**这一轮要做什么**，不许压（摘要只剩一行 90 字，够不上需求原文）
   const start = turns[headEnd]?.role === 'user' ? headEnd + 1 : headEnd
 
   // ① 条数下限：现场至少留几条，不能压到只剩一句摘要
   const available = Math.max(0, turns.length - start)
-  let retained = Math.min(keepFloor, available)
-  // ② token 保留区：从尾部往前累加，直到够 retainTokens（与上游 retainTokens 同口径）
-  let retainedTokens = estimateTurns(turns.slice(turns.length - retained))
-  while (retained < available && retainedTokens < retainTokens) {
-    retained += 1
-    retainedTokens += estimateTurnTokens(turns[turns.length - retained]!)
+  let retained: number
+  if (trigger === 'overflow') {
+    // 上游 context-overflow 用 retainTokens = 0 选范围：只保最后一条，拼命腾地方
+    retained = Math.min(1, available)
+  } else {
+    const keepFloor = Math.max(2, opts.keepRecentTurns ?? KEEP_RECENT_TURNS_DEFAULT)
+    const retainTokens = Math.max(0, opts.retainTokens ?? Math.round(budget * RETAIN_RATIO_DEFAULT))
+    retained = Math.min(keepFloor, available)
+    // ② token 保留区：从尾部往前累加，直到够 retainTokens（与上游 retainTokens 同口径）
+    let retainedTokens = estimateTurns(turns.slice(turns.length - retained))
+    while (retained < available && retainedTokens < retainTokens) {
+      retained += 1
+      retainedTokens += estimateTurnTokens(turns[turns.length - retained]!)
+    }
   }
 
   // ③ 工具配对是硬约束：切口不配平就往前退（退 = 多留），退不到配平点就放弃这次压缩
   const end = retreatToBalancedCut(turns, Math.max(start, turns.length - retained), start)
   if (end < 0) return null
   const dropped = turns.slice(start, end)
-  if (dropped.length < 2) return null
+  // 压力区照旧至少两条；救火时一条超大工具结果也值得换掉（再挑就真的只能 400 了）
+  if (dropped.length < (trigger === 'overflow' ? 1 : 2)) return null
   return {
     start,
     end,
@@ -241,16 +286,32 @@ export function makeTurnSummarizer(
  * **最小收益**（2026-10-26）：注记本身也占 token（确定性注记最多 1200 字符）。
  * 若被丢的段落还不比这条注记大，压完反而更长 —— 这时只落剪枝、不落摘要，
  * 免得"每轮都压一次、每次都多调一次模型、上下文却更胖"。
+ *
+ * `trigger`（2026-10-26）：`pressure` = 每轮预检（默认）；`overflow` = 厂商已经报
+ * "上下文超了"之后的救火。救火时**只有剪枝/压缩真的改变了数组才返回结果** ——
+ * 什么都没变还返回一个 outcome，循环会白重试一次同一个 400。
  */
 export async function applyCompaction(
   messages: ChatTurn[],
   opts?: CompactionOptions,
+  trigger: CompactionTrigger = 'pressure',
 ): Promise<CompactionOutcome | null> {
   if (!opts) return null
   const pruneConfig = opts.pruneToolResults ?? TOOL_PRUNE_DEFAULTS
-  let plan = planCompaction(messages, opts)
+  // 压力区走公开入口（也让它保持有生产调用点）；救火区只认"只留一条"的模式
+  let plan =
+    trigger === 'pressure'
+      ? planCompaction(messages, opts)
+      : planCompactionInMode(messages, opts, trigger)
   if (!plan) return null
   const tokensBefore = plan.tokensBefore
+  const outcome = (dropped: number): CompactionOutcome => ({
+    dropped,
+    trigger,
+    pruned: pruned.pruned,
+    tokensBefore,
+    tokensAfter: estimateTurns(messages),
+  })
 
   /**
    * **先剪，再压**（2026-10-25）：把中段里超长的工具结果掐成「保头 + 标记 + 保尾」，
@@ -263,15 +324,12 @@ export async function applyCompaction(
       ? { pruned: 0, charsRemoved: 0 }
       : pruneToolTurns(messages, plan.start, plan.end, pruneConfig)
   if (pruned.pruned > 0) {
-    const retry = planCompaction(messages, opts)
-    if (!retry) {
-      return {
-        dropped: 0,
-        pruned: pruned.pruned,
-        tokensBefore,
-        tokensAfter: estimateTurns(messages),
-      }
-    }
+    const retry =
+      trigger === 'pressure'
+        ? planCompaction(messages, opts)
+        : planCompactionInMode(messages, opts, trigger)
+    // 剪完已经回到阈值内：只剪也算一次有效动作（救火时同样值得再试一次请求）
+    if (!retry) return outcome(0)
     plan = retry
   }
 
@@ -279,18 +337,9 @@ export async function applyCompaction(
   const note = buildCompactionNote(plan.dropped, summary)
   // 压完（含注记）必须真的变小；只压掉几句寒暄就贴一条 1200 字的备忘录是净亏
   if (estimateTurns(plan.dropped) <= estimateTextTokens(note)) {
-    return {
-      dropped: 0,
-      pruned: pruned.pruned,
-      tokensBefore,
-      tokensAfter: estimateTurns(messages),
-    }
+    if (trigger === 'overflow' && pruned.pruned <= 0) return null
+    return outcome(0)
   }
   messages.splice(plan.start, plan.end - plan.start, { role: 'system', content: note })
-  return {
-    dropped: plan.dropped.length,
-    pruned: pruned.pruned,
-    tokensBefore,
-    tokensAfter: estimateTurns(messages),
-  }
+  return outcome(plan.dropped.length)
 }

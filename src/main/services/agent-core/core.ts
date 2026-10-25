@@ -26,6 +26,7 @@ import { runToolGroup } from './scheduler'
 import { parseFlow } from '../ai/flowIndex'
 import { normalizeFlow, validateFlow } from '@shared/nodes/flowNormalize'
 import { applyCompaction, type CompactionOptions, type CompactionOutcome } from './contextGate'
+import { compactForContextOverflow, isContextOverflowError } from './contextOverflow'
 import { MAX_TOOL_OUTPUT_CHARS, modelFacingOutput } from './toolOutput'
 import { TODO_TOOL } from './todoTool'
 import { RepeatGuard, type RepeatGuardOptions } from './repeatGuard'
@@ -691,7 +692,17 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
     // 问模型之前先看上下文装不装得下：撑爆时厂商不会报错，它只会截掉系统提示
     const compacted = await applyCompaction(messages, opts.compaction)
     if (compacted) opts.onCompact?.(compacted)
-    const reply = await opts.model(messages)
+    let reply: ModelReply
+    try {
+      reply = await opts.model(messages)
+    } catch (error) {
+      // 厂商已经报"上下文超了"：压到只留最后一条，再赌一次（只在真的改了东西时重试）
+      if (opts.signal?.aborted || !isContextOverflowError(error)) throw error
+      const forced = await compactForContextOverflow(messages, opts.compaction)
+      if (!forced) throw error
+      opts.onCompact?.(forced)
+      reply = await opts.model(messages)
+    }
     finalText = reply.text ?? ''
     const calls = reply.calls ?? []
     if (calls.length === 0) {

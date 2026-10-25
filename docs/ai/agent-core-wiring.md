@@ -2474,3 +2474,84 @@ IPC 拿到 <code>{ok:false,error}</code> 直接 <code>return {ok:false,error}</c
   Tests 3418 passed | 7 skipped (3425)、FULL_EXIT=0**（第 47 批基线 3416 → +2）。
 - 能力台账：<code>ai.getPresets = X</code> → ai 48→49、X 73→74、合计 272→273（X + ⛔ = 77），
   两份 generated catalog 已重生成（273 条）；prettier 过一遍全部改动文件。
+
+## §49 第十一批：压缩的两个剩余语义（2026-10-26）
+
+上一批（§47）把"压哪段、怎么配平、值不值得压"做对了，但触发时机与失败恢复还是旧的：
+**撞线才压**、**厂商报 400 就原样抛**。这一批把 DSH `compaction-basic` 里剩下的
+`thresholdRatio` 与 `context-overflow` 两个触发补上。
+
+### 49.1 旧实现缺的两个洞
+
+| 场景                           | 旧行为                                       | 现在                                                  |
+| ------------------------------ | -------------------------------------------- | ----------------------------------------------------- |
+| 估算刚好在预算内、但已接近上限 | 不压；下一发请求把尾部大输出算进去就可能 400 | 到 `budget × 0.8` 就先压（`thresholdRatio` 可配）     |
+| 厂商真的回了"上下文超了"       | 原样抛给界面，用户只能重开/删历史            | 强压到只留最后一条，重试一次；仍失败才抛原始 400      |
+| 压缩结果只有计数               | 分不清"提前压"还是"救火"                     | `CompactionOutcome.trigger` = `pressure` / `overflow` |
+
+### 49.2 为什么是 80%，为什么没搬 `headroomTokens`
+
+上游的阈值是 `thresholdTokens = floor(min(contextWindow × thresholdRatio, contextWindow − reservedCompletion − headroomTokens))`。
+我们**没有模型的 contextWindow**，只有 `LOOP_TOKEN_BUDGET_DEFAULT = 80_000` 这个硬预算，
+所以把 `thresholdRatio` 映射成"预算的 80%"。留 20% 的理由：系统提示、工具 schema、图片、
+模型自己的输出都不在估算器里（估算按 4 字符 1 token 保守算，但对固定开销没有感知）。
+
+`headroomTokens` **没搬**：上游默认 65_536 是相对 1M/128k 窗口设的余量；照搬到 80k 预算，
+阈值会被压到 16k，等于每几轮就压一次，和上游语义完全不同。等以后拿到真实 contextWindow 再补。
+
+`thresholdRatio` 只收 `0 < ratio ≤ 1`；非法值（2、0、NaN）退回 0.8 —— 宁可多压一次，
+也不让一个手滑的配置变成"整轮不压"。
+
+### 49.3 溢出救火：只认 400/413/422，只留最后一条
+
+- **识别**（`contextOverflow.ts` 的 `isContextOverflowError`）：带 number `status` 且不在
+  `{400, 413, 422}` → 直接 false；否则用正文匹配中英常见说法（context length/window、
+  maximum context、prompt too long、上下文长度/超出上下文/token 等）。429（限流）与 500（故障）
+  有 `withLlmRetry` 的退避路径，不能被"压缩"掩盖成成功。
+- **强压**（`compactForContextOverflow` → `applyCompaction(messages, opts, 'overflow')`）：
+  跳过阈值与保留策略，`retained = Math.min(1, available)`（只留最后一条），`dropped` 至少 1 条。
+  工具配对仍是硬约束：最后一条是 tool result 时 `retreatToBalancedCut` 退到它配对的 assistant
+  call 之前，于是保留的是"调用 + 结果"两条 —— 宁可多留，不让协议断链。
+- **一次**（`core.ts` 模型调用处）：`aborted` 或非溢出直接抛；`compactForContextOverflow` 返回
+  null（没配压缩 / 没得压 / 剪与压都无收益）→ **抛原始 400**；有变化 → `onCompact(forced)` →
+  再调一次 `opts.model(messages)`。第二发失败直接抛，不做循环救火（等价 `maxOverflowRetries = 1`）。
+
+为什么"没变化就保留原错"：压缩失败不该盖掉"上下文超了"这个真因，否则界面只剩一句
+"压缩没做成"，用户不知道该删历史还是换模型。
+
+### 49.4 `trigger` 进 outcome
+
+`CompactionOutcome` 增加必填 `trigger: 'pressure' | 'overflow'`。IPC 的 `onCompact` 仍只在
+`dropped > 0` 时发 `ai:compact`；只剪了工具结果的救火也会回调（要触发重试），但不会多一条
+"省略 N 条"的注记。
+
+### 49.5 测试（+14）
+
+- `contextGate.test.ts` **26 → 32**：
+  - 阈值 3 例：总量在 80%~100% 之间默认就压（旧语义会漏）；`thresholdRatio: 0.95` 不压；
+    非法 ratio（2 / 0 / NaN）退回默认。
+  - 救火 3 例：离阈值还很远也照压且只留最后一条、`trigger === 'overflow'`；最后一条是 tool
+    result 时连 assistant 调用一起留；只有 system + user 时返回 null。
+- `contextOverflow.test.ts` **新 5 例**：英文 400、中文 400、429/500 即使正文有 context 也不认、
+  无 status 的普通 Error 只看正文、非 Error 输入不炸。
+- `core.test.ts` **+3 例**：溢出后第二发收到压缩后的消息（8 条 → 4 条）且 `onCompact` 收到
+  `overflow / dropped=5`；非溢出错误只调一次并原样抛；溢出但没得压只调一次、原始 400 不被覆盖。
+- 定位跑 `tests/guards tests/main/services/agent-core` = **40 文件 / 321 例**绿。
+
+### 49.6 闸门
+
+- `tsc -p tsconfig.node.json` = **0**、`tsc -p tsconfig.web.json` = **0**。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`
+  （日志 `_recovery/full-gate-batch49.log`）→ **Test Files 272 passed | 2 skipped (274)、
+  Tests 3432 passed | 7 skipped (3439)、FULL_EXIT = 0**（第 48 批 3418 → **+14**）。
+- prettier 过全部改动文件。
+
+### 49.7 真机
+
+dev 起窗 + CDP 43191 smoke：窗口正常、控制台 0 error、`ai.tools()` 仍 35 个。阈值变化在真机上
+没有可见差异（只是压缩注记会更早出现）；"厂商回 400"没法在本地伪造，救火路径由上面 8 例单测覆盖。
+
+### 49.8 明确没做
+
+`headroomTokens`（缺 contextWindow）、`compactionRetries`（我们的 plan 一次丢掉整个中段，
+二次压没有合法收益）、`compactNow / modelSwitch` 触发、`overflowRetries > 1`。
