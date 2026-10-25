@@ -42,6 +42,9 @@ export interface AgentPresetMenuProps {
   onPickRole: (mode: AgentMode) => void
   onPickPreset: (name: string) => void
   onEditPresets: () => void
+  /** 导出/导入（第 53 批）：操作的是磁盘上的预设表，所以不做进编辑器 */
+  onExportPresets?: () => void
+  onImportPresets?: () => void
 }
 
 /** 收掉 details 菜单（点完一项就关，不靠点第二次） */
@@ -62,6 +65,8 @@ export function AgentPresetMenu({
   onPickRole,
   onPickPreset,
   onEditPresets,
+  onExportPresets,
+  onImportPresets,
 }: AgentPresetMenuProps): React.ReactNode {
   // 用了 t() 的组件必须订阅语言变化（i18n 闸门）
   useLocaleSubscription()
@@ -365,6 +370,31 @@ export function AgentPresetMenu({
         >
           <span className="w-3 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{t('ai.agentCore.presetEdit')}</span>
+        </button>
+        {/* 导出/导入放最后：它们搬的是整张表，不是「这一轮用哪个」 */}
+        <button
+          type="button"
+          className={rowClass}
+          disabled={disabled || !projectPath || !onExportPresets}
+          onClick={e => {
+            closeMenu(e.currentTarget)
+            onExportPresets?.()
+          }}
+        >
+          <span className="w-3 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{t('ai.preset.exportAction')}</span>
+        </button>
+        <button
+          type="button"
+          className={rowClass}
+          disabled={disabled || !projectPath || !onImportPresets}
+          onClick={e => {
+            closeMenu(e.currentTarget)
+            onImportPresets?.()
+          }}
+        >
+          <span className="w-3 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{t('ai.preset.importAction')}</span>
         </button>
       </div>
     </details>

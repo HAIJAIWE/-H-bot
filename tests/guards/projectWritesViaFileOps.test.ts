@@ -564,6 +564,10 @@ const ALLOWED: Record<string, Allowed> = {
     why: '【应用自有数据】会话预设与项目默认预设（.qqbat/agent-presets.json、agent-preset-default.json）：配置本身就是内容，写入/删除不需要 fileOps 的流程联动/冲刷屏障',
     counts: { writeFile: 2, rm: 1 },
   },
+  'src/main/ipc/aiPresets.ts': {
+    why: '【系统/非项目】预设导出：目标路径由用户在保存对话框里选（可以不在项目里），文件内容由服务层生成；导入通道只读，真正写项目预设表的是 services/ai/presets.ts（已登记）',
+    counts: { writeFile: 1 },
+  },
   'src/main/services/plugins/patchFile.ts': {
     why: '【应用自有数据】插件覆盖层（.qqbat/plugins.patch.json）：配置本身就是内容，不需要 fileOps 的流程联动',
     counts: { writeFile: 1 },

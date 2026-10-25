@@ -55,6 +55,8 @@ function setup(
     onEditPresets: vi.fn<() => void>(),
     onResolve: vi.fn<(meta: AgentPresetRow | null) => void>(),
     onSessionPreset: vi.fn<(name: string | null) => void>(),
+    onExportPresets: vi.fn<() => void>(),
+    onImportPresets: vi.fn<() => void>(),
   }
   render(
     <AgentPresetMenu
@@ -68,6 +70,8 @@ function setup(
       onPickRole={spies.onPickRole}
       onPickPreset={spies.onPickPreset}
       onEditPresets={spies.onEditPresets}
+      onExportPresets={spies.onExportPresets}
+      onImportPresets={spies.onImportPresets}
     />,
   )
   return spies
@@ -281,5 +285,14 @@ describe('角色/预设菜单', () => {
     expect(row).not.toBeDisabled()
     fireEvent.click(row)
     expect(s.onPickPreset).toHaveBeenCalledWith('半坏预设')
+  })
+
+  it('★ 导出/导入是整表操作，点了回调（不经过编辑器）', async () => {
+    const s = setup()
+    fireEvent.click(await screen.findByText(t('ai.preset.exportAction')))
+    expect(s.onExportPresets).toHaveBeenCalledTimes(1)
+    expect(s.onEditPresets).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText(t('ai.preset.importAction')))
+    expect(s.onImportPresets).toHaveBeenCalledTimes(1)
   })
 })

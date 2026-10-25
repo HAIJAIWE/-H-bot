@@ -3,6 +3,7 @@
 
 import { z } from 'zod'
 import { LLM_PRESET_IDS } from '@shared/types/llm-presets'
+import { PRESET_SHARE_MAX_BYTES } from '@shared/ai/presetShare'
 /**
  * 一张图片的 data URL（助手链路与智能体循环共用）。
  *
@@ -112,6 +113,12 @@ var aiProjectPathSchema = z.object({ projectPath: z.string().min(1) })
 var aiSetPresetDefaultSchema = z.object({
   projectPath: z.string().min(1),
   preset: z.string().min(1).max(120).nullable(),
+})
+/** 导入会话预设：text 是分享文件原文（服务层再按字节上限校验），overwrite 只在用户勾选后为 true */
+var aiPresetImportSchema = z.object({
+  projectPath: z.string().min(1),
+  text: z.string().max(PRESET_SHARE_MAX_BYTES * 2),
+  overwrite: z.boolean(),
 })
 /** 读预设注册表；带 threadId 时顺带回这条线程的锁状态（第 50 批） */
 var aiPresetRosterSchema = z.object({
@@ -235,6 +242,7 @@ export {
   rollbackTurnSchema,
   aiProjectPathSchema,
   aiSetPresetDefaultSchema,
+  aiPresetImportSchema,
   aiPresetRosterSchema,
   aiHistorySchema,
   aiThreadSchema,

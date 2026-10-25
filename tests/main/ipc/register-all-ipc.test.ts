@@ -10,7 +10,7 @@
 //
 // 服务实例来自 `getGlobalContainer(baseDir)`（SERVICE_KEYS.PROJECT_SERVICE / FLOW_SERVICE /
 // CODEGEN_SERVICE），历史服务不再 setBaseDir，模板 IPC 也不存在了。本文件按现状重写，
-// 只钉三件事：容器拿对 baseDir、38 个域各注册一次、核心服务实例按同一份容器传递。
+// 只钉三件事：容器拿对 baseDir、39 个域各注册一次、核心服务实例按同一份容器传递。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 /**
@@ -35,6 +35,7 @@ const REGISTER_MODULES = [
   { mod: 'aiAgentCore', fn: 'registerAiAgentCoreIpc' },
   { mod: 'aiInstruction', fn: 'registerAiInstructionIpc' },
   { mod: 'aiAllowRules', fn: 'registerAiAllowRulesIpc' },
+  { mod: 'aiPresets', fn: 'registerAiPresetsIpc' },
   { mod: 'history', fn: 'registerHistoryIpc' },
   { mod: 'git', fn: 'registerGitIpc' },
   { mod: 'diagnostics', fn: 'registerDiagnosticsIpc' },

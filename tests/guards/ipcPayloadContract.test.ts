@@ -23,6 +23,7 @@ import {
   aiNoteTurnSchema,
   aiProjectPathSchema,
   aiPresetRosterSchema,
+  aiPresetImportSchema,
   aiSetPresetDefaultSchema,
   aiThreadSchema,
   rewindToSchema,
@@ -51,6 +52,18 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
   'ai:setPresetDefault': {
     shape: aiSetPresetDefaultSchema.shape,
     note: '设置项目默认预设：projectPath + preset（null = 跟页面；只影响空白线程）',
+  },
+  'ai:exportPresets': {
+    shape: aiProjectPathSchema.shape,
+    note: '导出项目自定义预设：projectPath（主进程弹保存框，写盘只在导出时）',
+  },
+  'ai:pickPresetShare': {
+    shape: aiProjectPathSchema.shape,
+    note: '选预设分享文件并回预览：projectPath（只读，不写项目）',
+  },
+  'ai:importPresets': {
+    shape: aiPresetImportSchema.shape,
+    note: '确认导入预设：projectPath + text + overwrite（写盘只在这里发生）',
   },
   'ai:getPresets': {
     shape: aiPresetRosterSchema.shape,

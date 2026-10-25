@@ -26,6 +26,7 @@ import { TrajectoryPanel } from './TrajectoryPanel'
 import { ChatEmptyState } from './ChatEmptyState'
 import type { AgentPresetRow } from '@shared/ai/presetRoster'
 import { PresetEditor } from './PresetEditor'
+import { PresetImportDialog } from './PresetImportDialog'
 import { InlineEditBox } from './InlineEditBox'
 import { StreamingBubble } from './MessageBubble'
 import { MessageActions } from './MessageActions'
@@ -339,7 +340,27 @@ export const ChatPanel = React.memo(function ChatPanel() {
   }, [preset, presetMeta, setAgentModeOverride])
   /** 预设编辑器开关 + 保存后让下拉重读文件的计数 */
   const [presetEditorOpen, setPresetEditorOpen] = useState(false)
+  const [presetImportOpen, setPresetImportOpen] = useState(false)
   const [presetEpoch, setPresetEpoch] = useState(0)
+  /** 导出预设：写盘在主进程，这里只负责把结果说清楚；用户取消不算错误 */
+  const handleExportPresets = useCallback(async (): Promise<void> => {
+    if (!projectPath) return
+    try {
+      const res = await window.qqbat.ai.exportPresets(projectPath)
+      if (res.ok) {
+        toast.success(
+          t('ai.preset.exportResult', {
+            n: String(res.data.count),
+            filePath: res.data.filePath,
+          }),
+        )
+      } else if (res.error !== '用户取消') {
+        toast.error(res.error)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }, [projectPath])
   const setFullAccess = useAiStore(s => s.setFullAccess)
   /**
    * 「以后别再问」的已记住规则：这些动作现在**不问就直接执行**，
@@ -1110,6 +1131,8 @@ export const ChatPanel = React.memo(function ChatPanel() {
             }}
             onPickPreset={name => setPreset(name)}
             onEditPresets={() => setPresetEditorOpen(true)}
+            onExportPresets={() => void handleExportPresets()}
+            onImportPresets={() => setPresetImportOpen(true)}
           />
         </div>
         {/* 本轮边界：主进程真正生效的那几件事（收窄/审批/先计划）——默认态自己不渲染。
@@ -1150,6 +1173,22 @@ export const ChatPanel = React.memo(function ChatPanel() {
           projectPath={projectPath}
           onClose={() => setPresetEditorOpen(false)}
           onSaved={() => setPresetEpoch(n => n + 1)}
+        />
+        {/* 导入走两段式：选文件只出预览，确认才写盘（内置/同名都在主进程再拦一次） */}
+        <PresetImportDialog
+          open={presetImportOpen}
+          projectPath={projectPath}
+          onClose={() => setPresetImportOpen(false)}
+          onImported={result => {
+            setPresetEpoch(n => n + 1)
+            toast.success(
+              t('ai.preset.importResult', {
+                added: String(result.added),
+                replaced: String(result.replaced),
+                total: String(result.total),
+              }),
+            )
+          }}
         />
 
         {settingsOpen && (

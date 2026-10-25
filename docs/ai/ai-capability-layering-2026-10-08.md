@@ -170,7 +170,7 @@ terminal = 终端
 | audit           | 3    | –   | 2   | –   | –   | –   | 1   | 只读可查                       |
 | backup          | 4    | –   | 1   | 3   | –   | –   | –   | restore ★★★                    |
 | dataTransfer    | 4    | –   | 2   | 2   | –   | –   | –   | import ★★                      |
-| ai              | 50   | –   | –   | –   | –   | –   | 50  | **元域：助手自身，不归位**     |
+| ai              | 53   | –   | –   | –   | –   | –   | 53  | **元域：助手自身，不归位**     |
 | data            | 5    | –   | –   | –   | –   | –   | 5   | 渲染层内部管道                 |
 | panel           | 4    | –   | 3   | –   | 1   | –   | –   | 发布=用户触发                  |
 | debug           | 11   | –   | 2   | 8   | –   | –   | 1   | 仅调试会话，低危               |
@@ -190,9 +190,9 @@ terminal = 终端
 | docker          | 3    | –   | –   | 1   | 1   | –   | 1   | 生成部署件                     |
 | ssh             | 3    | –   | 1   | 1   | –   | –   | 1   | **★★★ 远程部署**               |
 
-**小计**：R **0** · Q **85** · M **104** · P **8** · ⛔ **3** · X **75**（合计 **275** ✓）
+**小计**：R **0** · Q **85** · M **104** · P **8** · ⛔ **3** · X **78**（合计 **278** ✓）
 
-> X + ⛔ = **78** 个能力**不进模型工具表**；Q + M = **189 个**是「谁控制」意义上的候选 —— **是否放行仍由附录 B / C 决定**（层不说明「已开放」）。
+> X + ⛔ = **81** 个能力**不进模型工具表**；Q + M = **189 个**是「谁控制」意义上的候选 —— **是否放行仍由附录 B / C 决定**（层不说明「已开放」）。
 
 ---
 
@@ -344,10 +344,12 @@ ai.cancelChat = X
 ai.clearAllowRules = X
 ai.clearThread = X
 ai.commitBatch = X
+ai.exportPresets = X
 ai.getAllowRules = X
 ai.getAppConfig = X
 ai.getConfig = X
 ai.getHistory = X
+ai.importPresets = X
 ai.getPresets = X
 ai.getProjectBotConfig = X
 ai.getToolBudget = X
@@ -368,6 +370,7 @@ ai.onStats = X
 ai.onTodo = X
 ai.onToolCall = X
 ai.onWarning = X
+ai.pickPresetShare = X
 ai.rollbackBatch = X
 ai.savePresets = X
 ai.saveProjectConfig = X
@@ -611,7 +614,7 @@ terminal.write = F
 terminal.onData = X
 ```
 
-**附录小计**：R 0 · Q 85 · M 104 · P 8 · ⛔ F 3 · X 75 = **275**
+**附录小计**：R 0 · Q 85 · M 104 · P 8 · ⛔ F 3 · X 78 = **278**
 
 ---
 

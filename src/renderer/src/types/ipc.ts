@@ -5,6 +5,7 @@ import type { NodeSpecV2 } from '@shared/types/nodeV2'
 import type { BotLogEntry, ExecuteNodeEvent } from '@shared/types/runtime'
 import type { AiAllowRule, AiConfig, AiRunStats, AiToolDefinition } from '@shared/types/ai'
 import type { AgentPresetRoster, PresetSessionState } from '@shared/ai/presetRoster'
+import type { PresetImportResult, PresetSharePick } from '@shared/ai/presetShare'
 import type { Proposal } from '@shared/types/proposal'
 import type { MetricSnapshot } from '../stores/metricsStore'
 import type { PluginInfo, PluginPackage } from '@shared/types/plugin-sdk'
@@ -556,6 +557,23 @@ export interface QqbatApi {
       projectPath: string,
       preset: string | null,
     ) => Promise<{ ok: true } | { ok: false; error: string }>
+    /** 导出项目自定义预设（主进程弹保存对话框；取消报「用户取消」） */
+    exportPresets: (
+      projectPath: string,
+    ) => Promise<
+      | { ok: true; data: { filePath: string; count: number; warnings: string[] } }
+      | { ok: false; error: string }
+    >
+    /** 选一个预设分享文件并回预览（只读；取消报「用户取消」） */
+    pickPresetShare: (
+      projectPath: string,
+    ) => Promise<{ ok: true; data: PresetSharePick } | { ok: false; error: string }>
+    /** 确认导入（写盘只在这里发生） */
+    importPresets: (
+      projectPath: string,
+      text: string,
+      overwrite: boolean,
+    ) => Promise<{ ok: true; data: PresetImportResult } | { ok: false; error: string }>
     /** 读预设注册表（坏条目带 broken、字段被忽略带 notes；宿主侧唯一裁决） */
     getPresets: (
       projectPath: string,

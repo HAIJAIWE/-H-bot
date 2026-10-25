@@ -11,6 +11,7 @@ import { registerAiIpc } from './ai';
 import { registerAiAgentCoreIpc } from './aiAgentCore';
 import { registerAiInstructionIpc } from './aiInstruction';
 import { registerAiAllowRulesIpc } from './aiAllowRules';
+import { registerAiPresetsIpc } from './aiPresets';
 import { registerHistoryIpc } from './history';
 import { registerGitIpc } from './git';
 import { registerDiagnosticsIpc } from './diagnostics';
@@ -48,7 +49,7 @@ import { captureIpcHandlers } from '../services/ai/ipcBridge';
  * 好让主进程里的 AI 工具能调用**同一条** handler —— 校验、守卫、业务逻辑都还是那一份，
  * 不会出现"手写绑定"那样的第二套实现。
  *
- * 包装是刻意的：38 个域的注册写法一行都不用改，捕获只在启动那一瞬生效。
+ * 包装是刻意的：39 个域的注册写法一行都不用改，捕获只在启动那一瞬生效。
  */
 export function registerAllIpc(baseDir: string): void {
   captureIpcHandlers(() => registerAllIpcInner(baseDir));
@@ -83,6 +84,8 @@ function registerAllIpcInner(baseDir: string): void {
   registerAiInstructionIpc();
   // 「以后别再问」的规则表（撤销口）：看 / 删单条 / 清空。单独一个文件见它的文件头。
   registerAiAllowRulesIpc();
+  // 会话预设的导入导出（第 53 批）：文件选择 + 校验 + 写盘，全是用户显式操作。
+  registerAiPresetsIpc();
   registerHistoryIpc();
   registerGitIpc();
   registerDiagnosticsIpc();

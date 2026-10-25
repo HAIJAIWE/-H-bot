@@ -2807,6 +2807,118 @@ DSH 也不允许，保持一致）、锁文件的损坏自动修复（坏锁只�
 
 ### 51.8 明确没做
 
-导入/导出预设、内置项的图形化查看详情、默认值的"跟着当前选择走"、resume/fork 复制默认值
+（第 53 批已补导入导出，见 §53）内置项的图形化查看详情、默认值的"跟着当前选择走"、resume/fork 复制默认值
 （默认是项目级，不需要按会话复制）、DSH 的 `selectedDefault` 与 `config.default` 双层回退
 （qqbat 只有项目级默认一份，够用且不会出现"用户设置与部署默认谁优先"的歧义）。
+
+---
+
+## §53 第 53 批：预设导入导出（2026-10-26）
+
+### 53.1 为什么是整表，不是单条
+
+预设注册表本来就是**一个项目一份整表**（`.qqbat/agent-presets.json`）。单条导出/导入要额外
+定义稳定的条目 id、同名策略、顺序落点；而真实需求是「把这台机器上的预设搬到另一台」。
+所以这一批只做整表：导出时只写用户自己的条目（内置随程序发布，不导出），导入时按名字合并。
+
+### 53.2 分享格式与上限
+
+新文件 `src/shared/ai/presetShare.ts`（纯类型 + 常量）：
+
+| 项        | 值                                                  |
+| --------- | --------------------------------------------------- |
+| `type`    | `qqbat-agent-presets`（固定，防止拿别的 JSON 来导） |
+| `version` | `1`（只认这一个版本）                               |
+| `presets` | 1..200 条声明                                       |
+| 文件上限  | 256 KB（`PRESET_SHARE_MAX_BYTES`）                  |
+
+条目只允许出现 `name / role / prompt / permissionMode / allowedTools / plugins / description / order`
+这八个声明字段。`builtin`、`isDefault`、`broken`、`notes` 都是主进程内部状态，不写进分享文件。
+
+导出（`buildPresetShare`）：读注册表 → 文件级问题/坏条目直接拒绝 → 只取非内置行 →
+按生效后的值写 JSON（`exportedAt` 用导出时刻）→ 返回 `{ text, count, warnings }`。
+有 `notes`（某个字段被忽略）的条目仍可导出，但会变成 `warnings` 在界面上提示，
+因为导出的只能是「生效后的值」，原文件那一行不会跟着走。
+
+### 53.3 导入的四道校验
+
+`parsePresetShareText` 在任何写盘之前跑完，任何一道不过就整次拒绝：
+
+1. 非空、字节数 ≤ 256 KB、能 `JSON.parse`、顶层是对象；
+2. `type` 与 `version` 精确匹配；
+3. `presets` 是 1..200 条的数组，每条必须是对象，**出现未知键就拒绝**（不静默 strip，
+   否则用户以为导入了完整声明，实际少一半）；
+4. 交给 `parsePresetRoster` 再解析一遍：有 `broken`（比如重名、名字超长、角色不认识）
+   或 `notes`（有字段被忽略）都拒绝；分享文件内部同名也会在第二遍变成 `broken` 被拦下。
+
+另外，**当前项目自己的预设文件**也要先读一遍（`readExistingForImport`）：文件级问题、
+坏条目、被忽略字段都拒绝导入。原因是导入的最后一步是整表重写 —— 如果现有文件里本来
+有坏条目，重写会把它「悄悄清理」掉，看起来导入成功，实际改了别的东西。
+
+### 53.4 预览 → 确认 → 写盘
+
+- `ai:pickPresetShare`：弹打开对话框 → `stat` 先看大小（超限不读文件）→ 读完交给
+  `previewPresetImport` → 回 `{ filePath, fileName, text, preview }`。预览里只有
+  `presets / exportedAt / conflicts / existingCount`，**不写盘**。
+- `ai:importPresets`：重新解析原文（界面上的预览不能当授权凭证）→ 读现有 → 算同名冲突：
+  - `overwrite=false` 且存在冲突：整次拒绝并列出冲突名（不是跳过冲突项 —— 半份导入
+    最难解释：用户以为全进来了，实际少几条）；
+  - `overwrite=true`：按名字 `Map` 覆盖/追加，最后 `writePresets` **只写一次**，
+    返回 `{ added, replaced, total }`。
+- `ai:exportPresets`：保存对话框 → 直接把 `text` 写目标路径，返回 `{ filePath, count, warnings }`。
+
+三条通道都在 `src/main/ipc/aiPresets.ts`。单独开一个文件是因为 `aiAgentCore.ts` 已经贴着
+行数红线，而这三条只做文件选择 + 读写，和跑循环的 handler 没有共享状态。
+
+### 53.5 界面
+
+- `AgentPresetMenu` 在「编辑预设…」下面加「导出预设 / 导入预设」两行（整表操作）；
+  两个回调由 `ChatPanel` 提供。
+- 导出：成功 `toast.success(ai.preset.exportResult)`，用户在保存对话框点取消时
+  `error === '用户取消'` 不报错。
+- 导入：`PresetImportDialog` 打开即调 `pickPresetShare`；取消直接关；失败可重选；
+  显示文件名/导出时间/条数/项目现有条数/逐条预览（角色、审批、工具数）；有冲突时显示
+  琥珀块 + 「覆盖同名项」勾选框，**未勾选时确认按钮禁用**；确认后调 `importPresets`，
+  成功关闭并 `setPresetEpoch + 1` 让菜单重读注册表，再 `toast.success(importResult)`。
+
+新增 i18n key 24 个（中英各一份），从 `ai.preset.exportAction` 到 `ai.preset.importResult`。
+
+### 53.6 IPC、能力账与闸门登记
+
+- 通道：`ai:exportPresets` / `ai:pickPresetShare` / `ai:importPresets`；在
+  `register.ts` 里紧跟 `registerAiAllowRulesIpc()` 注册。
+- preload 一律传对象字面量（`{ projectPath }` / `{ projectPath, text, overwrite }`），
+  这是 `ipcPayloadContract` 能扫到载荷的前提。
+- 能力三层：三条都是 X（内部，不进模型工具表）。ai 50→53、X 75→78、总数 275→278、
+  X+⛔ 78→81；`node scripts/gen-capability-catalog.mjs` 重生成两份 **278 条**。
+- 守卫登记：`ipcPayloadContract` 增加三条通道与 `aiPresetImportSchema`；
+  `projectWritesViaFileOps` 登记 `src/main/ipc/aiPresets.ts` 的 `writeFile: 1`（目标路径
+  由保存对话框选，导入只读，真正写预设表的是 `presets.ts`）；`register-all-ipc` 38→39 个域。
+
+### 53.7 测试与闸门
+
+- `tests/main/services/ai/presetShare.test.ts` **11 例**：导出只含自定义项、格式/版本/未知键/
+  字节上限/空表/坏条目全部拒绝、预览不写盘、冲突不覆盖整次拒绝、覆盖后 added/replaced/total。
+- `tests/main/ipc/aiPresets-ipc.test.ts` **8 例**：三条通道的参数校验、对话框取消、
+  超限文件不读、导入透传 `overwrite`。
+- `tests/renderer/components/ai/PresetImportDialog.test.tsx` **5 例**：取消关闭、错误重选、
+  预览字段、冲突时确认禁用、勾选后确认并回传。
+- `tests/renderer/components/ai/AgentPresetMenu.test.tsx` **16 例**（+1）：导出/导入是整表操作。
+- tsc node/web 均 0；guards **15 文件 / 107 例**。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`
+  （日志 `_recovery/full-gate-batch53.log`）= **276 passed | 2 skipped（278 文件）**、
+  **3493 passed | 7 skipped（3500 例）**、`FULL_EXIT=0`（第 52 批基线 3468，+25）。
+
+### 53.8 明确没做
+
+单条导出/导入、拖拽文件到菜单、逐条勾选合并、导入前自动备份、分享文件签名或来源校验
+（这是数据文件，不是可执行插件；导入仍受预设本身的权限语义约束）、把内置预设一起导出、
+跨项目「导入到指定项目」（当前只导进当前项目）。
+
+### 53.9 涉及文件
+
+新增 `src/shared/ai/presetShare.ts`、`src/main/services/ai/presetShare.ts`、
+`src/main/ipc/aiPresets.ts`、`src/renderer/src/components/ai/PresetImportDialog.tsx`；
+改动 `src/main/schemas/ai.ts`、`src/main/ipc/register.ts`、`src/preload/index.ts`、
+`src/renderer/src/types/ipc.ts`、`AgentPresetMenu.tsx`、`ChatPanel.tsx`、中英 i18n、
+能力台账与两份 generated、4 个测试文件与 3 个守卫。

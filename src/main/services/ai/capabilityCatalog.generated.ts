@@ -36,7 +36,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityLayer, string> = {
   X: '助手自身或内部管道，不对外开放',
 }
 
-/** 台账：275 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 75） */
+/** 台账：278 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 78） */
 export const CAPABILITY_CATALOG: CapabilityEntry[] = [
   {
     id: 'adapter.current',
@@ -129,6 +129,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     channelKind: 'invoke',
   },
   {
+    id: 'ai.exportPresets',
+    ns: 'ai',
+    method: 'exportPresets',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:exportPresets',
+    channelKind: 'invoke',
+  },
+  {
     id: 'ai.getAllowRules',
     ns: 'ai',
     method: 'getAllowRules',
@@ -189,6 +198,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:getToolBudget',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.importPresets',
+    ns: 'ai',
+    method: 'importPresets',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:importPresets',
     channelKind: 'invoke',
   },
   {
@@ -361,6 +379,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     domain: '内部',
     channel: 'ai:warning',
     channelKind: 'on',
+  },
+  {
+    id: 'ai.pickPresetShare',
+    ns: 'ai',
+    method: 'pickPresetShare',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:pickPresetShare',
+    channelKind: 'invoke',
   },
   {
     id: 'ai.previewAiTurn',
