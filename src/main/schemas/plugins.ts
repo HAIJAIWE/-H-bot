@@ -24,6 +24,25 @@ export const pluginSetHostEnabledSchema = z.object({
   enabled: z.boolean(),
 });
 
+/**
+ * plugin:getSettings —— 读一个已装载宿主插件的**设置声明 + 当前值**。
+ * 声明来自插件清单（`settings`），值来自内存热缓存（没有则回落磁盘）。
+ */
+export const pluginGetSettingsSchema = z.object({
+  id: z.string().min(1).max(120),
+});
+
+/**
+ * plugin:saveSettings —— 保存宿主插件的设置。
+ *
+ * 这里只挡**形状**（标量值），每个键该是数字还是布尔由插件自己的声明决定；
+ * 类型校验在 handler 里用 `coerceSettingValues` 做（它需要声明，schema 拿不到）。
+ */
+export const pluginSaveSettingsSchema = z.object({
+  id: z.string().min(1).max(120),
+  values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+});
+
 /** plugin:marketAddSource / plugin:marketRemoveSource —— 一个来源（http(s) 或本地路径） */
 export const pluginMarketSourceSchema = z.object({
   source: z.string().min(1).max(500),

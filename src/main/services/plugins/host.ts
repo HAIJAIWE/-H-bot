@@ -16,7 +16,9 @@ import type { PromptSection } from '../agent-core/prompt';
 import { registerPromptSection, unregisterPromptSection } from '../agent-core/prompt';
 import { satisfiesPluginRange } from '@shared/plugins/version';
 import type { PluginIdentity } from '@shared/plugins/manifest';
+import type { PluginSettingSpec } from '@shared/plugins/settings';
 import { DEFAULT_HOST_PLUGINS, isKnownHostPlugin } from './defaults';
+import { forgetPluginSettings } from './pluginSettingsStore';
 import { kernel, type PluginKernelContext } from './kernel';
 
 export type MainPluginPermission = 'tool' | 'prompt';
@@ -36,6 +38,12 @@ export interface MainPluginManifest extends PluginIdentity<MainPluginPermission>
   inject?: string[];
   /** 兼容性：要求宿主版本满足的范围（不满足则注册但不激活，也不许强行启用） */
   requires?: string;
+  /**
+   * **用户可填的参数声明**（2026-10-25，插件表单化）：
+   * 宿主按这份声明生成表单、校验用户输入；插件自己经 `api.getSetting(key)` 读值。
+   * 没声明 = 这个插件没有可配置项，界面上不出现「设置」按钮。
+   */
+  settings?: PluginSettingSpec[];
 }
 
 /** 主进程插件宿主版本（插件用 requires 判断兼容性） */
@@ -79,6 +87,16 @@ export function pluginOwnedTools(): Map<string, string> {
     for (const name of names) out.set(name, pluginId);
   }
   return out;
+}
+
+/**
+ * 某个插件当前贡献了哪些工具（诊断/界面展示用）。
+ *
+ * 与 pluginOwnedTools() 的区别：那个是"工具 → 插件"的全表，且跳过内置插件；
+ * 这个按插件 id 取，内置插件也能查（它们的工具同样登记在 PLUGIN_TOOLS 里）。
+ */
+export function pluginOwnedToolNames(pluginId: string): string[] {
+  return [...(PLUGIN_TOOLS.get(pluginId) ?? [])].sort();
 }
 
 /** 一次 activate：把权限检查 + 贡献 → 注册表 + effect 回收 包在一起 */
@@ -180,6 +198,8 @@ export function setMainPluginEnabled(id: string, enabled: boolean): void {
 export function unregisterMainPlugin(id: string): void {
   kernel.unregister(id);
   META.delete(id);
+  // 设置的内存副本跟着插件走：卸载后再装载自己会重新从磁盘读
+  forgetPluginSettings(id);
 }
 
 /** 已安装的主进程插件清单（含启停状态、来源层、依赖就绪情况） */

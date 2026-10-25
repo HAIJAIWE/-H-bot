@@ -1,10 +1,12 @@
 // src/renderer/src/components/settings/PluginManager.tsx
 import { useState, useEffect, useCallback } from 'react';
 import type { PluginInfo } from '@shared/types/plugin-sdk';
+import type { PluginSettingSpec } from '@shared/plugins/settings';
 import { useProjectStore } from '../../stores/projectStore';
 import { setPluginNodes } from '../../lib/node/nodeCatalog';
 import { Modal, ModalFooter } from '../ui/Modal';
 import { PluginMarket } from './PluginMarket';
+import { PluginSettingsDialog } from './PluginSettingsDialog';
 import { Button } from '../ui/Button';
 import { t } from '../../i18n';
 import { useLocaleSubscription } from '../../stores/i18nStore';
@@ -95,7 +97,11 @@ export function PluginManager({ open, onClose }: Props) {
    * 与节点插件的"安装/加载"分开命名：AI 插件不改项目目录，也不注册节点，
    * 它贡献的是**循环里的工具**与提示段落。
    */
-  /** 宿主插件（应用级能力）只读清单：只展示随包 builtin 的（AI 插件另有运行时列表） */
+  /**
+   * 宿主插件（应用级能力）清单：**全部**存着，不只是 builtin。
+   * 系统插件区只渲染 builtin；AI 插件区靠这份按 id 查权限/工具/参数声明
+   * （AI 插件的启停状态在运行时列表里，声明在宿主清单里，两边合起来才够显示）。
+   */
   const [hostPlugins, setHostPlugins] = useState<
     Array<{
       id: string;
@@ -103,12 +109,15 @@ export function PluginManager({ open, onClose }: Props) {
       version: string;
       enabled: boolean;
       source: 'builtin' | 'runtime';
+      permissions: string[];
+      settings: PluginSettingSpec[];
+      tools: string[];
       readOnlyReason?: string;
     }>
   >([]);
   const loadHostPlugins = useCallback(async (): Promise<void> => {
     const res = await window.qqbat.plugin.listHost();
-    if (res.ok && res.data) setHostPlugins(res.data.filter((p) => p.source === 'builtin'));
+    if (res.ok && res.data) setHostPlugins(res.data);
   }, []);
   useEffect(() => {
     if (!open) return;
@@ -125,6 +134,9 @@ export function PluginManager({ open, onClose }: Props) {
     }
     await loadHostPlugins();
   };
+
+  /** 参数表单：开着哪个插件（null = 关着） */
+  const [settingsTarget, setSettingsTarget] = useState<{ id: string; name: string } | null>(null);
 
   /** 本次运行装载的 AI 插件（运行时装载、不落盘；与节点包不同，它们不进项目目录） */
   const [aiPlugins, setAiPlugins] = useState<
@@ -347,11 +359,13 @@ export function PluginManager({ open, onClose }: Props) {
         )}
 
         {/* 系统插件（只读）：随包内置能力，展示"有什么、为什么不能停" */}
-        {hostPlugins.length > 0 && (
+        {hostPlugins.some((p) => p.source === 'builtin') && (
           <div className="mb-4">
             <p className="text-xs text-zinc-400 mb-2">{t('settings.plugins.hostTitle')}</p>
             <ul className="space-y-1">
-              {hostPlugins.map((p) => (
+              {hostPlugins
+                .filter((p) => p.source === 'builtin')
+                .map((p) => (
                 <li
                   key={p.id}
                   className="flex items-center gap-2 rounded border border-zinc-700/60 px-2 py-1 text-xs"
@@ -388,46 +402,101 @@ export function PluginManager({ open, onClose }: Props) {
           <div className="mb-4">
             <p className="text-xs text-zinc-400 mb-2">{t('settings.plugins.aiTitle')}</p>
             <ul className="space-y-1">
-              {aiPlugins.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center gap-2 rounded border border-zinc-700/60 px-2 py-1 text-xs"
-                >
-                  <span className="truncate text-zinc-200">{p.name}</span>
-                  <span className="ml-auto font-mono text-[10px] text-zinc-600">{p.id}</span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={async () => {
-                      const next = !p.enabled;
-                      const res = await window.qqbat.plugin.setEnabled(p.name, next);
-                      if (res.ok) {
-                        setAiPlugins((prev) =>
-                          prev.map((x) => (x.id === p.id ? { ...x, enabled: next } : x)),
-                        );
-                      }
-                    }}
-                  >
-                    {p.enabled ? t('settings.plugins.aiDisable') : t('settings.plugins.aiEnable')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={async () => {
-                      const res = await window.qqbat.plugin.unload(p.name);
-                      if (res.ok) {
-                        setAiPlugins((prev) => prev.filter((x) => x.id !== p.id));
-                        writeAiRecords(readAiRecords().filter((dir) => dir !== p.dir));
-                      }
-                    }}
-                  >
-                    {t('settings.plugins.aiUnload')}
-                  </Button>
-                </li>
-              ))}
+              {aiPlugins.map((p) => {
+                // 声明（权限/工具/参数）在宿主清单里，启停在运行时列表里：两边按 id 合起来
+                const host = hostPlugins.find((h) => h.id === p.id);
+                const tools = host?.tools ?? [];
+                const permissions = host?.permissions ?? [];
+                const hasSettings = (host?.settings.length ?? 0) > 0;
+                return (
+                  <li key={p.id} className="rounded border border-zinc-700/60 px-2 py-1 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-zinc-200">{p.name}</span>
+                      <span className="ml-auto font-mono text-[10px] text-zinc-600">{p.id}</span>
+                      {hasSettings && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          title={t('settings.plugins.aiSettingsHint')}
+                          onClick={() => setSettingsTarget({ id: p.id, name: p.name })}
+                        >
+                          {t('settings.plugins.aiSettings')}
+                        </Button>
+                      )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          const next = !p.enabled;
+                          const res = await window.qqbat.plugin.setEnabled(p.name, next);
+                          if (res.ok) {
+                            setAiPlugins((prev) =>
+                              prev.map((x) => (x.id === p.id ? { ...x, enabled: next } : x)),
+                            );
+                          }
+                        }}
+                      >
+                        {p.enabled
+                          ? t('settings.plugins.aiDisable')
+                          : t('settings.plugins.aiEnable')}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          const res = await window.qqbat.plugin.unload(p.name);
+                          if (res.ok) {
+                            setAiPlugins((prev) => prev.filter((x) => x.id !== p.id));
+                            writeAiRecords(readAiRecords().filter((dir) => dir !== p.dir));
+                          }
+                        }}
+                      >
+                        {t('settings.plugins.aiUnload')}
+                      </Button>
+                    </div>
+                    {/* 声明行：它要了什么权限、真注册了哪些工具 —— 不靠"信任"，靠看得见 */}
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                      {permissions.map((perm) => (
+                        <span
+                          key={perm}
+                          className="rounded bg-zinc-800 px-1 py-0.5 text-amber-300/90"
+                          title={t('settings.plugins.aiPermissions')}
+                        >
+                          {perm === 'tool'
+                            ? t('settings.plugins.aiPermissionTool')
+                            : perm === 'prompt'
+                              ? t('settings.plugins.aiPermissionPrompt')
+                              : perm}
+                        </span>
+                      ))}
+                      <span className="text-zinc-500">{t('settings.plugins.aiTools')}</span>
+                      {tools.length === 0 ? (
+                        <span className="text-zinc-600">{t('settings.plugins.aiToolsNone')}</span>
+                      ) : (
+                        tools.map((tool) => (
+                          <span
+                            key={tool}
+                            className="rounded bg-zinc-800/80 px-1 py-0.5 font-mono text-zinc-400"
+                          >
+                            {tool}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
+
+        {/* 参数表单：声明由插件清单给，宿主不认识任何具体键 */}
+        <PluginSettingsDialog
+          open={settingsTarget !== null}
+          pluginId={settingsTarget?.id ?? ''}
+          pluginName={settingsTarget?.name ?? ''}
+          onClose={() => setSettingsTarget(null)}
+        />
 
         {/* 插件市场：装的是 AI 插件（工具进循环），与上面的节点包是两种东西 */}
         <PluginMarket open={open} />

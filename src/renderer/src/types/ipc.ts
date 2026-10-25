@@ -24,6 +24,9 @@ import type {
 } from '@shared/types/launch'
 import type { ButtonPanel } from '@shared/types/buttonPanel'
 import type { MarketInstallInfo, MarketListResult } from '@shared/plugins/market'
+import type { PluginSettingSpec, PluginSettingValues } from '@shared/plugins/settings'
+
+export type { PluginSettingSpec, PluginSettingValues } from '@shared/plugins/settings'
 
 export interface ApiResult<T> {
   ok: boolean
@@ -1143,12 +1146,27 @@ export interface QqbatApi {
           version: string
           enabled: boolean
           source: 'builtin' | 'runtime'
+          /** 它声明了哪些能力（tool / prompt） */
+          permissions: string[]
+          /** 用户可填参数声明；空 = 这个插件没有可配置项 */
+          settings: PluginSettingSpec[]
+          /** 它注册了哪些工具名（内置插件也有） */
+          tools: string[]
           readOnlyReason?: 'management-required' | 'unaddressable' | 'not-removable'
         }>
       >
     >
     /** 启停宿主插件（builtin）：not-removable 的会被主进程拒绝 */
     setHostEnabled: (id: string, enabled: boolean) => Promise<ApiResult<null>>
+    /** 读一个宿主插件的设置声明 + 当前值 */
+    getSettings: (id: string) => Promise<
+      ApiResult<{ id: string; settings: PluginSettingSpec[]; values: PluginSettingValues }>
+    >
+    /** 保存宿主插件设置（写盘 + 热更新，运行中的插件立即生效） */
+    saveSettings: (
+      id: string,
+      values: Record<string, string | number | boolean>,
+    ) => Promise<ApiResult<{ id: string; values: PluginSettingValues }>>
     setEnabled: (
       pluginName: string,
       enabled: boolean,

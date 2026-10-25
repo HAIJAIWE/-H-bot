@@ -2,7 +2,7 @@
 
 > **状态**：分析交付物，第一步（纯分析、零代码改动）
 > **日期**：2026-10-08
-> **对象**：前端全部可调用能力（35 个命名空间 / 247 个成员，其中 228 个方法由 `ipcSurfaceParity` 闸门对账）
+> **对象**：前端全部可调用能力（35 个命名空间 / 249 个成员，其中 230 个方法由 `ipcSurfaceParity` 闸门对账）
 > **2026-10-24**：`runtime` 的启动/停止/重启/状态/命令通道已下线（改走 `botManager:*`），本附录同步删除 6 个成员与 `onStatusChange`，合计 -7。
 > **依据**：
 >
@@ -28,7 +28,7 @@
 
 ## 能力域（专业分类）
 
-256 个能力按「**这是干什么的**」归成 **9 个域**（35 个命名空间，一个不漏）：
+258 个能力按「**这是干什么的**」归成 **9 个域**（35 个命名空间，一个不漏）：
 
 | 能力域                                 | 命名空间                                                                                 | 能力    | 层分布      | 已开（直调/提案/高危） | 归属                       |
 | -------------------------------------- | ---------------------------------------------------------------------------------------- | ------- | ----------- | ---------------------- | -------------------------- |
@@ -37,11 +37,11 @@
 | **数据与配置** Data & Config           | launchData · launchConfig · launchDashboard · dataTransfer · backup · audit · stateStore | 57      | Q28 M28 X1  | **23**                 | 作者智能体                 |
 | **运行与观测** Runtime & Observability | runtime · botManager · metrics · resourceMonitor · diagnostics · crash · debug · data    | 53      | M21 X18 Q14 | **16**                 | 作者智能体                 |
 | **协议与平台** Protocol & Platform     | official · adapter · aiProvider · capability                                             | 23      | M11 Q10 X2  | **3**                  | 作者智能体                 |
-| **扩展与插件** Extensions              | plugin · customNode                                                                      | 20      | M13 Q6 X1   | **6**                  | 作者智能体                 |
+| **扩展与插件** Extensions              | plugin · customNode                                                                      | 22      | M14 Q7 X1   | **6**                  | 作者智能体                 |
 | **部署与运维** Deploy & Ops            | docker · ssh                                                                             | 6       | M2 Q1 P1 X2 | **0**                  | 作者智能体（**一条未开**） |
 | **本机终端** Local Shell               | terminal                                                                                 | 4       | **F3** X1   | **0**                  | **用户专属（模型禁用）**   |
 | **智能体自身** Agent Internals         | ai                                                                                       | 41      | X41         | 0                      | 助手内部，不对外           |
-| **合计**                               | 35                                                                                       | **257** |             | **66**                 |                            |
+| **合计**                               | 35                                                                                       | **259** |             | **66**                 |                            |
 
 **你提到的三块都在里面，没有漏：**
 
@@ -182,7 +182,7 @@ terminal = 终端
 | crash           | 6    | –   | 3   | 2   | –   | –   | 1   | —                              |
 | resourceMonitor | 10   | –   | 3   | 3   | –   | –   | 4   | —                              |
 | stateStore      | 10   | –   | 5   | 5   | –   | –   | –   | clearAll ★★★                   |
-| plugin          | 16   | –   | 5   | 11  | –   | –   | –   | install ★★★                    |
+| plugin          | 18   | –   | 6   | 12  | –   | –   | –   | install ★★★                    |
 | adapter         | 3    | –   | 2   | 1   | –   | –   | –   | —                              |
 | official        | 15   | –   | 4   | 9   | –   | –   | 2   | sendMessage ★★★                |
 | aiProvider      | 4    | –   | 3   | 1   | –   | –   | –   | —                              |
@@ -190,9 +190,9 @@ terminal = 终端
 | docker          | 3    | –   | –   | 1   | 1   | –   | 1   | 生成部署件                     |
 | ssh             | 3    | –   | 1   | 1   | –   | –   | 1   | **★★★ 远程部署**               |
 
-**小计**：R **0** · Q **84** · M **105** · P **8** · ⛔ **3** · X **68**（合计 **268** ✓）
+**小计**：R **0** · Q **85** · M **106** · P **8** · ⛔ **3** · X **68**（合计 **270** ✓）
 
-> X + ⛔ = **70** 个能力**不进模型工具表**；Q + M = **189 个**是「谁控制」意义上的候选 —— **是否放行仍由附录 B / C 决定**（层不说明「已开放」）。
+> X + ⛔ = **70** 个能力**不进模型工具表**；Q + M = **191 个**是「谁控制」意义上的候选 —— **是否放行仍由附录 B / C 决定**（层不说明「已开放」）。
 
 ---
 
@@ -546,6 +546,7 @@ panelSync.list = Q
 panelSync.menu = Q
 panelSync.apply = P
 plugin.getAllSpecs = Q
+plugin.getSettings = Q
 plugin.listHost = Q
 plugin.listInstalled = Q
 plugin.marketList = Q
@@ -558,6 +559,7 @@ plugin.marketAddSource = M
 plugin.marketInstall = M
 plugin.marketRemoveSource = M
 plugin.marketUninstall = M
+plugin.saveSettings = M
 plugin.setEnabled = M
 plugin.setHostEnabled = M
 plugin.unload = M

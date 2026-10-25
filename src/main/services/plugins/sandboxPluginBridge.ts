@@ -8,6 +8,8 @@
 // 协议（沙箱 → 宿主，JSON 字符串）：
 //   { kind:'aiPlugin', action:'contributeTool',   payload:{ name, description, parameters?, category? } }
 //   { kind:'aiPlugin', action:'contributePrompt', payload:{ id, order?, text } }
+//   { kind:'aiPlugin', action:'getSetting',       payload:{ key } }      → envelopeOk(值 | null)
+//   { kind:'aiPlugin', action:'getSettings',      payload:{} }           → envelopeOk(全部设置)
 // 宿主 → 沙箱（调用期）：
 //   { kind:'call', token, callId:null, target:'aiPlugin', name:'<toolName>', args:[args] }
 // 沙箱 → 宿主（迟到结果）：
@@ -16,6 +18,7 @@
 // 超时：默认 5s（与沙箱脚本超时一致）；超时按 `[工具失败] …` 返回，插件不必自己实现。
 import type { Tool } from '../agent-core/core';
 import type { PromptSection } from '../agent-core/prompt';
+import type { PluginSettingValues } from '@shared/plugins/settings';
 
 export interface SandboxBridgeHost {
   contributeTool(tool: Tool): void;
@@ -30,6 +33,11 @@ export interface SandboxBridgeOptions {
   sendToSandbox: (message: Record<string, unknown>) => void;
   /** 调用超时（毫秒） */
   timeoutMs?: number;
+  /**
+   * 插件的用户设置，**每次读都现取**（不要传快照）：保存后插件下一次调用就能读到新值，
+   * 不需要重载插件、也不需要重建桥。
+   */
+  settings?: () => PluginSettingValues | undefined;
 }
 
 interface PendingCall {
@@ -143,6 +151,15 @@ export function createSandboxPluginBridge(opts: SandboxBridgeOptions): {
           render: () => text,
         });
         return envelopeOk(null);
+      }
+      if (action === 'getSetting') {
+        // 读设置不需要额外权限：设置是用户填的配置，不是插件能"要求"的能力
+        const key = String(payload.key ?? '');
+        const values = opts.settings?.() ?? {};
+        return envelopeOk(Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null);
+      }
+      if (action === 'getSettings') {
+        return envelopeOk(opts.settings?.() ?? {});
       }
       return envelopeErr('unsupported aiPlugin action: ' + String(action));
     } catch (e) {

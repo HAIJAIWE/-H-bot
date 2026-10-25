@@ -921,10 +921,15 @@ const api = {
     unload: (pluginName: string) => ipcRenderer.invoke('plugin:unload', { pluginName }),
     install: (projectPath: string) => ipcRenderer.invoke('plugin:install', { projectPath }),
     listInstalled: () => ipcRenderer.invoke('plugin:listInstalled'),
-    /** 宿主插件（应用级能力）只读清单：id/name/version/enabled/source/readOnlyReason */
+    /** 宿主插件（应用级能力）清单：id/name/version/enabled/source/permissions/settings/tools */
     listHost: () => ipcRenderer.invoke('plugin:listHost'),
     setHostEnabled: (id: string, enabled: boolean) =>
       ipcRenderer.invoke('plugin:setHostEnabled', { id, enabled }),
+    /** 读一个宿主插件的设置声明 + 当前值（表单用） */
+    getSettings: (id: string) => ipcRenderer.invoke('plugin:getSettings', { id }),
+    /** 保存宿主插件设置：写盘 + 更新内存缓存，运行中的插件立即读到新值 */
+    saveSettings: (id: string, values: Record<string, string | number | boolean>) =>
+      ipcRenderer.invoke('plugin:saveSettings', { id, values }),
     setEnabled: (pluginName: string, enabled: boolean) =>
       ipcRenderer.invoke('plugin:setEnabled', { pluginName, enabled }),
     /** 插件市场：清单（含官方离线源）/ 来源管理 / 安装 / 卸载 */

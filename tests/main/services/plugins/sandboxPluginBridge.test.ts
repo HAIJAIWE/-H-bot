@@ -6,7 +6,11 @@ import { createSandboxPluginBridge } from '@main/services/plugins/sandboxPluginB
 import type { Tool } from '@main/services/agent-core/core';
 import type { PromptSection } from '@main/services/agent-core/prompt';
 
-function setup(permissions: string[] = ['tool', 'prompt'], timeoutMs = 50) {
+function setup(
+  permissions: string[] = ['tool', 'prompt'],
+  timeoutMs = 50,
+  settings?: () => Record<string, string | number | boolean> | undefined,
+) {
   const tools: Tool[] = [];
   const prompts: PromptSection[] = [];
   const sent: Array<Record<string, unknown>> = [];
@@ -19,6 +23,7 @@ function setup(permissions: string[] = ['tool', 'prompt'], timeoutMs = 50) {
       contributePrompt: (s) => prompts.push(s),
     },
     sendToSandbox: (m) => sent.push(m),
+    ...(settings ? { settings } : {}),
   });
   return { bridge, tools, prompts, sent };
 }
@@ -81,6 +86,40 @@ describe('★ 沙箱插件桥（代理工具）', () => {
     );
     expect(prompts).toHaveLength(1);
     expect(prompts[0].render({ workspace: 'D:/ws', toolNames: [] })).toBe('hi');
+  });
+
+  it('★ getSetting / getSettings：每次读都现取宿主值（保存即生效，不用重载插件）', () => {
+    let values: Record<string, string | number | boolean> = { timezone: 'UTC', loud: false };
+    const { bridge } = setup(['tool'], 50, () => values);
+    const read = (key: string) =>
+      JSON.parse(
+        bridge.handleBridgeMessage(
+          JSON.stringify({ kind: 'aiPlugin', action: 'getSetting', payload: { key } }),
+        ),
+      ) as { ok: boolean; value: unknown };
+    expect(read('timezone')).toEqual({ ok: true, value: 'UTC' });
+    // 宿主改值后**下一次调用**就能读到新的（桥里存的是 getter，不是快照）
+    values = { timezone: 'Asia/Shanghai', loud: true };
+    expect(read('timezone').value).toBe('Asia/Shanghai');
+    expect(read('nope').value).toBeNull();
+    const all = JSON.parse(
+      bridge.handleBridgeMessage(JSON.stringify({ kind: 'aiPlugin', action: 'getSettings', payload: {} })),
+    ) as { ok: boolean; value: unknown };
+    expect(all).toEqual({ ok: true, value: { timezone: 'Asia/Shanghai', loud: true } });
+  });
+
+  it('没提供 settings（老插件/无参数插件）→ 单项 null、全部空对象', () => {
+    const { bridge } = setup(['tool']);
+    const one = JSON.parse(
+      bridge.handleBridgeMessage(
+        JSON.stringify({ kind: 'aiPlugin', action: 'getSetting', payload: { key: 'k' } }),
+      ),
+    ) as { ok: boolean; value: unknown };
+    expect(one.value).toBeNull();
+    const all = JSON.parse(
+      bridge.handleBridgeMessage(JSON.stringify({ kind: 'aiPlugin', action: 'getSettings', payload: {} })),
+    ) as { ok: boolean; value: unknown };
+    expect(all.value).toEqual({});
   });
 
   it('停用（dispose）→ 挂起的调用按失败收尾', async () => {
