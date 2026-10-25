@@ -217,4 +217,61 @@ describe('★ 总入口：模型 → 工具 → 落盘（默认拒绝写）', ()
     expect(r.toolResults[0].output).toContain('hello')
     expect(r.phase).toEqual({ kind: 'finished', reason: 'completed' })
   })
+
+  it('★ 本轮统计（状态条）：token 只认厂商回传，steps 跟着工具数走', async () => {
+    // 旧助手链路删掉后 ai:stats 改由循环发（ipc/aiAgentCore.ts 的 onStats）；
+    // 这条钉住"发了什么"：没回传就是 usageReported=false（界面一个数都不许编）。
+    const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'))
+    await mkdir(join(ws, '.qqbat'), { recursive: true })
+    await writeFile(join(ws, 'a.txt'), 'hello', 'utf-8')
+    const published: any[] = []
+    let round = 0
+    const call = (async (_c: unknown, _m: unknown, _t: unknown, cb: any) => {
+      round += 1
+      cb.onUsage({ promptTokens: 10, completionTokens: 5, totalTokens: 15, cachedTokens: 4 })
+      if (round === 1) {
+        cb.onToolCalls([{ id: 'c1', name: 'read_file', args: { path: 'a.txt' } }])
+        cb.onComplete('')
+        return
+      }
+      cb.onComplete('读到了')
+    }) as never
+    const r = await runAgentTurn({
+      projectPath: ws,
+      requirement: '读文件',
+      config,
+      call,
+      maxRounds: 2,
+      onStats: stats => published.push(stats),
+    })
+    // 两轮各回传一次 → 累加（不是覆盖）
+    expect(r.stats.promptTokens).toBe(20)
+    expect(r.stats.completionTokens).toBe(10)
+    expect(r.stats.cachedTokens).toBe(8)
+    expect(r.stats.usageReported).toBe(true)
+    // 工具只真跑了 1 次
+    expect(r.stats.steps).toBe(1)
+    expect(r.stats.rounds).toBe(2)
+    // 上下文预算是本轮压缩上限，没传压缩就用循环默认值（不是 0）
+    expect(r.stats.contextBudget).toBeGreaterThan(0)
+    // 最后推出去的那一份 == 返回的这一份（界面与终态不许两套数）
+    expect(published.at(-1)).toEqual(r.stats)
+  })
+
+  it('★ 厂商没回传用量时 usageReported=false（界面据此显示"—"而不是 0）', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'))
+    const call = (async (_c: unknown, _m: unknown, _t: unknown, cb: any) => {
+      cb.onComplete('ok')
+    }) as never
+    const r = await runAgentTurn({
+      projectPath: ws,
+      requirement: '随便聊聊',
+      config,
+      call,
+      maxRounds: 1,
+    })
+    expect(r.stats.usageReported).toBe(false)
+    expect(r.stats.promptTokens).toBe(0)
+    expect(r.stats.completionTokens).toBe(0)
+  })
 })

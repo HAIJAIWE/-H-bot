@@ -14,71 +14,6 @@ const imageDataUrlSchema = z
   .string()
   .regex(/^data:image\/(png|jpeg|webp|gif);base64,/)
   .max(6e6)
-var aiChatSchema = z.object({
-  /**
-   * 项目路径。**允许为空** —— 空 = 「开荒模式」（还没有任何项目）。
-   *
-   * 为什么要有这个模式（2026-10-08，用户原话："一开始打开客户端，智能体不知道我选没选项目"）：
-   * 助手面板在**没有项目时也在界面上**，却因为这一行 `min(1)` 而完全发不出话 ——
-   * 于是"让 AI 帮我建第一个项目"这件最自然的事**恰恰做不到**（鸡生蛋）。
-   * 空路径下只给"发现 + 提议"三类工具，且不读不写项目记忆（见 services/ai/index.ts）。
-   */
-  projectPath: z.string(),
-  /**
-   * 用户这一轮说的话。
-   *
-   * ⚠️ **允许为空**：只贴一张图直接发是常见用法（「你看这是怎么回事」）。
-   * 「空且无图」由 handler 拦（保留 .shape 给 IPC 载荷闸门用，所以不写成 refine）。
-   */
-  message: z.string(),
-  /**
-   * 当前页面：`blocks` = 低代码页（画布），`code` = 代码页。**按模式分专家**（M5）靠它。
-   * 可选：不传按低代码处理（助手的主战场）；未知值同样回落，不让界面版本差异把请求挡在门外。
-   */
-  /**
-   * 页面/模式：`blocks` 低代码 · `code` 代码页 · **`duo` 双向**（流程 + 代码一次做）·
-   * **`creator` 创作模式**（给应用自己加功能，要先在界面里进框架工作区）。
-   *
-   * ⚠️ 2026-10-15 真机事故：加了 `duo` 却**漏了这个 schema** —— 双向模式下发送被静默拒绝
-   * （`{ok:false}`），表现是「界面一直转圈、主进程日志里一条请求都没有」。
-   * 本仓库栽在同一件事上不止一次：**渲染层类型改了，主进程 schema 也得改**（zod 会拒未知枚举值）。
-   * 加第 4 档 `creator` 时正是照着这条教训三处一起改的（类型 / 这个枚举 / 渲染层按钮表），
-   * 并由 tests/main/schemas/aiChatSchema.test.ts 用**编译期穷尽**钉住。
-   */
-  mode: z.enum(['blocks', 'code', 'duo', 'creator']).optional(),
-  /**
-   * **任务线程**（见 services/ai/threads.ts）。不传 = `default` = 老的单文件路径。
-   *
-   * 线程 id 会被拼进文件名，所以这里就限制字符集；服务端还会再 sanitize 一次（纵深防御）。
-   */
-  threadId: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9_-]+$/, '线程 id 只允许字母数字与 - _')
-    .optional(),
-  /**
-   * 用户贴的图片（data URL）。**只作用于这一轮**，不进记忆（见 ChatMessage.images）。
-   *
-   * 两道上限都在这里拦：**张数**与**单张体积** —— 界面侧也会先缩图，
-   * 但界面可以被绕过（老版本 / 手搓调用），主进程这道是兜底。
-   */
-  images: z.array(imageDataUrlSchema).max(4).optional(),
-  /**
-   * **用户当前在代码编辑器里打开的文件**（项目内相对路径，2026-10-15 P1-5）。
-   *
-   * 为什么在这里开口：助手要说得出「这个文件」指谁 —— 此前它没有指代对象，只能反问或瞎猜
-   *（用户原话「他不在代码编辑器那边工作」）。只对代码页 / 双向模式有意义，
-   * 那条规则在主进程按**角色**判定（services/ai/index.ts 的 activeFileHintFor）。
-   *
-   * ⚠️ **刻意不加 min/max/regex 任何约束**：这条字段的每个额外约束都会变成
-   *「路径不合规 → 整条消息被拒」—— 正是上面 27-33 行那个事故的同一形态
-   *（duo 漏进枚举 → 双向模式被静默拒绝）。所以这里**只声明类型**，
-   * 规范化与丢弃一律放在消费端：空路径 / 绝对路径 / 带 .. / 含换行反引号 /
-   * 文件不存在 —— 全都什么都不加。
-   */
-  activeFilePath: z.string().optional(),
-})
 /**
  * `ai:noteTurn` —— 把"用户对上一份计划的处置"写进项目记忆（应用了 / 拒绝了 / 回滚了）。
  *
@@ -196,14 +131,14 @@ var aiThreadSchema = z.object({
 /**
  * agent-core 运行入口（workspace-first 循环）。
  *
- * 与 aiChatSchema 并列：那是助手链路的载荷，这是另一个循环的载荷（回执形状也不同）。
+ * 曾经与 aiChatSchema（助手链路的载荷）并列；2026-10-25 旧引擎删除后它是**唯一**的对话载荷。
  * 可选字段全部来自 preload 的 agentCoreRun 签名 —— 少收一个字段就等于静默丢功能。
  */
 var aiAgentCoreRunSchema = z.object({
   /**
    * 项目路径。**允许空串 = 开荒**（还没有任何项目时的对话，2026-10-25）。
    *
-   * 以前这里 min(1)：开荒只能走助手链路 `ai:chat`，于是"有没有项目"决定了用哪套引擎。
+   * 以前这里 min(1)：开荒只能走另一条引擎（`ai:chat`），于是"有没有项目"决定了跑哪套循环。
    * 现在空串是一条正常输入 —— 主进程按它装配开荒循环（见 ipc/aiAgentCoreOnboarding.ts），
    * 不读记忆、不写轮次日志、不碰磁盘。
    */
@@ -268,7 +203,6 @@ var aiRemoveAllowRuleSchema = z.object({
 })
 
 export {
-  aiChatSchema,
   aiNoteTurnSchema,
   aiProviderEntrySchema,
   aiConfigSchema,

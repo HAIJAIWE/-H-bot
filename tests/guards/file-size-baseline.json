@@ -38,9 +38,6 @@
   "src/main/services/runner/eventBus.ts": {
     "lines": 1211
   },
-  "src/main/services/ai/index.ts": {
-    "lines": 1150
-  },
   "src/shared/nodes/groups/message.ts": {
     "lines": 1140
   },

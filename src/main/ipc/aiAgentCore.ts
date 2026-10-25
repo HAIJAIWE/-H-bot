@@ -257,7 +257,7 @@ export function registerAiAgentCoreIpc(): void {
       /**
        * 本轮内已选"别再问"的动作类别（write / command）。
        *
-       * 语义刻意与助手那条链一致（chatRun 的 `state.approvedTools`）：**只在这一轮有效**，
+       * 语义与批准策略那边一致（只在这一次运行里记住放行）：**只在这一轮有效**，
        * 不落盘、不跨轮 —— 所以按钮文案是"本轮内别再问"而不是"以后别再问"。
        * 跨轮持久化需要一张规则表 + 能撤销它的界面；没有撤销口的自动放行，本仓库明文反对。
        */
@@ -581,6 +581,11 @@ export function registerAiAgentCoreIpc(): void {
            * 「第 3 / 18 步」永远是空的 —— 监听方在 src/renderer/src/stores/aiStore.ts:1862。
            */
           onStep: ({ step, maxSteps }) => emit('ai:agentStep', { projectPath, step, maxSteps }),
+          /**
+           * **本轮统计**（状态条）：轮数 / 工具数 / token / 上下文占用。
+           * 以前这条只由旧助手链路发 —— 旧引擎删掉后不补这一发，状态条就永远是空的。
+           */
+          onStats: stats => emit('ai:stats', { projectPath, stats }),
           /**
            * **步边界收插话**：用户中途说的话在这里塞进正在跑的对话。
            * 也写进记忆（否则下一轮模型不记得用户中途纠偏过）。

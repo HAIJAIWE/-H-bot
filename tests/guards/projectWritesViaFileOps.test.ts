@@ -698,10 +698,6 @@ const ALLOWED: Record<string, Allowed> = {
     why: '【应用自有数据】对话历史 .qqbat/ai-history*.jsonl：追加、压缩后重写、清空',
     counts: { appendFile: 2, rm: 1, writeFile: 2 },
   },
-  'src/main/services/ai/verifierLlm.ts': {
-    why: '【应用自有数据】校验器审计日志 .qqbat/ai-verifier*.jsonl：追加 + 超上限重写保留尾部',
-    counts: { appendFile: 1, writeFile: 1 },
-  },
   'src/main/services/bot/pending.ts': {
     why: '【应用自有数据】待确认动作 .qqbat/bot-pending/**.json：落盘 / 确认或作废时删除',
     counts: { rm: 1, writeFile: 1 },

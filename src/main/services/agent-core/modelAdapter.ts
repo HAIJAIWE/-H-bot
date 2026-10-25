@@ -8,10 +8,11 @@
 //   onToolCalls → ModelReply.calls（args 已是对象，不再二次解析）
 //
 // 依赖注入而不是直接 import：测试传假 call，不必 mock 模块。
-import type { AiToolCall, AiToolDefinition, ChatMessage } from '@shared/types/ai'
+import type { AiToolCall, AiToolDefinition, ChatMessage, LlmUsage } from '@shared/types/ai'
 import { callLlm, type LlmConfig } from '../ai/llm'
 import { normalizeToolCalls } from '../ai/toolMessages'
 import { CORE_TOOLS, type ChatTurn, type ModelFn, type ModelReply, type Tool } from './core'
+import { estimateTurns } from './contextGate'
 
 type CallLlm = typeof callLlm
 
@@ -43,6 +44,15 @@ export function createModelFn(
     onChunk?: (text: string) => void
     /** 思考过程增量（厂商给了才有；不传 = 丢弃，不影响正文） */
     onReasoning?: (text: string) => void
+    /**
+     * 厂商回传的真实用量（给了才有）：状态条的 token 数**只认它**，一个字都不许估算。
+     * 适配器只透传 —— 各家字段名不同，归一在 provider 的 normalizeUsage 里做。
+     */
+    onUsage?: (usage: LlmUsage) => void
+    /** 这一轮模型的耗时（毫秒，只算模型那一段、不含工具执行）：tok/s 的分母 */
+    onLatency?: (ms: number) => void
+    /** 这次请求的上下文估算（token）：状态条「窗口还剩多少」的来源 */
+    onContext?: (tokens: number) => void
     /**
      * **这一轮真正的工具表**（与系统提示里广告的必须是同一份）。
      *
@@ -83,6 +93,9 @@ export function createModelFn(
     )
     let text = ''
     let calls: AiToolCall[] = []
+    // 上下文占用在**发请求之前**量：这一轮的 messages 就是模型实际看到的那一份
+    opts.onContext?.(estimateTurns(turns))
+    const startedAt = Date.now()
     await call(
       config,
       messages,
@@ -106,9 +119,11 @@ export function createModelFn(
         onComplete: full => {
           text = full
         },
+        ...(opts.onUsage ? { onUsage: opts.onUsage } : {}),
       },
       opts.signal,
     )
+    opts.onLatency?.(Date.now() - startedAt)
     return { text, calls }
   }
 }

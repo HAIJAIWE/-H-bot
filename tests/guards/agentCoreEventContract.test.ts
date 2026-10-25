@@ -33,6 +33,8 @@ export const REQUIRED_KEYS: Record<string, string[]> = {
   'ai:compact': ['projectPath', 'dropped', 'tokensBefore', 'tokensAfter'],
   // 任务清单（todo_write 之后，以及每轮开始的那条空表）：渲染层读 projectPath + todos
   'ai:todo': ['projectPath', 'todos'],
+  // 本轮统计（状态条）：旧助手链路删掉后改由循环发，渲染层整份 stats 直接读
+  'ai:stats': ['projectPath', 'stats'],
   // 循环里的提案（旧工具攒出来的操作）：渲染层按 projectPath 分档、直接渲染 proposal
   'ai:proposal': ['projectPath', 'proposal'],
   'ai:response': ['message'],
@@ -216,6 +218,7 @@ describe('★ 事件契约：主进程发 → preload 收 → 渲染层读', () 
       'ai:error',
       'ai:proposal',
       'ai:response',
+      'ai:stats',
       'ai:todo',
       'ai:todo',
       'ai:toolCall',

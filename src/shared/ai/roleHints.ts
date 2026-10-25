@@ -3,7 +3,7 @@
 // **角色强调句**（唯一真源）：进系统提示，告诉模型"这一页该干什么、别串味"。
 //
 // 为什么在 shared 而不是 services/ai/agents.ts：
-// 两条链路都要用它 —— 助手链路（services/ai/index.ts）与循环链路（ipc/aiAgentCore.ts）。
+// 循环链路（ipc/aiAgentCore.ts 与 ipc/aiAgentCoreOnboarding.ts）与渲染层都要用它。
 // 放在 agents.ts 里就只能由它转出，而 agents.ts 会连带拉进整张工具定义表
 // （ALL_TOOL_DEFINITIONS → 工具注册表 → 流程解释器），循环入口为了四段文字
 // 把半条主进程加载链拖进来不划算，测试里也会到处要 mock。

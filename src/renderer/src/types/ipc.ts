@@ -507,34 +507,10 @@ export interface QqbatApi {
     /** 用户侧的能力守卫设置（与 preload 的 ai.guardOptions 一一对应） */
     guardOptions: { allowDestructive: boolean; allowedTargets: string[] }
     /**
-     * `mode` = 助手模式。`blocks` 低代码页 / `code` 代码页（主进程据此分派角色，M5）；
-     * `duo` = 用户显式选的**双向模式**（流程与代码都能动，2026-10-10 加）；
-     * `creator` = **创作模式**（给应用自己加功能，要先在界面里进框架工作区，2026-10-15 加）。
-     *
-     * 值域与 `@shared/ai/roleDomains` 的 `AgentMode` **同一份定义**（这里用字面量是为了
-     * 让 preload 那张平铺的桥一眼能看出取值；三处（类型/schema/按钮）× 一致由闸门钉住）。
-     */
-    chat: (
-      projectPath: string,
-      message: string,
-      mode?: 'blocks' | 'code' | 'duo' | 'creator',
-      /** 任务线程：这一轮的记忆落到哪条线程（不传 = 默认那份） */
-      threadId?: string,
-      /** 这一轮贴的图（data URL） */
-      images?: string[],
-      /**
-       * **用户当前在代码编辑器里打开的文件**（项目内相对路径，P1-5）。
-       *
-       * 主进程只在**代码页 / 双向模式**（角色 coder / duo）时把它拼进系统提示；
-       * 其余模式一律忽略 —— 所以这里可以无条件带上（规则只有一处，别在渲染层再判一遍）。
-       */
-      activeFilePath?: string,
-    ) => Promise<ApiResult<null>>
-    /**
      * **agent-core 运行入口**（workspace-first 循环）。
      *
-     * 与 `chat` 的区别：`chat` 是"一轮问答 + 工具"，这里是"跑到目标达成或轮数用尽"，
-     * 而且每个写盘动作都要过审批弹窗。回执**不是** `ApiResult`（没有 data 包一层），
+     * 这是**唯一**的对话入口（2026-10-25 起，旧助手链路 `ai:chat` 已删除）：
+     * 跑到目标达成或轮数用尽，每个写盘动作都要过审批弹窗。回执**不是** `ApiResult`（没有 data 包一层），
      * 直接是 `{ ok, ... }` 判别联合 —— 形状定义在 `docs/ai/agent-core-wiring.md`。
      */
     agentCoreRun: (
@@ -863,7 +839,6 @@ export interface QqbatApi {
     onResponse: (
       callback: (data: { projectPath?: string; message: string; toolCalls?: unknown[] }) => void,
     ) => () => void
-    onNeedRollback: (callback: (data: { projectPath?: string }) => void) => () => void
     onClientInstruction: (
       callback: (data: {
         projectPath?: string
@@ -1159,7 +1134,9 @@ export interface QqbatApi {
     /** 启停宿主插件（builtin）：not-removable 的会被主进程拒绝 */
     setHostEnabled: (id: string, enabled: boolean) => Promise<ApiResult<null>>
     /** 读一个宿主插件的设置声明 + 当前值 */
-    getSettings: (id: string) => Promise<
+    getSettings: (
+      id: string,
+    ) => Promise<
       ApiResult<{ id: string; settings: PluginSettingSpec[]; values: PluginSettingValues }>
     >
     /** 保存宿主插件设置（写盘 + 热更新，运行中的插件立即生效） */

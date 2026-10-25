@@ -11,14 +11,13 @@
 //   · 测试走的是 schema 的形状（`message`），而生产走的是 preload 的形状（`text`）
 //   · `tsc` 管不到载荷 —— `ipcRenderer.invoke` 的参数类型是 `unknown`
 // **键名是跨进程契约里唯一没人对账的一环**，这条闸门就是来对账的。
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   aiAgentCoreRunSchema,
   aiAgentCoreSteerSchema,
   aiSavePresetsSchema,
-  aiChatSchema,
   aiRemoveAllowRuleSchema,
   aiHistorySchema,
   aiNoteTurnSchema,
@@ -28,9 +27,9 @@ import {
   aiFallbacksSchema,
   approvalDecisionSchema,
   rollbackTurnSchema,
-} from '@main/schemas/ai';
+} from '@main/schemas/ai'
 
-const PRELOAD = join(process.cwd(), 'src', 'preload', 'index.ts');
+const PRELOAD = join(process.cwd(), 'src', 'preload', 'index.ts')
 
 /**
  * 通道 → 主进程用来校验**整个载荷**的 schema。
@@ -39,7 +38,6 @@ const PRELOAD = join(process.cwd(), 'src', 'preload', 'index.ts');
  * 而 schema 只校验 config 那一段 —— 那种这里核不出来，见 EXEMPT）。
  */
 const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }> = {
-  'ai:chat': { shape: aiChatSchema.shape, note: '作者助手对话（P0：message 曾被写成 text）' },
   'ai:agentCoreRun': {
     shape: aiAgentCoreRunSchema.shape,
     note: 'agent-core 循环入口（workspace-first）：projectPath + requirement + 可选轮数上限',
@@ -100,7 +98,7 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
     shape: aiNoteTurnSchema.shape,
     note: '把"用户对计划的处置"写进记忆（应用 / 拒绝 / 回滚）—— 模型下一轮据此知道结果',
   },
-};
+}
 
 /** 暂不纳入核对（载荷不是对象字面量 / schema 只校验其中一段）—— **新增 ai: 通道必须在这里表态** */
 const EXEMPT: Record<string, string> = {
@@ -118,41 +116,41 @@ const EXEMPT: Record<string, string> = {
   'ai:saveProjectConfig': '载荷是 { projectPath, config }，schema 只校验 config 段',
   'ai:instructionResult':
     '载荷是 { requestId, outcome }，由 shared/protocol/instruction 的 isInstructionResult 窄化（不是 zod schema）',
-};
+}
 
 interface Payload {
-  channel: string;
-  keys: string[] | null;
+  channel: string
+  keys: string[] | null
 }
 
 /** 从 preload 源码里抠出 `invoke('chan', { a, b })` 的键名；非字面量载荷返回 null */
 export function extractPayloads(source: string): Payload[] {
-  const out: Payload[] = [];
-  const re = /invoke\('([^']+)',\s*(\{[^}]*\})?/g;
+  const out: Payload[] = []
+  const re = /invoke\('([^']+)',\s*(\{[^}]*\})?/g
   for (const m of source.matchAll(re)) {
-    const channel = m[1];
-    const literal = m[2];
+    const channel = m[1]
+    const literal = m[2]
     if (!literal) {
-      out.push({ channel, keys: null });
-      continue;
+      out.push({ channel, keys: null })
+      continue
     }
-    const body = literal.slice(1, -1).trim();
+    const body = literal.slice(1, -1).trim()
     const keys = body
       ? body
           .split(',')
-          .map((part) => {
-            const t = part.trim();
-            const colon = t.indexOf(':');
-            return (colon >= 0 ? t.slice(0, colon) : t).trim();
+          .map(part => {
+            const t = part.trim()
+            const colon = t.indexOf(':')
+            return (colon >= 0 ? t.slice(0, colon) : t).trim()
           })
           // ⚠️ 尾逗号会切出一个**空名**（载荷超过 100 列后 prettier 会拆成多行并补尾逗号）——
           // 那不是键，必须丢掉：否则排版一变，闸门就会报「多出 schema 里没有的键 ''」
           //（2026-10-15 加 activeFilePath 让 ai:chat 的载荷正好过线时撞到）。
-          .filter((name) => name.length > 0)
-      : [];
-    out.push({ channel, keys });
+          .filter(name => name.length > 0)
+      : []
+    out.push({ channel, keys })
   }
-  return out;
+  return out
 }
 
 /** 载荷键名核对 —— 返回问题清单（空数组 = 通过） */
@@ -161,79 +159,89 @@ export function checkPayload(
   keys: readonly string[] | null,
   shape: Record<string, unknown>,
 ): string[] {
-  if (keys === null) return [`${channel}: 载荷不是对象字面量，无法静态核对`];
-  const want = Object.keys(shape).sort();
-  const got = [...keys].sort();
-  const problems: string[] = [];
+  if (keys === null) return [`${channel}: 载荷不是对象字面量，无法静态核对`]
+  const want = Object.keys(shape).sort()
+  const got = [...keys].sort()
+  const problems: string[] = []
   for (const k of want)
     if (!got.includes(k))
       problems.push(
         `${channel}: 少了主进程要的键 ${k}（schema 需要 ${want.join(',')}，实际 ${got.join(',')}）`,
-      );
+      )
   for (const k of got)
     if (!want.includes(k))
-      problems.push(`${channel}: 多出 schema 里没有的键 ${k}（zod 会静默剥掉它）`);
-  return problems;
+      problems.push(`${channel}: 多出 schema 里没有的键 ${k}（zod 会静默剥掉它）`)
+  return problems
 }
 
 describe('闸门：IPC 载荷键名 ↔ 主进程 schema', () => {
-  const source = readFileSync(PRELOAD, 'utf-8');
-  const payloads = extractPayloads(source);
+  const source = readFileSync(PRELOAD, 'utf-8')
+  const payloads = extractPayloads(source)
 
   it('登记过的通道，preload 的键名与 schema 完全一致', () => {
-    const problems: string[] = [];
+    const problems: string[] = []
     for (const [channel, { shape }] of Object.entries(CONTRACTS)) {
-      const hit = payloads.find((p) => p.channel === channel);
-      expect(hit, `preload 里找不到 ${channel} 的调用`).toBeTruthy();
-      problems.push(...checkPayload(channel, hit!.keys, shape));
+      const hit = payloads.find(p => p.channel === channel)
+      expect(hit, `preload 里找不到 ${channel} 的调用`).toBeTruthy()
+      problems.push(...checkPayload(channel, hit!.keys, shape))
     }
-    expect(problems, problems.join('\n')).toEqual([]);
-  });
+    expect(problems, problems.join('\n')).toEqual([])
+  })
 
   it('ai: 命名空间里的每个通道都登记了（新增通道必须表态）', () => {
-    const aiChannels = [
-      ...new Set(payloads.map((p) => p.channel).filter((c) => c.startsWith('ai:'))),
-    ];
-    const unclassified = aiChannels.filter((c) => !(c in CONTRACTS) && !(c in EXEMPT));
+    const aiChannels = [...new Set(payloads.map(p => p.channel).filter(c => c.startsWith('ai:')))]
+    const unclassified = aiChannels.filter(c => !(c in CONTRACTS) && !(c in EXEMPT))
     expect(
       unclassified,
       `这些 ai: 通道既没进 CONTRACTS 也没进 EXEMPT：${unclassified.join(', ')}`,
-    ).toEqual([]);
-  });
+    ).toEqual([])
+  })
 
-  it('反向对照：把 message 写回 text，闸门必须报错（否则它是空转的）', () => {
+  it('反向对照：把一个键改成 schema 没有的名字，闸门必须报错（否则它是空转的）', () => {
     // ⚠️ 锚点**不能写成整段字面量**：preload 的载荷超过 100 列后会被 prettier 拆成多行，
-    // 那样锚点会静默失效（2026-10-15 加 activeFilePath 时就撞上了 —— 载荷变成 6 个键）。
-    // 这里只锚 `ai:chat` 段里的**第一个** message 键，与排版无关。
-    const mutated = source.replace(/(invoke\('ai:chat',\s*\{[^}]*?)\bmessage\b/, '$1text');
-    expect(mutated, '反向对照没能改到那行 —— 说明锚点失效').not.toBe(source);
-    const broken = extractPayloads(mutated).find((p) => p.channel === 'ai:chat')!;
-    expect(checkPayload('ai:chat', broken.keys, aiChatSchema.shape).length).toBeGreaterThan(0);
-  });
+    // 那样锚点会静默失效（2026-10-15 加 activeFilePath 时就撞上了 —— 载荷变成 11 个键）。
+    // 这里只锚 `ai:agentCoreRun` 段里的**第一个** requirement 键，与排版无关。
+    const mutated = source.replace(
+      /(invoke\('ai:agentCoreRun',\s*\{[^}]*?)\brequirement\b/,
+      '$1text',
+    )
+    expect(mutated, '反向对照没能改到那行 —— 说明锚点失效').not.toBe(source)
+    const broken = extractPayloads(mutated).find(p => p.channel === 'ai:agentCoreRun')!
+    expect(
+      checkPayload('ai:agentCoreRun', broken.keys, aiAgentCoreRunSchema.shape).length,
+    ).toBeGreaterThan(0)
+  })
 
   it('★ 排版不影响核对：载荷被拆成多行 + 尾逗号时，键名照样对得上', () => {
     // 反向对照：preload 是普通对象字面量，具体排版由 prettier 决定 —— 闸门不能因此变红。
-    const multiline =
-      "ipcRenderer.invoke('ai:chat', {\n  projectPath,\n  message,\n  mode,\n  threadId,\n  images,\n  activeFilePath,\n})";
-    const hit = extractPayloads(multiline).find((p) => p.channel === 'ai:chat')!;
-    expect(hit.keys, '拆行后的键名解析').toEqual([
+    const keys = [
       'projectPath',
-      'message',
-      'mode',
+      'requirement',
       'threadId',
+      'maxRounds',
+      'planFirst',
+      'fullAccess',
+      'allowedTools',
+      'preset',
+      'agentMode',
       'images',
       'activeFilePath',
-    ]);
-    expect(checkPayload('ai:chat', hit.keys, aiChatSchema.shape)).toEqual([]);
-  });
+    ]
+    const multiline = `ipcRenderer.invoke('ai:agentCoreRun', {\n${keys
+      .map(key => `  ${key},`)
+      .join('\n')}\n})`
+    const hit = extractPayloads(multiline).find(p => p.channel === 'ai:agentCoreRun')!
+    expect(hit.keys, '拆行后的键名解析').toEqual(keys)
+    expect(checkPayload('ai:agentCoreRun', hit.keys, aiAgentCoreRunSchema.shape)).toEqual([])
+  })
 
   it('多出来的键也要报（zod 会静默剥掉未知字段）', () => {
-    // 载荷带上 schema 认可的三个键 + 一个多余的键 → 只报那个多余的
+    // 载荷带上 schema 认可的键 + 一个多余的键 → 只报那个多余的
     const problems = checkPayload(
-      'ai:chat',
-      ['projectPath', 'message', 'mode', 'enableThinking'],
-      aiChatSchema.shape,
-    );
-    expect(problems.some((p) => p.includes('enableThinking'))).toBe(true);
-  });
-});
+      'ai:agentCoreRun',
+      ['projectPath', 'requirement', 'enableThinking'],
+      aiAgentCoreRunSchema.shape,
+    )
+    expect(problems.some(p => p.includes('enableThinking'))).toBe(true)
+  })
+})

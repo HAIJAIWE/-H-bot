@@ -20,7 +20,13 @@ import {
 import type { ApprovalRequest, TraceEvent } from './contracts'
 import { buildSystemPrompt, PLAN_ONLY_NOTE } from './prompt'
 import { listTools } from './core'
-import { estimateTokens, type CompactionOptions, type CompactionOutcome } from './contextGate'
+import {
+  estimateTokens,
+  LOOP_TOKEN_BUDGET_DEFAULT,
+  type CompactionOptions,
+  type CompactionOutcome,
+} from './contextGate'
+import type { AiRunStats } from '@shared/types/ai'
 
 export interface RunTurnInput {
   projectPath: string
@@ -108,6 +114,11 @@ export interface RunTurnInput {
   compaction?: CompactionOptions
   /** 真的压了才回调（主进程日志/以后的界面提示靠它） */
   onCompact?: (info: CompactionOutcome) => void
+  /**
+   * 本轮统计（状态条）：步边界与每次工具结束后各推一次。
+   * token 只来自厂商回传（没回传就是 0 + usageReported=false），contextTokens 是本地估算。
+   */
+  onStats?: (stats: AiRunStats) => void
 }
 
 export interface RunTurnResult {
@@ -116,6 +127,8 @@ export interface RunTurnResult {
   phase: LoopPhase
   /** args 也一起回（界面上的工具行要显示"改的是哪个文件"，光有输出看不出动作） */
   toolResults: Array<{ name: string; args: Record<string, unknown>; output: string }>
+  /** 本轮统计（与 onStats 最后推的那一份同源） */
+  stats: AiRunStats
 }
 
 export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> {
@@ -148,11 +161,39 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
    * 系统提示却广告了 36 个 —— 模型把 36 个念出来，却只能发出 6 个调用。
    * 这里显式给：`undefined`（不裁剪）就落到注册表全量，与循环的默认口径一致。
    */
+  /**
+   * 本轮统计（状态条）。三条口径：token **只来自厂商回传**（没回传就 usageReported=false，
+   * 界面一个数都不许显示）；llmMs 只算模型那一段；contextTokens 是本地估算（功能参数，不是账）。
+   */
+  const stats: AiRunStats = {
+    rounds: 0,
+    steps: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    cachedTokens: 0,
+    usageReported: false,
+    llmMs: 0,
+    contextTokens: 0,
+    contextBudget: input.compaction?.budgetTokens ?? LOOP_TOKEN_BUDGET_DEFAULT,
+  }
+  const reportStats = (): void => input.onStats?.({ ...stats })
   const model = createModelFn(input.config, {
     ...(input.call ? { call: input.call } : {}),
     ...(input.signal ? { signal: input.signal } : {}),
     ...(input.onTextChunk ? { onChunk: input.onTextChunk } : {}),
     ...(input.onReasoningChunk ? { onReasoning: input.onReasoningChunk } : {}),
+    onUsage: usage => {
+      stats.promptTokens += usage.promptTokens
+      stats.completionTokens += usage.completionTokens
+      stats.cachedTokens += usage.cachedTokens ?? 0
+      stats.usageReported = true
+    },
+    onLatency: ms => {
+      stats.llmMs += ms
+    },
+    onContext: tokens => {
+      stats.contextTokens = tokens
+    },
     tools: effectiveTools ?? listTools(),
   })
   const result = await runAgentLoop({
@@ -186,9 +227,17 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
     // 不传 = 注册表全量（脚本/测试的默认）；传了就**只有**这些进调用表
     ...(effectiveTools ? { tools: effectiveTools } : {}),
     services,
-    ...(input.onStep ? { onStep: input.onStep } : {}),
+    onStep: info => {
+      stats.rounds = info.step
+      input.onStep?.(info)
+      reportStats()
+    },
     ...(input.onToolStart ? { onToolStart: input.onToolStart } : {}),
-    ...(input.onToolEnd ? { onToolResult: input.onToolEnd } : {}),
+    onToolResult: (call, output, ok) => {
+      stats.steps += 1
+      input.onToolEnd?.(call, output, ok)
+      reportStats()
+    },
     ...(input.spill ? { spill: input.spill } : {}),
     ...(input.inbox ? { inbox: input.inbox } : {}),
     ...(input.onBeforeWrite ? { onBeforeWrite: input.onBeforeWrite } : {}),
@@ -197,11 +246,13 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
     ...(input.compaction ? { compaction: input.compaction } : {}),
     ...(input.onCompact ? { onCompact: input.onCompact } : {}),
   })
+  reportStats()
   return {
     finalText: result.finalText,
     rounds: result.rounds,
     phase: result.phase,
     toolResults: result.toolResults,
+    stats: { ...stats },
   }
 }
 

@@ -309,40 +309,10 @@ const api = {
         .filter(Boolean),
     },
     /**
-     * `mode`：助手模式（blocks 低代码 / code 代码页 / duo 双向 / **creator 创作**）——
-     * 主进程据此**分派专家角色**（M5：模式决定工具子集与边界提示）。不传按低代码处理。
-     *
-     * ⚠️ 值域必须与 `@shared/ai/roleDomains` 的 `AgentMode` **和** `aiChatSchema` 一致：
-     * 2026-10-15 加 `duo` 时漏了 schema，双向模式下发送被 zod 静默拒绝（界面一直转圈）。
-     */
-    // ⚠️ 载荷三个键**与 aiChatSchema 完全一致**（ipcPayloadContract 闸门按字面比对）：
-    // 所以 mode 总是发（缺省 blocks），不要用条件展开 —— 那会让闸门看不到键名。
-    chat: (
-      projectPath: string,
-      message: string,
-      mode: 'blocks' | 'code' | 'duo' | 'creator' = 'blocks',
-      /** 任务线程：这一轮的记忆落到哪条线程（不传 = 默认那份） */
-      threadId?: string,
-      /** 这一轮贴的图（data URL）；只在内存里过一遍，不落盘 */
-      images?: string[],
-      /** **当前在编辑器里打开的文件**（项目内相对路径，P1-5）—— 代码页/双向模式下助手据此理解「这个文件」 */
-      activeFilePath?: string,
-    ) =>
-      // 形状保持**普通对象字面量**：ipcPayloadContract 闸门要静态核对键名，三元表达式它读不出来。
-      // threadId 为 undefined 时由 aiChatSchema 的可选字段接受。
-      ipcRenderer.invoke('ai:chat', {
-        projectPath,
-        message,
-        mode,
-        threadId,
-        images,
-        activeFilePath,
-      }),
-    /**
      * **agent-core 运行入口**：workspace-first 循环（读/写/跑/校验）。
      *
-     * 与 `chat` 并列而不是塞进它的参数里：那是另一套循环、另一处审批时机，
-     * 回执形状也不同（`{ ok, finalText, rounds, phase, toolResults }`）。
+     * 这是**唯一**的对话入口（2026-10-25 旧助手链路 `ai:chat` 已删除）：项目对话与开荒都走它，
+     * 回执形状是 `{ ok, finalText, rounds, phase, toolResults }`。
      * 形状与闸门登记见 `docs/ai/agent-core-wiring.md`。
      */
     agentCoreRun: (
@@ -598,11 +568,6 @@ const api = {
       const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data)
       ipcRenderer.on('ai:response', listener)
       return () => ipcRenderer.removeListener('ai:response', listener)
-    },
-    onNeedRollback: (cb: (data: { projectPath?: string }) => void) => {
-      const listener = (_e: unknown, data: { projectPath?: string }) => cb(data)
-      ipcRenderer.on('ai:needRollback', listener)
-      return () => ipcRenderer.removeListener('ai:needRollback', listener)
     },
     /**
      * 主进程下发一条写指令（P1-1 回执协议）。

@@ -5,47 +5,47 @@
 // 从 ChatPanel 拆出来（2026-10-18）：那个文件已经贴着 fileGrowth 的增长预算，
 // 而这两块是**自成一体的展示件** —— 不碰发送、不碰会话状态，搬出去风险最低。
 //
-// 两条链路的工具事件都渲染在这里：助手链路与服务端循环发的是同一套消息形状
+// 工具事件都渲染在这里：主进程循环发来的 toolCall 行与历史回放是同一套消息形状
 // （见 docs/ai/agent-core-wiring.md §9）。
-import { useState } from 'react';
-import { Button } from '../ui/Button';
-import { t } from '../../i18n';
-import { toolLabel } from '@shared/ai/toolLabels';
-import { runningText, settledFallbackText, summarizeToolResult } from '@shared/ai/toolSummary';
-import { useLocaleSubscription } from '../../stores/i18nStore';
-import type { ToolCallRecord, ToolTraceEntry } from '../../stores/aiStore';
-import { getToolPresenter, toolResultText } from '../../lib/ai/toolPresenters';
+import { useState } from 'react'
+import { Button } from '../ui/Button'
+import { t } from '../../i18n'
+import { toolLabel } from '@shared/ai/toolLabels'
+import { runningText, settledFallbackText, summarizeToolResult } from '@shared/ai/toolSummary'
+import { useLocaleSubscription } from '../../stores/i18nStore'
+import type { ToolCallRecord, ToolTraceEntry } from '../../stores/aiStore'
+import { getToolPresenter, toolResultText } from '../../lib/ai/toolPresenters'
 
 /**
  * 契约形状来自 `@shared/ai/toolPresentation`（跨进程唯一来源）。
  * 运行时仍做窄化：认不出的形状一律当"没有契约"→ 回退现状。
  */
-import type { ToolPresentation as ToolPresentationView } from '@shared/ai/toolPresentation';
+import type { ToolPresentation as ToolPresentationView } from '@shared/ai/toolPresentation'
 
 /** 工具记录可能带呈现契约（事件链路透传；目前的 aiStore 还没保存这个字段） */
-type PresentableToolCall = ToolCallRecord & { presentation?: unknown };
+type PresentableToolCall = ToolCallRecord & { presentation?: unknown }
 
 function isResultKind(v: unknown): v is NonNullable<ToolPresentationView['resultKind']> {
-  return v === 'text' || v === 'diff' || v === 'files' || v === 'json';
+  return v === 'text' || v === 'diff' || v === 'files' || v === 'json'
 }
 
 /** 运行时窄化：IPC 载荷是 unknown，只认契约里认识的形状 */
 function presentationOf(call: ToolCallRecord): ToolPresentationView | undefined {
-  const raw = (call as PresentableToolCall).presentation;
-  if (!raw || typeof raw !== 'object') return undefined;
-  const fields = raw as Record<string, unknown>;
-  const label = typeof fields.label === 'string' && fields.label ? fields.label : undefined;
-  const icon = typeof fields.icon === 'string' && fields.icon ? fields.icon : undefined;
-  const resultKind = isResultKind(fields.resultKind) ? fields.resultKind : undefined;
+  const raw = (call as PresentableToolCall).presentation
+  if (!raw || typeof raw !== 'object') return undefined
+  const fields = raw as Record<string, unknown>
+  const label = typeof fields.label === 'string' && fields.label ? fields.label : undefined
+  const icon = typeof fields.icon === 'string' && fields.icon ? fields.icon : undefined
+  const resultKind = isResultKind(fields.resultKind) ? fields.resultKind : undefined
   const presenter =
-    typeof fields.presenter === 'string' && fields.presenter ? fields.presenter : undefined;
-  if (!label && !icon && !resultKind && !presenter) return undefined;
+    typeof fields.presenter === 'string' && fields.presenter ? fields.presenter : undefined
+  if (!label && !icon && !resultKind && !presenter) return undefined
   return {
     ...(label ? { label } : {}),
     ...(resultKind ? { resultKind } : {}),
     ...(presenter ? { presenter } : {}),
     ...(icon ? { icon } : {}),
-  };
+  }
 }
 
 /**
@@ -57,17 +57,17 @@ function ToolResultView({
   result,
   presentation,
 }: {
-  result: unknown;
-  presentation?: ToolPresentationView;
+  result: unknown
+  presentation?: ToolPresentationView
 }): React.ReactNode {
-  const name = presentation?.presenter ?? presentation?.resultKind;
-  const presenter = name ? getToolPresenter(name) : undefined;
-  if (presenter) return presenter(result);
+  const name = presentation?.presenter ?? presentation?.resultKind
+  const presenter = name ? getToolPresenter(name) : undefined
+  if (presenter) return presenter(result)
   return (
     <pre className="text-xs text-zinc-400 bg-zinc-800/40 rounded p-1.5 overflow-x-auto whitespace-pre-wrap max-h-24 overflow-y-auto mt-0.5">
       {toolResultText(result)}
     </pre>
-  );
+  )
 }
 
 /** 失败分类/动作的展示名（键是字面量，i18n 闸门能扫到） */
@@ -80,7 +80,7 @@ function failureLabels(): Record<string, string> {
     invalid_args: t('ai.tool.failure.code.invalidArgs'),
     upstream_error: t('ai.tool.failure.code.upstreamError'),
     unknown: t('ai.tool.failure.code.unknown'),
-  };
+  }
 }
 
 function actionLabels(): Record<string, string> {
@@ -89,30 +89,30 @@ function actionLabels(): Record<string, string> {
     retry: t('ai.tool.failure.action.retry'),
     change_args: t('ai.tool.failure.action.changeArgs'),
     switch_model: t('ai.tool.failure.action.switchModel'),
-  };
+  }
 }
 
 export function ToolCallCard({ call }: { call: ToolCallRecord }) {
-  useLocaleSubscription();
-  const [expanded, setExpanded] = useState(false);
+  useLocaleSubscription()
+  const [expanded, setExpanded] = useState(false)
   // 呈现契约（缺省 = 没有：行头回退工具名标签，结果回退原始 pre）
-  const presentation = presentationOf(call);
-  const FAILURE_LABEL = failureLabels();
-  const ACTION_LABEL = actionLabels();
+  const presentation = presentationOf(call)
+  const FAILURE_LABEL = failureLabels()
+  const ACTION_LABEL = actionLabels()
 
   /** 一个中性圆点：运行中脉冲、失败红、其余灰 —— 过程不该用颜色抢戏 */
   const dot = (() => {
     switch (call.status) {
       case 'running':
-        return 'bg-zinc-300 animate-pulse';
+        return 'bg-zinc-300 animate-pulse'
       case 'error':
-        return 'bg-red-500';
+        return 'bg-red-500'
       case 'aborted':
-        return 'bg-zinc-500';
+        return 'bg-zinc-500'
       default:
-        return 'bg-zinc-600';
+        return 'bg-zinc-600'
     }
-  })();
+  })()
 
   // 目标值：优先文件/命令/节点这类「一眼看出干了啥」的参数
   const target = String(
@@ -123,14 +123,14 @@ export function ToolCallCard({ call }: { call: ToolCallRecord }) {
       call.args?.nodeKind ??
       call.args?.kind ??
       '',
-  ).slice(0, 80);
+  ).slice(0, 80)
 
   return (
     <div className="mt-1">
       <button
         type="button"
         className="flex w-full items-center gap-2 text-left font-mono text-[11px] leading-5 text-zinc-400 hover:text-zinc-200"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => setExpanded(v => !v)}
         aria-expanded={expanded}
       >
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
@@ -167,7 +167,7 @@ export function ToolCallCard({ call }: { call: ToolCallRecord }) {
                 <>
                   {' · '}
                   {t('ai.tool.failure.suggest')}：
-                  {call.failure.actions.map((a) => ACTION_LABEL[a] ?? a).join(' / ')}
+                  {call.failure.actions.map(a => ACTION_LABEL[a] ?? a).join(' / ')}
                 </>
               )}
             </p>
@@ -184,7 +184,7 @@ export function ToolCallCard({ call }: { call: ToolCallRecord }) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 /* ── 这一轮"干了什么"（随消息长期可见，可折叠） ────────── */
@@ -197,14 +197,14 @@ export function ToolCallCard({ call }: { call: ToolCallRecord }) {
  * 默认一行摘要（`🔧 8 次工具调用：list_nodes ×7、read_flow ×1`），点开是逐条卡片。
  */
 export function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
-  useLocaleSubscription();
-  const [expanded, setExpanded] = useState(false);
+  useLocaleSubscription()
+  const [expanded, setExpanded] = useState(false)
 
-  const counts = new Map<string, number>();
-  for (const entry of trace) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1);
+  const counts = new Map<string, number>()
+  for (const entry of trace) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1)
   const detail = [...counts.entries()]
     .map(([name, n]) => (n > 1 ? `${name} ×${n}` : name))
-    .join('、');
+    .join('、')
 
   return (
     <div className="mt-1 w-full">
@@ -212,7 +212,7 @@ export function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
         variant="ghost"
         size="sm"
         className="w-full flex items-center gap-2 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => setExpanded(v => !v)}
         aria-expanded={expanded}
       >
         <span
@@ -225,7 +225,7 @@ export function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
       </Button>
       {expanded && (
         <div className="space-y-1">
-          {trace.map((entry) => (
+          {trace.map(entry => (
             <ToolCallCard
               key={entry.id}
               call={{
@@ -242,5 +242,5 @@ export function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
         </div>
       )}
     </div>
-  );
+  )
 }

@@ -1656,3 +1656,113 @@ user: [工具 verify_greet] 来自界面 来自界面 来自界面
 
 所以下一步是**先把 `runOneRound` 抽成一个独立的单轮执行器**（从 `chatRun` 里剥出来，不依赖 `state` 的助手语义），
 再把 `processAiChat` 与通道一起删。在那之前，旧引擎留着但没有任何 UI 入口 —— 这一条要写在注释里，别让人以为它还在用。
+
+> **2026-10-25 更新**：最后**没有**抽 `runOneRound`，而是把三个消费方整块删了（`lanes` / `scout` / `verifierLlm` 都只能从旧助手链路到达，`plan_task` 在这个构建里从来没移植过）。见 §40。
+
+---
+
+## 40. 旧引擎的葬礼：删了什么、为什么删（2026-10-25）
+
+上一节说"下一步先把 `runOneRound` 抽出来，再删 `processAiChat`"。**实际做的比这句更狠，也更干净**：
+三个"还需要 `runOneRound`"的消费方，本来就是旧助手链路**专属**的零件 ——
+它们不是独立功能，而是那条链路的并行子代理、侦察与提案复核。跟着宿主一起删，才是删干净。
+
+### 40.1 删除面（对照表）
+
+| 删掉的东西                                                                                       | 它在旧世界里干什么                                | 为什么可以直接删                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main/services/ai/chatRun.ts`                                                                | 助手链路的 ReAct 循环（`runOneRound` 是它的单轮） | 对话已全走 agent-core；`runOneRound` 的三个消费方一并删（见 40.3）                                                                                                                                   |
+| `src/main/services/ai/autoTx.ts`                                                                 | 每轮自动事务 + 失败发 `ai:needRollback`           | 审批/回滚改由「提案 → 用户确认 → 应用」承担，事务不再隐式开启                                                                                                                                        |
+| `src/main/services/ai/lanes.ts`                                                                  | 并行子代理（读/写/校验分道）                      | 只从 `chatRun` 的规划分支到达；循环里工具本身已经能并行（tool-batch）                                                                                                                                |
+| `src/main/services/ai/scout.ts`                                                                  | 侦察（"项目里已有什么"）                          | 只被旧提案复核与**未移植**的 MCP `plan_task` 使用（见 40.3）                                                                                                                                         |
+| `src/main/services/ai/verifierLlm.ts`                                                            | 用模型复核提案风险                                | 提案复核改由确定性校验（`verifier.ts` 的 buildVerdict）承担                                                                                                                                          |
+| `processAiChat` / `loadAuthorMemory` / `rememberTurn` / `notifyRollbackIfBatch` / `runningChats` | 助手链路的入口与记忆                              | 记忆/轮次由 `aiAgentCore` 的 historyStore + turnJournal 负责                                                                                                                                         |
+| `ai:chat` 通道 + `aiChatSchema`                                                                  | 第二条对话入口的载荷                              | 唯一的对话入口是 `ai:agentCoreRun`                                                                                                                                                                   |
+| preload `ai.chat` / `types/ipc.ts` 的 `chat`                                                     | 渲染层的第二条调用                                | 渲染层早已只调 `agentCoreRun`（§39）                                                                                                                                                                 |
+| `ai:needRollback` 监听                                                                           | 旧自动事务失败时的提示                            | 只有 `autoTx` 发它；删了发送方，监听就是永不触发的死码                                                                                                                                               |
+| 12 个测试文件                                                                                    | 断言旧链路行为                                    | 见 40.6：`chat-steps` / `integration` / `react-loop` / `parallelDecision` / `traceTurnIdWiring` / `autoTx` / `lanes` / `scout` / `liveModel.e2e` / `aiChatSchema` / `agentEvals` / `multiAgentEvals` |
+
+`src/main/services/ai/index.ts` 从 **1150 行缩到约 150 行**：只剩配置读写、批处理状态机与清空历史。
+
+### 40.2 两处不是"删"，而是"搬家"
+
+- **`ai:stats` 搬进循环**。它喂状态条（`ChatPanel.tsx` 的轮数/工具数/token/缓存命中/上下文占用，
+  经 `runStats.ts` 的 `formatRunStats` 渲染），而发送方只有旧链路。直接删 = 状态条永远空 —— 这是
+  **静默丢功能**，不是删代码。现在由 `runTurn.ts` 记账、`ipc/aiAgentCore.ts` 的 `onStats` 转发：
+  - `modelAdapter.ts` 新增 `onUsage` / `onLatency` / `onContext` 三个出口（只透传，归一仍在 provider 的 `normalizeUsage`）；
+  - `runTurn.ts` 维护一份 `AiRunStats`：`onStep` 更新 `rounds`、`onToolResult` 累加 `steps`、
+    `onUsage` 累加 token（**没回传就 `usageReported: false`，界面显示"—"，一个数都不许估算**）、
+    `onContext` 记发请求前的上下文估算，收尾时再推一次并与返回值同源；
+  - `contextBudget` 取本轮压缩上限，没传压缩就用 `LOOP_TOKEN_BUDGET_DEFAULT`。
+- **`ai:rollbackBatch` 保留**。它不再是"事务失败自动回滚"，而是用户点界面按钮时的显式回滚
+  （`aiStore` 的撤回一轮）；取消对话时若正处在批处理模式，`ai:cancelChat` 会顺手 `commitBatch`
+  ——取消 = 这一轮结束了，30 秒定时器不该继续跑。
+
+### 40.3 三个消费方去哪了（诚实记录）
+
+- `lanes` / `scout` / `verifierLlm` 都**只**从旧助手链路到达（`grep` 过：`src` 里没有第二个进口）。
+- 唯一"对外"的牵连是 MCP 的 `plan_task`：它从 10/18 构建起就**从未移植**
+  （`tests/main/mcp/planTask.test.ts` 一直是 `describe.skip`，文件头写着"本构建没有 plan_task"）。
+  所以删 `scout` 不是砍掉一个在用的功能，而是不再为一条没接上的路保留零件。
+- 代价写在这里：**并行子代理 / 侦察 / 模型复核这三样能力在界面上不存在了**。要复活其中任何一个，
+  应当按"先搬上游"的原则重做（agent-core 的工具并行已经覆盖了 lanes 的主要价值），
+  而不是把 `chatRun` 挖回来。
+
+### 40.4 过时注释一起清掉
+
+`mcpToolGuard.ts` / `mcp/server.ts` / `aiAgentCore.ts` / `aiAgentCoreOnboarding.ts` /
+`ToolRows.tsx` / `toolCatalog.ts` / `legacyTools.ts` / `promptHints.ts` / `roleHints.ts` / `aiStore.ts`
+里"助手链路 / chatRun / processAiChat / 两条链路"的说法都改了。**留着旧注释比留着旧代码更坏**：
+下一个人会以为那条路还在，照着它写第二套实现。
+
+### 40.5 能力台账怎么对账
+
+删了两个 preload 成员（`ai.chat`、`ai.onNeedRollback`），台账三处必须同步，否则 `capabilityLayering` 直接红：
+
+1. 附录 A 删两行（`ai.chat = X`、`ai.onNeedRollback = X`）→ 附录共 **272** 条；
+2. `## 二、总表` 的 `ai` 行 50 → **48**，小计按实际重算为
+   R 0 · Q 84 · M 104 · P 8 · ⛔ 3 · X 73（合计 **272**）；
+3. `node scripts/gen-capability-catalog.mjs` 重生成两份生成文件（272 条）。
+
+> 教训：这套台账里有**三个不同的数**（preload 成员数、附录条数、总表行数），它们只在
+> `capabilityLayering` 的断言里对齐；改一处不跑闸门，另外两处就会以"看起来对"的样子漂掉。
+
+### 40.6 测试与闸门
+
+删掉 12 个测旧链路的文件后，**剩下的测试仍然要能证明"没有第二条路"**，所以这一批改的是断言，不是缩断言：
+
+- `tests/guards/ipcPayloadContract.test.ts`：删 `ai:chat` 契约与 `aiChatSchema` 导入；三条"反向对照"改用
+  `ai:agentCoreRun`（11 个键）—— 闸门本身的自检不能跟着通道一起消失。
+- `tests/guards/agentCoreEventContract.test.ts`：`REQUIRED_KEYS` 增 `ai:stats: ['projectPath','stats']`，
+  `aiAgentCore.ts` 的期望发送序列在 `ai:response` 与 `ai:todo` 之间插 `ai:stats`（16 → 17 条）。
+- `tests/guards/capabilityLayering.test.ts`：靠台账三处对齐（40.5），不是靠加白名单。
+- `tests/guards/fileGrowth` / `projectWritesViaFileOps`：删掉 `ai/index.ts` 的行数登记与
+  `verifierLlm.ts` 的写盘白名单（僵尸条目）。
+- `tests/main/ipc/ai-ipc.test.ts`：取消用例改为断言 `cancelAgentCoreRun` + `cancelApprovalsFor` +
+  `settleInstructionsFor`，并新增"批处理里取消要顺手 `commitBatch`"；`ai:isRunning` 改断 `isAgentCoreRunning`；
+  注册面断言 **`ai:chat` 不许回来**。
+- `tests/main/ipc/projectPathGuard.test.ts`：第三条越界用例从 `ai:chat` 换成 `ai:getHistory`（读接口同样不放过）。
+- `tests/main/services/agent-core/runTurn.test.ts`：新增 2 例 —— ① 两轮各回传用量要**累加**、
+  `steps` 跟工具数、`contextBudget > 0`、最后一次推送 == 返回值；② 厂商没回传用量时 `usageReported === false`。
+
+数字：
+
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **EXIT=0**；
+- 定向（`tests/guards` + `tests/main/ipc` + `agent-core` + `shared` + `services/ai` + `mcp`）：
+  **106 文件（105 passed / 1 skipped）、1276 例（1273 passed / 3 skipped）**；
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`：
+  **261 文件（259 passed / 2 skipped）、3320 例（3313 passed / 7 skipped）、EXIT=0**（166.00s）；
+  上一批是 273 文件 / 3401 例 —— 差的就是被删掉的 12 个文件与它们断言的旧行为；
+- `node scripts/vendor-audit.mjs`：**vendored 10 / 适配层 2，OK**（本批没动 vendor）。
+
+### 40.7 真机冒烟：删完之后界面还活着
+
+- 起 dev（job `pwsh-2edf95cd3cb8478d`，日志 `_recovery/dev-single-engine.log`）：
+  `[bootstrap] SQLite 引擎：better-sqlite3`、`CDP 已开启：127.0.0.1:43191`、无 error。
+- `node _recovery/cdp-smoke-role.mjs` → `INFO={"w":869,"h":861,"title":"H Bot 制造","roleLabel":false,"chatMount":true}`、**ERRORS=0**。
+- `_recovery/ex-tools-number.js` → `{ok:true, count:35, hasTodo:true, hasOnboarding:true}`（工具表没因为删引擎而缩水）。
+- 新增 `_recovery/ex-engine-surface.js` 直接验 preload 表面：
+  `chatType:"undefined"、onNeedRollbackType:"undefined"、onStatsType:"function"、agentCoreRunType:"function"`
+  —— **通道真的没了**，不是"没人调"；`onStats` 仍在（40.2 的搬家生效）。
+- 真实模型回合仍被额度挡着（403 `AllocationQuota.FreeTierOnly`，自 §36 起未变），所以
+  `ai:stats` 的数值链路由 `runTurn.test.ts` 的两条单测钉住，端到端等额度恢复后补。

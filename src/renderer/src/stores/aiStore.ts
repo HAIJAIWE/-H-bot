@@ -950,7 +950,7 @@ export const useAiStore = create<AiState>((set, get) => {
        * ⚠️ **先真的让主进程停下**，再收尾本地视图（2026-10-01 补）。
        *
        * 以前只做后半截：界面拼一句「已中断」、streaming 置 false —— 而主进程
-       * 照跑满 10 轮（工具还在调、mutation 还在累积）。`cancelAiChat` 的注释里
+       * 照跑满 10 轮（工具还在调、mutation 还在累积）。主进程取消入口的注释里
        * 描述的正是这个 bug，只是那句注释用的是过去时。
        */
       const projectPath = get().conversationPath || currentProjectPath()
@@ -1336,7 +1336,6 @@ export const useAiStore = create<AiState>((set, get) => {
           useFlowStore.getState().rollback(batchSnapshot)
         }
         // 主进程回滚**必须指名项目**：默认取"当前会话"会把别的项目的失败回滚到自己头上
-        // （preload 以前把 ai:needRollback 的 projectPath 丢掉，这里只能猜）
         await window.qqbat.ai.rollbackBatch(
           projectPath || get().conversationPath || currentProjectPath(),
         )
@@ -1931,10 +1930,6 @@ export const useAiStore = create<AiState>((set, get) => {
           }
         })
       })
-      const unsubNeedRollback = window.qqbat.ai.onNeedRollback(data => {
-        // 指名要回滚的项目：不带参数会把"当前正在看的项目"回滚掉（别的项目失败时尤其错）
-        get().rollbackBatch(data?.projectPath)
-      })
       const unsubInstruction = window.qqbat.ai.onClientInstruction(data => {
         /**
          * **回执**（P1-1）：主进程发写指令时会带 requestId，并且真的在等结果。
@@ -2040,7 +2035,6 @@ export const useAiStore = create<AiState>((set, get) => {
         unsubCompact?.()
         unsubChunk()
         unsubResponse()
-        unsubNeedRollback()
         unsubInstruction()
         unsubAgentState()
         unsubStats?.()
