@@ -19,12 +19,12 @@ import { AI_MODE_BUTTONS } from './agentModes'
 import { PresetImpact } from './PresetImpact'
 import { MODE_OF_ROLE, type AgentRole } from '@shared/ai/roleDomains'
 import type { AiToolDefinition } from '@shared/types/ai'
-
-const PRESETS_FILE = '.qqbat/agent-presets.json'
-const PROMPT_MAX = 2000
-const NAME_MAX = 40
-/** 与主进程 services/ai/presets.ts 的 ROLES 同一份值域 */
-const ROLES: readonly AgentRole[] = ['builder', 'coder', 'duo', 'creator']
+import {
+  PRESET_NAME_MAX as NAME_MAX,
+  PRESET_PROMPT_MAX as PROMPT_MAX,
+  PRESET_ROLES as ROLES,
+  PRESETS_FILE,
+} from '@shared/ai/presetRoster'
 
 /** 表单编辑的就是文件里的对象本身（未知字段跟着一起走） */
 type Draft = Record<string, unknown>

@@ -747,9 +747,13 @@
       "followPageHint": "角色跟着当前页签走（低代码=流程助手，代码=代码助手）",
       "groupRole": "角色",
       "groupMine": "我的预设",
+      "groupBroken": "不可用的条目",
       "empty": "这个项目还没有预设",
       "roleFixed": "角色：{role}（预设固定）",
       "roleFollow": "角色跟页面走",
+      "brokenTag": "不可用",
+      "fileProblem": "预设文件读不了：{reason}",
+      "notesHint": "有字段没生效",
       "impact": {
         "title": "这一轮会放开什么",
         "fullBadge": "完全放行",

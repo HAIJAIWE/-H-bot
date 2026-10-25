@@ -46,6 +46,10 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
     shape: aiSavePresetsSchema.shape,
     note: '保存会话预设（整表覆盖）：projectPath + presets[]（未知工具/插件回 warnings）',
   },
+  'ai:getPresets': {
+    shape: aiProjectPathSchema.shape,
+    note: '读会话预设注册表（坏条目带 broken、字段被忽略带 notes）',
+  },
   'ai:agentCoreSteer': {
     shape: aiAgentCoreSteerSchema.shape,
     note: '循环中途插话：projectPath + text（下一个步边界注入）',

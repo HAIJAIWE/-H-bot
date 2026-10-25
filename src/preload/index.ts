@@ -364,6 +364,11 @@ const api = {
       }>,
     ) => ipcRenderer.invoke('ai:savePresets', { projectPath, presets }),
     /**
+     * 读预设**注册表**（第 48 批）。菜单只显示这份：坏条目带 `broken` 原因、
+     * 被忽略的字段带 `notes` —— 与主进程运行时看到的是同一份裁决。
+     */
+    getPresets: (projectPath: string) => ipcRenderer.invoke('ai:getPresets', { projectPath }),
+    /**
      * **插话**：把一句话塞进正在跑的那一轮（下一个步边界注入给模型）。
      * 没在跑时主进程会直接拒绝 —— 界面据此提示"先发一条新要求"。
      */

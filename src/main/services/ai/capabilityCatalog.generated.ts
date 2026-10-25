@@ -36,7 +36,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityLayer, string> = {
   X: '助手自身或内部管道，不对外开放',
 }
 
-/** 台账：272 条（R 0 / Q 84 / M 104 / P 8 / F 3 / X 73） */
+/** 台账：273 条（R 0 / Q 84 / M 104 / P 8 / F 3 / X 74） */
 export const CAPABILITY_CATALOG: CapabilityEntry[] = [
   {
     id: 'adapter.current',
@@ -162,6 +162,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:getHistory',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.getPresets',
+    ns: 'ai',
+    method: 'getPresets',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:getPresets',
     channelKind: 'invoke',
   },
   {

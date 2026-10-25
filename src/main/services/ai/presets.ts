@@ -1,173 +1,236 @@
 // src/main/services/ai/presets.ts
 //
-// **会话预设**（2026-10-19）：`.qqbat/agent-presets.json` —— 名字 → 这一轮怎么跑。
+// **会话预设**：`.qqbat/agent-presets.json` —— 名字 → 这一轮怎么跑。
 //
-// 最初只有工具白名单；2026-10-24 对齐 DSH 的 `agent-preset` 语义后多三件事：
-//   · `role`           —— 这一轮用哪个**角色**（缺省 = 跟着页面走，见 shared/ai/roleDomains.ts）；
-//   · `prompt`         —— 这个预设的**附加要求**（拼进系统提示的角色强调句之后）；
-//   · `permissionMode` —— 这一轮的**审批口径**（`'full'` = 无人值守，只这一次，不落规则）。
+// 2026-10-24 对齐 DSH `agent-preset` 后多三件事：
+//   · `role`           —— 这一轮用哪个**角色**（缺省跟页面走，见 shared/ai/roleDomains.ts）；
+//   · `prompt`         —— **附加要求**（拼在角色强调句之后）；
+//   · `permissionMode` —— **审批口径**（`'full'` = 这一轮无人值守，不落规则）。
 //
-// 仍然是"约束这一轮"，不存模型参数：模型是用户在设置里选的，预设不该偷偷换掉它。
-// 工具表依旧是**权限边界**（提示词里写"别用某工具"是劝告，不是边界）——
-// `prompt` 只是补充说明，真正越不越界看 `allowedTools` / `plugins` / 角色写域这三道闸。
+// 仍是"约束这一轮"，不存模型参数：模型是用户在设置里选的，预设不该偷偷换掉。
+// 工具表是**权限边界**（提示词里写"别用某工具"是劝告）——真正越不越界看
+// `allowedTools` / `plugins` / 角色写域这三道闸。
 //
-// 文件格式（数组，容错读取）：
-//   [{ "name": "只读巡检", "role": "coder", "prompt": "只读不改",
-//      "allowedTools": ["read_file", "list_dir"], "permissionMode": "ask", "description": "..." }]
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import type { AgentRole } from '@shared/ai/roleDomains';
-
-/** 角色值域（与 shared/ai/roleDomains 的 AgentRole 同源；这里只做运行时校验） */
-const ROLES: readonly AgentRole[] = ['builder', 'coder', 'duo', 'creator'];
-/** 附加要求的长度上限：太长会把角色强调句挤成背景噪声（提示词预算也是钱） */
-const PROMPT_MAX = 2000;
-
-export interface AgentPreset {
-  name: string;
-  /**
-   * 这一轮的角色。缺省 = 跟着页面走（低代码页 builder / 代码页 coder）。
-   * 显式写死才用，因为"切了页面角色不变"本身是个会让人困惑的行为。
-   */
-  role?: AgentRole;
-  /** 附加要求（进系统提示；只在提示层，不是权限边界） */
-  prompt?: string;
-  /**
-   * 这一轮的审批口径：
-   * · `'full'` = 不再逐个问人（等价于界面上那个「完全权限」开关，但**由预设声明**）；
-   * · `'ask'`（或没写）= 每次动作都问。
-   *
-   * ⚠️ 两处语义边界：
-   * · **只对这一轮生效**，不写 allowRules、不跨会话 —— 界面上那句文案是「本次运行」；
-   * · **调用方显式表态优先**：`ai:agentCoreRun` 带了 `fullAccess: true/false` 就用它，
-   *   只有 `undefined` 时才让预设补位（关着开关 ≠ 明确要问，也可能是没人碰过）。
-   *   这条规则的另一半在渲染层：aiStore 只在开时才传 true，关着传 undefined。
-   */
-  permissionMode?: 'ask' | 'full';
-  /** 工具名白名单；缺省 = 不限制（等价于不传 allowedTools） */
-  allowedTools?: string[];
-  /**
-   * 会话级插件集：只有这里列出的插件贡献的工具才进这一轮的工具表。
-   * 缺省/空 = 不按插件限定（内置工具不受影响）。语义见 `services/plugins/scoping.ts`。
-   */
-  plugins?: string[];
-  description?: string;
-}
-
-const PRESETS_FILE = 'agent-presets.json';
-const NAME_MAX = 40;
+// 第 48 批：只有这一处解析，返回 `AgentPresetRow[]`，坏条目不再静默跳过（菜单自己
+// 解析文件的日子结束）：`broken` = 整条不可用；`notes` = 部分字段被忽略但可用；
+// `order` = 菜单排序（没写的排后面，仍按文件顺序）。
+import { readFile, writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import {
+  PRESETS_BASENAME,
+  PRESET_NAME_MAX,
+  PRESET_PROMPT_MAX,
+  PRESET_ROLES,
+  type AgentPreset,
+  type AgentPresetRoster,
+  type AgentPresetRow,
+} from '@shared/ai/presetRoster'
 
 function presetsPath(projectPath: string): string {
-  return join(projectPath, '.qqbat', PRESETS_FILE);
+  return join(projectPath, '.qqbat', PRESETS_BASENAME)
 }
 
 /** 角色字段容错：不认识的值当没写（拼错不该让整条预设失效，但也不能猜） */
-function normalizeRole(value: unknown): AgentRole | undefined {
-  return ROLES.find((r) => r === value);
+function normalizeRole(value: unknown): AgentPresetRow['role'] {
+  return PRESET_ROLES.find(r => r === value)
 }
 
 /** 审批口径容错：只认 ask / full，其余（拼错、老数据、数字）一律当没写 */
 function normalizePermission(value: unknown): 'ask' | 'full' | undefined {
-  return value === 'ask' || value === 'full' ? value : undefined;
+  return value === 'ask' || value === 'full' ? value : undefined
 }
 
-/** 附加要求容错：去空白、截断到上限；空串当没写 */
-function normalizePrompt(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const text = value.trim();
-  if (!text) return undefined;
-  return text.length > PROMPT_MAX ? text.slice(0, PROMPT_MAX) : text;
+/** 名字表归一：只留非空字符串、去空白、去重；`dirty` 数出被丢掉几项（notes 用） */
+function nameList(value: unknown): { list: string[]; dirty: number } {
+  if (!Array.isArray(value)) return { list: [], dirty: 0 }
+  const trimmed = value.map(v => (typeof v === 'string' ? v.trim() : ''))
+  const list = [...new Set(trimmed.filter(v => v.length > 0))]
+  return { list, dirty: value.length - list.length }
 }
 
-/** 读预设：容错（坏文件 = 空表；坏条目跳过），永不抛 */
-export async function readPresets(projectPath: string): Promise<AgentPreset[]> {
-  try {
-    const raw = await readFile(presetsPath(projectPath), 'utf-8');
-    const data: unknown = JSON.parse(raw);
-    if (!Array.isArray(data)) return [];
-    const out: AgentPreset[] = [];
-    for (const item of data) {
-      if (!item || typeof item !== 'object') continue;
-      const m = item as Record<string, unknown>;
-      const name = typeof m.name === 'string' ? m.name.trim() : '';
-      if (!name || name.length > NAME_MAX) continue;
-      const tools = Array.isArray(m.allowedTools)
-        ? m.allowedTools.filter((t): t is string => typeof t === 'string' && t.length > 0)
-        : undefined;
-      const plugins = Array.isArray(m.plugins)
-        ? m.plugins.filter((t): t is string => typeof t === 'string' && t.length > 0)
-        : undefined;
-      const role = normalizeRole(m.role);
-      const prompt = normalizePrompt(m.prompt);
-      const permissionMode = normalizePermission(m.permissionMode);
-      out.push({
+/**
+ * 纯函数：把解析出来的 JSON 变成注册表（不碰磁盘，方便单测）。
+ * 两种"不可用"分得很清：`fileProblem` 是整个文件读不了，`broken` 是这一条用不了。
+ */
+export function parsePresetRoster(data: unknown): AgentPresetRoster {
+  if (!Array.isArray(data)) {
+    return {
+      presets: [],
+      fileProblem: '顶层不是数组（应该是 [{ "name": "…" }]）',
+    }
+  }
+  const usable: Array<{ row: AgentPresetRow; index: number }> = []
+  const broken: AgentPresetRow[] = []
+  const seen = new Set<string>()
+  data.forEach((item, index) => {
+    const at = `第 ${index + 1} 条`
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      broken.push({ name: at, broken: '不是对象（一条预设应该是 { "name": "…" }）' })
+      return
+    }
+    const m = item as Record<string, unknown>
+    const name = typeof m.name === 'string' ? m.name.trim() : ''
+    if (!name) {
+      broken.push({ name: at, broken: '没有名字（"name" 必填）' })
+      return
+    }
+    if (name.length > PRESET_NAME_MAX) {
+      broken.push({
+        name: name.slice(0, PRESET_NAME_MAX),
+        broken: `名字超过 ${PRESET_NAME_MAX} 个字`,
+      })
+      return
+    }
+    if (seen.has(name)) {
+      broken.push({ name, broken: `与前面的「${name}」重名（这一条不生效）` })
+      return
+    }
+    seen.add(name)
+
+    const notes: string[] = []
+    const role = normalizeRole(m.role)
+    if (m.role !== undefined && !role) notes.push('role 不认识，已忽略')
+    const permissionMode = normalizePermission(m.permissionMode)
+    if (m.permissionMode !== undefined && !permissionMode)
+      notes.push('permissionMode 不认识，已忽略')
+
+    let prompt: string | undefined
+    if (typeof m.prompt === 'string' && m.prompt.trim()) {
+      const text = m.prompt.trim()
+      prompt = text.length > PRESET_PROMPT_MAX ? text.slice(0, PRESET_PROMPT_MAX) : text
+      if (text.length > PRESET_PROMPT_MAX) {
+        notes.push(`附加要求超过 ${PRESET_PROMPT_MAX} 字，已截断`)
+      }
+    }
+
+    const tools = nameList(m.allowedTools)
+    if (m.allowedTools !== undefined && !Array.isArray(m.allowedTools)) {
+      notes.push('工具白名单不是数组，已忽略')
+    } else if (tools.dirty > 0) {
+      notes.push(`工具白名单里有 ${tools.dirty} 项不是有效名字，已忽略`)
+    }
+    const plugins = nameList(m.plugins)
+    if (m.plugins !== undefined && !Array.isArray(m.plugins)) {
+      notes.push('插件集不是数组，已忽略')
+    } else if (plugins.dirty > 0) {
+      notes.push(`插件集里有 ${plugins.dirty} 项不是有效名字，已忽略`)
+    }
+
+    let order: number | undefined
+    if (typeof m.order === 'number' && Number.isFinite(m.order)) order = m.order
+    else if (m.order !== undefined) notes.push('order 不是数字，已忽略')
+
+    const description =
+      typeof m.description === 'string' && m.description.trim() ? m.description.trim() : undefined
+
+    usable.push({
+      index,
+      row: {
         name,
         ...(role ? { role } : {}),
         ...(prompt ? { prompt } : {}),
         ...(permissionMode ? { permissionMode } : {}),
-        ...(tools && tools.length > 0 ? { allowedTools: [...new Set(tools)] } : {}),
-        ...(plugins && plugins.length > 0 ? { plugins: [...new Set(plugins)] } : {}),
-        ...(typeof m.description === 'string' ? { description: m.description } : {}),
-      });
-    }
-    return out;
-  } catch {
-    return [];
+        ...(tools.list.length > 0 ? { allowedTools: tools.list } : {}),
+        ...(plugins.list.length > 0 ? { plugins: plugins.list } : {}),
+        ...(description ? { description } : {}),
+        ...(order !== undefined ? { order } : {}),
+        ...(notes.length > 0 ? { notes } : {}),
+      },
+    })
+  })
+  // 有 order 的按 order 升序，没写的排后面，同序仍按文件顺序；坏条目按原顺序附在最后
+  usable.sort(
+    (a, b) =>
+      (a.row.order ?? Number.POSITIVE_INFINITY) - (b.row.order ?? Number.POSITIVE_INFINITY) ||
+      a.index - b.index,
+  )
+  return { presets: [...usable.map(u => u.row), ...broken] }
+}
+
+/** 读注册表：文件不存在 = 空表（不是错误）；坏文件 = fileProblem，永不抛 */
+export async function readPresetRoster(projectPath: string): Promise<AgentPresetRoster> {
+  let raw: string
+  try {
+    raw = await readFile(presetsPath(projectPath), 'utf-8')
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return { presets: [] }
+    return { presets: [], fileProblem: e instanceof Error ? e.message : String(e) }
   }
+  let data: unknown
+  try {
+    data = JSON.parse(raw)
+  } catch (e) {
+    return {
+      presets: [],
+      fileProblem: `JSON 解析失败：${e instanceof Error ? e.message : String(e)}`,
+    }
+  }
+  return parsePresetRoster(data)
 }
 
 /**
- * 按名字取预设的工具白名单。
- * 找不到 / 预设没有白名单 → undefined（= 不限制）。
+ * 运行时解析：传了预设名就必须**拿得到一条能用的**，否则这一轮不开跑。
+ *
+ * 为什么 fail-closed（2026-10-26）：以前 `readPreset` 查不到就 `undefined`，
+ * 而调用方紧接着 `allowedToolNames = presetTools`、`role = preset?.role ?? …` ——
+ * 查不到的后果是**权限白名单消失、角色悄悄退回页面默认**，且没有任何提示。
+ * 删掉预设文件里的一行，等于静默放开这一轮的边界，这是最难被当成 bug 报的那种静默。
  */
-export async function resolvePresetTools(
+export type PresetResolution = { ok: true; preset: AgentPresetRow } | { ok: false; error: string }
+
+export async function resolvePresetForRun(
   projectPath: string,
   name: string,
-): Promise<string[] | undefined> {
-  const presets = await readPresets(projectPath);
-  return presets.find((p) => p.name === name)?.allowedTools;
+): Promise<PresetResolution> {
+  const roster = await readPresetRoster(projectPath)
+  const row = roster.presets.find(p => p.name === name)
+  if (!row) {
+    const why = roster.fileProblem ? `（${roster.fileProblem}）` : ''
+    return {
+      ok: false,
+      error: `找不到预设「${name}」${why}；为避免静默放开权限，这一轮没有开始`,
+    }
+  }
+  if (row.broken) {
+    return {
+      ok: false,
+      error: `预设「${name}」不可用：${row.broken}；这一轮没有开始`,
+    }
+  }
+  return { ok: true, preset: row }
 }
 
-/** 按名字取整条预设（插件集等字段要用；找不到 = undefined） */
-export async function readPreset(
-  projectPath: string,
-  name: string,
-): Promise<AgentPreset | undefined> {
-  const presets = await readPresets(projectPath);
-  return presets.find((p) => p.name === name);
-}
-
-/** 写预设（整表覆盖；名字去重，后者覆盖前者） */
-export async function writePresets(
-  projectPath: string,
-  presets: AgentPreset[],
-): Promise<void> {
-  const byName = new Map<string, AgentPreset>();
+/** 写预设（整表覆盖；名字去重，后者覆盖前者）。保持不变：编辑器按对象保存，未知字段由界面负责保留。 */
+export async function writePresets(projectPath: string, presets: AgentPreset[]): Promise<void> {
+  const byName = new Map<string, AgentPreset>()
   for (const p of presets) {
-    const name = String(p.name ?? '').trim();
-    if (!name || name.length > NAME_MAX) continue;
-    const role = normalizeRole(p.role);
-    const prompt = normalizePrompt(p.prompt);
-    const permissionMode = normalizePermission(p.permissionMode);
+    const name = String(p.name ?? '').trim()
+    if (!name || name.length > PRESET_NAME_MAX) continue
+    const role = normalizeRole(p.role)
+    const prompt =
+      typeof p.prompt === 'string' && p.prompt.trim()
+        ? p.prompt.trim().slice(0, PRESET_PROMPT_MAX)
+        : undefined
+    const permissionMode = normalizePermission(p.permissionMode)
+    const tools = nameList(p.allowedTools)
+    const plugins = nameList(p.plugins)
     byName.set(name, {
       name,
       ...(role ? { role } : {}),
       ...(prompt ? { prompt } : {}),
       ...(permissionMode ? { permissionMode } : {}),
-      ...(p.allowedTools && p.allowedTools.length > 0
-        ? { allowedTools: [...new Set(p.allowedTools.filter((t) => typeof t === 'string' && t))] }
-        : {}),
-      ...(p.plugins && p.plugins.length > 0
-        ? { plugins: [...new Set(p.plugins.filter((t) => typeof t === 'string' && t))] }
-        : {}),
+      ...(tools.list.length > 0 ? { allowedTools: tools.list } : {}),
+      ...(plugins.list.length > 0 ? { plugins: plugins.list } : {}),
       ...(typeof p.description === 'string' ? { description: p.description } : {}),
-    });
+      ...(typeof p.order === 'number' && Number.isFinite(p.order) ? { order: p.order } : {}),
+    })
   }
-  const dir = join(projectPath, '.qqbat');
-  await mkdir(dir, { recursive: true });
+  const dir = join(projectPath, '.qqbat')
+  await mkdir(dir, { recursive: true })
   await writeFile(
     presetsPath(projectPath),
     JSON.stringify([...byName.values()], null, 2) + '\n',
     'utf-8',
-  );
+  )
 }

@@ -747,9 +747,13 @@
       "followPageHint": "Role follows the current tab (low-code = flow, code = coder)",
       "groupRole": "Role",
       "groupMine": "My presets",
+      "groupBroken": "Unusable entries",
       "empty": "No presets in this project yet",
       "roleFixed": "Role: {role} (fixed by preset)",
       "roleFollow": "Role follows the page",
+      "brokenTag": "unusable",
+      "fileProblem": "Cannot read the preset file: {reason}",
+      "notesHint": "Some fields were ignored",
       "impact": {
         "title": "What this turn unlocks",
         "fullBadge": "Fully allowed",

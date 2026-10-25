@@ -21,8 +21,9 @@ const h = vi.hoisted(() => ({
   runAgentTurn: vi.fn(),
   requestApproval: vi.fn(),
   appendTrace: vi.fn(),
-  readPreset: vi.fn(),
-  resolvePresetTools: vi.fn(),
+  /** 预设注册表：运行时按名字裁决（fail-closed）、菜单读整份注册表 */
+  resolvePresetForRun: vi.fn(),
+  readPresetRoster: vi.fn(),
   /** 主进程发出去的事件（只在回调里发的那些，比如 ai:compact，要靠它断言） */
   send: vi.fn(),
   /** 旧 27 工具适配器：这里只验接线（真适配器另有 legacyTools 的测试） */
@@ -62,8 +63,8 @@ vi.mock('@main/services/ai/proposalValidation', () => ({
 }))
 vi.mock('@main/services/ai/verifier', () => ({ buildVerdict: h.buildVerdict }))
 vi.mock('@main/services/ai/presets', () => ({
-  readPreset: h.readPreset,
-  resolvePresetTools: h.resolvePresetTools,
+  resolvePresetForRun: h.resolvePresetForRun,
+  readPresetRoster: h.readPresetRoster,
   writePresets: vi.fn(),
 }))
 vi.mock('@main/services/infra/logger', () => ({
@@ -81,11 +82,16 @@ const RESULT = {
 }
 
 /** 调一次通道（注册只有启动时一次，所以延迟到调用处再注册） */
-async function invoke(payload: unknown): Promise<unknown> {
-  if (!h.handlers.has('ai:agentCoreRun')) registerAiAgentCoreIpc()
-  const fn = h.handlers.get('ai:agentCoreRun')
-  expect(fn, '通道没注册').toBeTruthy()
+async function invokeChannel(channel: string, payload: unknown): Promise<unknown> {
+  if (!h.handlers.has(channel)) registerAiAgentCoreIpc()
+  const fn = h.handlers.get(channel)
+  expect(fn, `通道 ${channel} 没注册`).toBeTruthy()
   return fn!({ sender: {} }, payload)
+}
+
+/** 本文件的主角：`ai:agentCoreRun` */
+async function invoke(payload: unknown): Promise<unknown> {
+  return invokeChannel('ai:agentCoreRun', payload)
 }
 
 describe('ai:agentCoreRun 接线', () => {
@@ -95,8 +101,14 @@ describe('ai:agentCoreRun 接线', () => {
     h.runAgentTurn.mockReset().mockResolvedValue(RESULT)
     h.requestApproval.mockReset().mockResolvedValue('allow')
     h.appendTrace.mockReset()
-    h.readPreset.mockReset().mockResolvedValue(undefined)
-    h.resolvePresetTools.mockReset().mockResolvedValue(undefined)
+    // 预设默认"按名字能查到"；查不到/坏了的分支各自在用例里改
+    h.resolvePresetForRun
+      .mockReset()
+      .mockImplementation(async (_projectPath: string, name: string) => ({
+        ok: true,
+        preset: { name },
+      }))
+    h.readPresetRoster.mockReset().mockResolvedValue({ presets: [] })
     h.send.mockReset()
     h.runOnboarding.mockReset().mockResolvedValue({ ok: true, finalText: '开荒好了' })
     h.validateProposal.mockReset().mockResolvedValue({ issues: [], introduced: [] })
@@ -381,7 +393,10 @@ describe('ai:agentCoreRun 接线', () => {
     expect(note).toBeTruthy()
 
     h.runAgentTurn.mockClear()
-    h.readPreset.mockResolvedValue({ name: '夜巡', role: 'builder', prompt: '只动流程' })
+    h.resolvePresetForRun.mockResolvedValue({
+      ok: true,
+      preset: { name: '夜巡', role: 'builder', prompt: '只动流程' },
+    })
     await invoke({ projectPath: 'D:/p', requirement: 'x', agentMode: 'code', preset: '夜巡' })
     const second = (h.runAgentTurn.mock.calls[0][0] as { roleNote: string }).roleNote
     expect(second).toContain('只动流程')
@@ -457,7 +472,10 @@ describe('ai:agentCoreRun 接线', () => {
   })
 
   it('★ 预设的 permissionMode:full 真的补位（调用方没表态时）', async () => {
-    h.readPreset.mockResolvedValue({ name: '无人值守', permissionMode: 'full' })
+    h.resolvePresetForRun.mockResolvedValue({
+      ok: true,
+      preset: { name: '无人值守', permissionMode: 'full' },
+    })
     await invoke({
       projectPath: 'D:/p',
       requirement: '放开来做',
@@ -513,5 +531,40 @@ describe('ai:agentCoreRun 接线', () => {
       tokensBefore: 91234,
       tokensAfter: 12045,
     })
+  })
+
+  /**
+   * ★ 第 48 批：预设查不到 = 直接不开跑。
+   *
+   * 以前查不到就 `undefined`：白名单消失、角色退回页面默认，界面上一切正常。
+   * 这条用例钉住"静默放行"不会再回来 —— 报错里还要带名字，用户才知道去改哪一条。
+   */
+  it('★ 预设名查不到：fail-closed，不开始循环并把原因说清', async () => {
+    h.resolvePresetForRun.mockResolvedValue({
+      ok: false,
+      error: '找不到预设「夜巡」；为避免静默放开权限，这一轮没有开始',
+    })
+    const res = (await invoke({
+      projectPath: 'D:/p',
+      requirement: 'x',
+      preset: '夜巡',
+    })) as { ok: boolean; error?: string }
+    expect(res.ok).toBe(false)
+    expect(res.error).toContain('找不到预设「夜巡」')
+    expect(h.runAgentTurn).not.toHaveBeenCalled()
+  })
+
+  it('ai:getPresets：把注册表原样交出去（坏条目/notes/fileProblem 都由服务层裁决）', async () => {
+    const roster = {
+      presets: [
+        { name: '只读', role: 'coder' },
+        { name: '只读', broken: '重名' },
+      ],
+      fileProblem: '顶层不是数组',
+    }
+    h.readPresetRoster.mockResolvedValue(roster)
+    const res = await invokeChannel('ai:getPresets', { projectPath: 'D:/p' })
+    expect(res).toEqual({ ok: true, data: roster })
+    expect(h.readPresetRoster).toHaveBeenCalledWith('D:/p')
   })
 })

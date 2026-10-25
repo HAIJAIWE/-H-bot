@@ -3,24 +3,24 @@
 // **一个选择器，而不是两个**（2026-10-25）。原来是「角色：🧩流程助手 📝代码助手 …
 // 跟页面」一排按钮 + 下拉里再列自定义预设 —— 同一件事在两处选，界面上还多一条
 // 带下划线的「跟页面」。DSH 的做法（packages/client/ui-agent-preset）是一个菜单：
-// 内置与自定义分组、当前项高亮、编辑走另一个入口。这里就按那个形状重写。
+// 内置与自定义分组、当前项高亮、编辑走另一个入口。这里就按那个形状。
 //
 // 三种取值落到同一件事上（主进程只认「角色 + 预设名」这两样）：
 //   · 跟随页面  → 角色不覆盖（按当前页签推） + 不带预设；
 //   · 内置角色  → 覆盖角色 + 不带预设；
 //   · 我的预设  → 带预设名；角色由预设的 role 决定（没写就跟页面走）。
-// 组件自己不做权限判断，也不解析预设内容之外的东西 —— 预设仍在主进程重新读一遍。
+//
+// ## 第 48 批：菜单不再自己解析文件
+//
+// 以前这里 `file.read` + `parsePresetOptions` 自己解析，容错口径与主进程不同 ——
+// 菜单里看得到、跑起来查不到。现在只显示 `ai:getPresets` 返回的注册表：
+// 坏条目带原因（禁用）、字段被忽略带 notes（可选中，title 里说明差异）。
 import { useEffect, useState } from 'react'
 import { t } from '../../i18n'
 import { useLocaleSubscription } from '../../stores/i18nStore'
 import { MODE_OF_ROLE, type AgentMode, type AgentRole } from '@shared/ai/roleDomains'
+import type { AgentPresetRow } from '@shared/ai/presetRoster'
 import { AI_MODE_BUTTONS } from './agentModes'
-import {
-  PRESETS_FILE,
-  parsePresetOptions,
-  type PresetMeta,
-  type PresetOption,
-} from './presetOptions'
 
 export interface AgentPresetMenuProps {
   /** 当前项目路径；没有项目时「我的预设」分组只留编辑入口的禁用态 */
@@ -29,9 +29,9 @@ export interface AgentPresetMenuProps {
   override: AgentMode | null
   /** 选中的自定义预设名；null = 没用预设 */
   preset: string | null
-  /** 选中预设解析出的元信息（边界行/提示用；主进程仍自己解析，不依赖这里） */
-  onResolve?: (meta: PresetMeta | null) => void
-  /** 变更计数：编辑保存后 +1，触发重新读盘（文件是唯一真源，不缓存目录） */
+  /** 选中预设的元信息（边界行/提示用；主进程仍自己裁决，不依赖这里） */
+  onResolve?: (meta: AgentPresetRow | null) => void
+  /** 变更计数：编辑保存后 +1，触发重新读注册表 */
   reloadKey?: number
   disabled?: boolean
   onPickPage: () => void
@@ -59,42 +59,60 @@ export function AgentPresetMenu({
 }: AgentPresetMenuProps): React.ReactNode {
   // 用了 t() 的组件必须订阅语言变化（i18n 闸门）
   useLocaleSubscription()
-  const [options, setOptions] = useState<PresetOption[]>([])
-  const [metaByName, setMetaByName] = useState<Record<string, PresetMeta>>({})
+  const [rows, setRows] = useState<AgentPresetRow[]>([])
+  const [fileProblem, setFileProblem] = useState<string | undefined>(undefined)
   useEffect(() => {
     if (!projectPath) {
-      setOptions([])
-      setMetaByName({})
+      setRows([])
+      setFileProblem(undefined)
       return
     }
+    let alive = true
     void (async () => {
       try {
-        const res = await window.qqbat.file.read(projectPath, PRESETS_FILE)
-        if (!res.ok || typeof res.data !== 'string') {
-          setOptions([])
-          return
+        const res = await window.qqbat.ai.getPresets(projectPath)
+        if (!alive) return
+        if (res.ok) {
+          setRows(res.data.presets)
+          setFileProblem(res.data.fileProblem)
+        } else {
+          setRows([])
+          setFileProblem(res.error)
         }
-        const parsed = parsePresetOptions(JSON.parse(res.data))
-        setOptions(parsed.options)
-        setMetaByName(parsed.meta)
       } catch {
-        setOptions([])
+        if (alive) {
+          setRows([])
+          setFileProblem(undefined)
+        }
       }
     })()
+    return () => {
+      alive = false
+    }
   }, [projectPath, reloadKey])
-  // 把"选中项的元信息"报给调用方（界面显示用；主进程仍会自己解析）
+  // 把"选中项的元信息"报给调用方（界面显示用；主进程仍会自己裁决）
   useEffect(() => {
-    onResolve?.(preset ? (metaByName[preset] ?? null) : null)
-  }, [preset, metaByName, onResolve])
+    onResolve?.(preset ? (rows.find(r => r.name === preset && !r.broken) ?? null) : null)
+  }, [preset, rows, onResolve])
+  const usable = rows.filter(r => !r.broken)
+  const broken = rows.filter(r => r.broken)
+  const selectedUsable = preset ? usable.some(r => r.name === preset) : true
   /** 触发器上显示的那个名字：预设名 > 角色名 > 跟随页面 */
   const currentLabel = preset
-    ? preset
+    ? preset + (selectedUsable ? '' : ' ⚠')
     : override
       ? t(AI_MODE_BUTTONS.find(b => b.mode === override)?.labelKey ?? 'ai.mode.builder')
       : t('ai.mode.followPage')
   const rowClass =
-    'flex w-full items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-zinc-800 disabled:opacity-40'
+    'flex w-full items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
   const mark = <span className="w-3 shrink-0 text-center text-blue-300">✓</span>
+  /** 一条预设的悬浮说明：角色口径 + 被忽略的字段（有就写出来） */
+  const titleOf = (row: AgentPresetRow): string => {
+    const head = row.role
+      ? t('ai.preset.roleFixed', { role: t(roleLabelKey(row.role)) })
+      : t('ai.preset.roleFollow')
+    return row.notes && row.notes.length > 0 ? `${head} · ${row.notes.join('；')}` : head
+  }
   return (
     <details className="relative min-w-0">
       <summary
@@ -155,35 +173,71 @@ export function AgentPresetMenu({
         })}
         <div className="my-1 border-t border-zinc-800" />
         <div className="px-1 text-[10px] text-zinc-500">{t('ai.preset.groupMine')}</div>
-        {options.length === 0 ? (
+        {/* 文件级问题：整份读不了 / 顶层不是数组 —— 不说出来，用户只会看到"我的预设没了" */}
+        {fileProblem ? (
+          <div
+            className="mx-1 my-0.5 rounded border border-amber-900/60 bg-amber-950/40 px-1.5 py-1 text-[10px] leading-4 text-amber-300"
+            title={fileProblem}
+          >
+            <span className="line-clamp-2">
+              {t('ai.preset.fileProblem', { reason: fileProblem })}
+            </span>
+          </div>
+        ) : null}
+        {usable.length === 0 && broken.length === 0 ? (
           <div className="px-1 py-1 text-zinc-500">{t('ai.preset.empty')}</div>
         ) : (
-          options.map(o => {
-            const active = preset === o.name
-            const role = metaByName[o.name]?.role
+          usable.map(row => {
+            const active = preset === row.name
             return (
               <button
-                key={o.name}
+                key={row.name}
                 type="button"
                 className={rowClass}
                 aria-pressed={active}
                 disabled={disabled}
-                title={
-                  role
-                    ? t('ai.preset.roleFixed', { role: t(roleLabelKey(role)) })
-                    : t('ai.preset.roleFollow')
-                }
+                title={titleOf(row)}
                 onClick={e => {
                   closeMenu(e.currentTarget)
-                  onPickPreset(o.name)
+                  onPickPreset(row.name)
                 }}
               >
                 {active ? mark : <span className="w-3 shrink-0" />}
-                <span className="min-w-0 flex-1 truncate">{o.name}</span>
+                <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                {/* 有字段被忽略：能选，但别让用户以为文件里的值都生效了 */}
+                {row.notes && row.notes.length > 0 ? (
+                  <span
+                    className="shrink-0 text-[10px] text-amber-400"
+                    title={row.notes.join('；')}
+                  >
+                    {t('ai.preset.notesHint')}
+                  </span>
+                ) : null}
               </button>
             )
           })
         )}
+        {broken.length > 0 ? (
+          <>
+            <div className="my-1 border-t border-zinc-800" />
+            <div className="px-1 text-[10px] text-zinc-500">{t('ai.preset.groupBroken')}</div>
+            {broken.map(row => (
+              <button
+                key={`broken:${row.name}`}
+                type="button"
+                className={rowClass}
+                disabled
+                title={row.broken}
+              >
+                <span className="w-3 shrink-0" />
+                <span className="min-w-0 flex-1 truncate line-through">{row.name}</span>
+                <span className="shrink-0 text-[10px] text-red-400">
+                  {t('ai.preset.brokenTag')}
+                </span>
+              </button>
+            ))}
+          </>
+        ) : null}
         <div className="my-1 border-t border-zinc-800" />
         <button
           type="button"

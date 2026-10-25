@@ -2403,3 +2403,74 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
   **Test Files 272 passed | 2 skipped (274)、Tests 3416 passed | 7 skipped (3423)、FULL_EXIT=0**
   （基线 3402 → +14：toolPairing 8 + contextGate 6）。
 - prettier 过了 5 个改动文件。
+
+## 48. 第十一批：预设注册表（agent-preset-registry，2026-10-26）
+
+### 48.1 之前是"三份真相各读各的"
+
+- **菜单自己解析文件**（<code>presetOptions.ts</code>，173 行）：容错口径与主进程不一样 ——
+  菜单里看得到的预设，跑起来可能查不到；界面上也没有"这一条坏了"的任何提示。
+- **运行时读两次盘**：<code>resolvePresetTools</code> 拿白名单、<code>readPreset</code> 再拿角色，
+  两次之间文件被改就是白名单和角色来自不同版本。
+- **坏条目静默跳过**：文件里写错一个名字，菜单里少一项，没人知道为什么。
+
+### 48.2 磁盘形状只有一处：<code>src/shared/ai/presetRoster.ts</code>
+
+常量 <code>PRESETS_FILE</code> / <code>PRESETS_BASENAME</code> / <code>PRESET_NAME_MAX=40</code> /
+<code>PRESET_PROMPT_MAX=2000</code> / <code>PRESET_ROLES=[builder,coder,duo,creator]</code>
+与三个类型（<code>AgentPreset</code> / <code>AgentPresetRow</code> / <code>AgentPresetRoster</code>）
+都在这里：菜单、编辑器、主进程引同一个来源，不再各写一份常量。
+对应上游 <code>agent-preset</code> 的 row/roster；<code>locked</code> 没搬 —— 预设是**按轮**语义，
+不锁会话。
+
+### 48.3 <code>parsePresetRoster</code>：三种"不好"分得很清
+
+- <code>fileProblem</code>：整个文件读不了（不是数组 / JSON 坏 / 读盘失败），此时 <code>presets: []</code>。
+- <code>broken</code>：**这一条**不可用 —— 不是对象、没有名字、名字超过 40 字、与前面的重名；
+  菜单照旧列出来但禁用，并写明原因。
+- <code>notes</code>：字段被忽略但整条仍可用 —— role/permissionMode 不认识、prompt 超长被截断、
+  工具白名单/插件集里有 N 项不是有效名字、order 不是数字。
+- <code>order</code> 只管菜单排序（没写的排在有 order 的后面，仍按文件顺序），坏条目按原序附末尾。
+
+### 48.4 运行时 fail-closed：查不到 = 这一轮不开跑
+
+<code>resolvePresetForRun</code> 取代"查到就用、查不到就 undefined"：
+
+- 找不到 → <code>找不到预设「夜巡」（fileProblem）；为避免静默放开权限，这一轮没有开始</code>；
+- 查到坏条目 → <code>预设「夜巡」不可用：&lt;broken&gt;；这一轮没有开始</code>。
+
+IPC 拿到 <code>{ok:false,error}</code> 直接 <code>return {ok:false,error}</code>，**不调** <code>runAgentTurn</code>。
+理由写在代码注释里：删掉预设文件里的那一行，不该等于把这一轮的权限边界静默放开。
+（旧的 <code>readPreset</code> 连带删除 —— 生产无人调用，运行时只剩一个裁决口。）
+
+### 48.5 IPC：一次读盘、两个入口
+
+- 新增 <code>ai:getPresets</code>（<code>aiProjectPathSchema</code>，回 <code>{ok:true,data:roster}</code>），菜单不再读文件。
+- <code>ai:agentCoreRun</code> 里预设只解析一次（<code>runPreset</code>），四处改读它：
+  role / permissionMode / roleNote 的 prompt / <code>scopeToolsByPlugins</code> 的 plugins。
+- 白名单优先级不变：本次显式传的 <code>allowedTools</code> 非空 → 用它；否则用预设里的。
+
+### 48.6 界面与删除
+
+- <code>AgentPresetMenu</code> 改读注册表：坏条目禁用 + line-through + "不可用"标签，
+  当前预设坏了触发器带 ⚠；<code>fileProblem</code> 用琥珀色块说出来；<code>notes</code> 在 title 与
+  "有字段没生效"小字里体现；可用的坏字段条目仍可选。菜单在挂载时读一次（保存预设会换
+  reloadKey 重新拉）；外部直接改文件要重进项目才刷新。
+- <code>PresetEditor</code> 的四个常量改从 shared 引入；<code>ChatPanel</code> 的 presetMeta 类型改 <code>AgentPresetRow</code>。
+- 删除 <code>src/renderer/src/components/ai/presetOptions.ts</code> 与它的测试（解析器只剩主进程一份）。
+- i18n 两份新增 <code>ai.preset.brokenTag / groupBroken / fileProblem / notesHint</code>。
+
+### 48.7 测试与闸门
+
+- <code>tests/main/services/ai/presets.test.ts</code> **11 例**：写读回/去重、ENOENT 空表、非数组与坏 JSON 的
+  <code>fileProblem</code>、role/prompt 归一、notes（坏 role/prompt/permissionMode）、四类 broken 原因、
+  order 排序、名单脏值 notes、<code>resolvePresetForRun</code> 三分支。
+- <code>AgentPresetMenu.test.tsx</code> **10 例**（注册表渲染、坏条目、fileProblem、notes、回调）。
+- <code>aiAgentCore-ipc.test.ts</code> **+2 例**：预设查不到 → fail-closed（不调 <code>runAgentTurn</code>、
+  错误带名字）；<code>ai:getPresets</code> 原样交注册表。
+- <code>tsc -p tsconfig.node.json</code> = **0**、<code>tsc -p tsconfig.web.json</code> = **0**；
+  guards **16 文件 / 118 例**绿；全量 <code>node node_modules/vitest/vitest.mjs run --maxWorkers=2</code>
+  （日志 <code>_recovery/full-gate-batch48.log</code>）→ **Test Files 271 passed | 2 skipped (273)、
+  Tests 3418 passed | 7 skipped (3425)、FULL_EXIT=0**（第 47 批基线 3416 → +2）。
+- 能力台账：<code>ai.getPresets = X</code> → ai 48→49、X 73→74、合计 272→273（X + ⛔ = 77），
+  两份 generated catalog 已重生成（273 条）；prettier 过一遍全部改动文件。

@@ -24,7 +24,7 @@ import { InstalledPluginsList } from './InstalledPluginsList'
 import { TurnChangesCard } from './TurnChangesCard'
 import { TrajectoryPanel } from './TrajectoryPanel'
 import { ChatEmptyState } from './ChatEmptyState'
-import type { PresetMeta } from './presetOptions'
+import type { AgentPresetRow } from '@shared/ai/presetRoster'
 import { PresetEditor } from './PresetEditor'
 import { InlineEditBox } from './InlineEditBox'
 import { StreamingBubble } from './MessageBubble'
@@ -318,7 +318,7 @@ export const ChatPanel = React.memo(function ChatPanel() {
   const preset = useAiStore(s => s.preset)
   const setPreset = useAiStore(s => s.setPreset)
   /** 当前预设的元信息（权限模式）：只用于界面提示，主进程仍自己解析 */
-  const [presetMeta, setPresetMeta] = useState<PresetMeta | null>(null)
+  const [presetMeta, setPresetMeta] = useState<AgentPresetRow | null>(null)
   /**
    * 预设自带角色时，把"生效角色"同步过去（2026-10-20 预设化，2026-10-25 合并成一个选择器）：
    * 选了「只读巡检（role: coder）」，界面上却说"搭建者"，两边说的就不是一件事了。

@@ -17,7 +17,12 @@
 // `ai:resolveApproval`），不新开一套：同一个动作在两条路径上必须问同一个问题。
 // 语义保持**默认拒绝** —— 没弹窗、没点同意、超时、取消，都不写盘。
 import { ipcMain, BrowserWindow } from 'electron'
-import { aiAgentCoreRunSchema, aiAgentCoreSteerSchema, aiSavePresetsSchema } from '../schemas/ai'
+import {
+  aiAgentCoreRunSchema,
+  aiAgentCoreSteerSchema,
+  aiProjectPathSchema,
+  aiSavePresetsSchema,
+} from '../schemas/ai'
 import { resolveAuthorAiConfig } from '../services/ai/appAiConfig'
 import { appendTrace } from '../services/ai/trace'
 import { requestApproval } from '../services/ai/toolApproval'
@@ -39,7 +44,8 @@ import { runOnboardingTurn } from './aiAgentCoreOnboarding'
 import { assistantHistoryEntry } from '../services/agent-core/uiTrace'
 import { listTools } from '../services/agent-core/core'
 import { clearTodos, getTodos } from '../services/agent-core/todoStore'
-import { readPreset, resolvePresetTools, writePresets } from '../services/ai/presets'
+import { readPresetRoster, resolvePresetForRun, writePresets } from '../services/ai/presets'
+import type { AgentPresetRow } from '@shared/ai/presetRoster'
 import { listMainPlugins, pluginOwnedTools } from '../services/plugins/host'
 import { scopeToolsByPlugins } from '../services/plugins/scoping'
 import { dispatchInstruction } from '../services/ai/instructionBridge'
@@ -165,6 +171,25 @@ export function registerAiAgentCoreIpc(): void {
         }
       }
       return { ok: true, data: { saved: presets.length, warnings } }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  /**
+   * `ai:getPresets` —— 读预设**注册表**（第 48 批新增）。
+   *
+   * 以前没有读接口，菜单自己读原始 JSON 再解析 —— 容错口径与主进程不一样，
+   * 于是"菜单里看得到、跑起来查不到"是可能的。现在菜单只显示这里返回的 roster：
+   * 坏条目带 `broken` 原因、字段被忽略带 `notes`，看到的就是跑起来会发生的。
+   */
+  ipcMain.handle('ai:getPresets', async (_event, args: unknown) => {
+    const parsed = aiProjectPathSchema.safeParse(args)
+    if (!parsed.success) {
+      return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
+    }
+    try {
+      return { ok: true, data: await readPresetRoster(parsed.data.projectPath) }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
@@ -349,25 +374,33 @@ export function registerAiAgentCoreIpc(): void {
        * 自动开始"是主进程的状态，放在界面就得再存一份，迟早漂。
        */
       /**
+       * ── 会话预设（2026-10-26 第 48 批：宿主侧唯一裁决 + fail-closed）──────
+       *
+       * 以前这里读**两次**盘（先 resolvePresetTools 拿白名单、再 readPreset 拿角色），
+       * 而且查不到就 `undefined`：白名单静默消失、角色悄悄退回页面默认，全程没有任何提示。
+       * 现在一次解析；传了名字却查不到 / 那一条坏了，**这一轮不开跑**并把原因说清楚。
+       */
+      let runPreset: AgentPresetRow | undefined
+      if (parsed.data.preset) {
+        const resolved = await resolvePresetForRun(projectPath, parsed.data.preset)
+        if (!resolved.ok) return { ok: false, error: resolved.error }
+        runPreset = resolved.preset
+      }
+      /**
        * **本轮工具白名单**（会话级预设的原语）：传了就只有这些工具进提示与调用表。
        * 名字不存在的项直接忽略（插件卸了/改名了不该让整轮发不出去），
        * 全都不存在时得到空表 —— 循环仍然能跑纯对话，只是没有工具可用。
+       *
+       * 预设提供"默认白名单"；显式 allowedTools 优先（调用方的临时意图要盖过预设）。
        */
-      // 预设提供"默认白名单"；显式 allowedTools 优先（调用方的临时意图要盖过预设）
-      const presetTools = parsed.data.preset
-        ? await resolvePresetTools(projectPath, parsed.data.preset)
-        : undefined
       const allowedToolNames =
         parsed.data.allowedTools && parsed.data.allowedTools.length > 0
           ? parsed.data.allowedTools
-          : presetTools
+          : runPreset?.allowedTools
       /**
        * 工具表 = 全量 → 插件集（会话作用域）→ 工具白名单（预设/显式）。
        * 空表也照交：循环仍能跑纯对话，只是没有工具可用。
        */
-      const preset = parsed.data.preset
-        ? await readPreset(projectPath, parsed.data.preset)
-        : undefined
       /**
        * ── 角色（2026-10-24）──────────────────────────────────────────────
        *
@@ -379,13 +412,13 @@ export function registerAiAgentCoreIpc(): void {
        *   · 否则按页面推（低代码页 = builder，代码页 = coder，缺省 builder）。
        * 角色同时决定两件事：系统提示里的强调句、**写盘的作用域**（见下面的审批闸）。
        */
-      const role: AgentRole = preset?.role ?? ROLE_OF_MODE[parsed.data.agentMode ?? 'blocks']
+      const role: AgentRole = runPreset?.role ?? ROLE_OF_MODE[parsed.data.agentMode ?? 'blocks']
       /**
        * **审批口径**：调用方显式表态（true/false）优先，只有 `undefined` 才让预设补位。
        * 界面上那个开关关着时传的是 undefined 而不是 false，正是为了留这个口子
        * （否则"预设声明了无人值守"永远不可能生效）。
        */
-      const effectiveFullAccess = fullAccess ?? preset?.permissionMode === 'full'
+      const effectiveFullAccess = fullAccess ?? runPreset?.permissionMode === 'full'
       /**
        * 四段强调句是按**助手链路的工具名**写的（write_code / add_node…），
        * 而循环手上是通用文件工具（write_file / run_command…）。不补这一句，
@@ -399,7 +432,7 @@ export function registerAiAgentCoreIpc(): void {
        * 空串是常态（低代码页、没开文件、路径不合规），filter(Boolean) 会把它滤掉。
        */
       const fileNote = activeFileHintFor(role, projectPath, activeFilePath)
-      const roleNote = [AGENT_ROLE_HINT[role], LOOP_ROLE_GATE_NOTE, fileNote, preset?.prompt]
+      const roleNote = [AGENT_ROLE_HINT[role], LOOP_ROLE_GATE_NOTE, fileNote, runPreset?.prompt]
         .filter(Boolean)
         .join('\n\n')
       /**
@@ -434,7 +467,7 @@ export function registerAiAgentCoreIpc(): void {
       }
       // 同名（read_file / write_file / validate_flow）循环版优先，规则见 toolCatalog
       const mergedTools = mergeTools(listTools(), adaptLegacyTools(legacyBridge))
-      const scoped = scopeToolsByPlugins(mergedTools, pluginOwnedTools(), preset?.plugins)
+      const scoped = scopeToolsByPlugins(mergedTools, pluginOwnedTools(), runPreset?.plugins)
       /**
        * 收窄后**总是**交出去：不传的话 runTurn 会退回 listTools()（只有 6 个），
        * 旧工具就又白接了 —— 这是本仓库第 N 次"算完没交出去"。

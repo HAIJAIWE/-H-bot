@@ -547,6 +547,7 @@ export const CAPABILITIES_BY_DOMAIN: Record<string, string[]> = {
     'ai.getAppConfig',
     'ai.getConfig',
     'ai.getHistory',
+    'ai.getPresets',
     'ai.getProjectBotConfig',
     'ai.getToolBudget',
     'ai.isRunning',
