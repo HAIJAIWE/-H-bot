@@ -147,6 +147,13 @@ describe('★ 工具结果契约（结构化 ok + 超时）', () => {
     expect(res.phase.kind).toBe('finished')
   })
 
+  it('★ 第 55 批：六个核心工具都声明了 timeoutMs（不再靠调用方默认值兜底）', () => {
+    expect(CORE_TOOLS.length).toBeGreaterThanOrEqual(6)
+    for (const tool of CORE_TOOLS) {
+      expect(tool.timeoutMs, `${tool.name} 缺 timeoutMs`).toBeGreaterThan(0)
+    }
+  })
+
   it('显式 ok=false：正常文本也按失败记账（trace/界面同源）', async () => {
     const seen: Array<boolean | undefined> = []
     await runAgentLoop({

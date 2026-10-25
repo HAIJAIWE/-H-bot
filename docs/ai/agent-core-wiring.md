@@ -3039,3 +3039,235 @@ DSH 也不允许，保持一致）、锁文件的损坏自动修复（坏锁只�
 `src/main/schemas/ai.ts`、`src/main/ipc/aiPresets.ts`、`src/main/ipc/aiAgentCore.ts`、
 `src/preload/index.ts`、`src/renderer/src/types/ipc.ts`、`AgentPresetMenu.tsx`、`ChatPanel.tsx`、
 `PresetImportDialog.tsx`、中英 i18n、能力台账与两份 generated、5 个既有测试文件与 2 个守卫。
+
+---
+
+## §55 第 55 批：DSH 小件快搬（工具超时 / 时间上下文 / 文件观察门）（2026-10-26）
+
+### 55.1 为什么是这三件，为什么不是那三件
+
+上游盘点（52 个包组 / 363 个包 / 41.4 万行源码）之后，先从「纯补技术缺口、不新增
+
+IPC 能力、不碰产品面」的候选里挑了三个小件。选择标准只有一条：**这三件都是宿主
+
+该管、而现在没管的事** —— 工具没有超时预算、模型不知道"现在几点 / 距上一条多久"、
+
+覆盖文件前不要求先读过。
+
+同一批里量过、看过源码但**明确不搬**的三件（理由见 §55.5）：`mcp-resources`（上游是
+
+MCP **client** 的资源工具，本仓是 MCP **server**，角色反向）、`command-compact`（本仓
+
+没有斜杠命令框架，也没有跨轮手动压缩入口）、`preset/persona`（要动 AgentPreset 的
+
+schema 与分享格式，留待预设批次）。
+
+设计文档：`docs/ai/dsh-small-packages-batch55-design.md`（465 行，含 §7 与上游逐条差异表）。
+
+### 55.2 工具超时：语义与默认值
+
+上游 `packages/guard/timeout-policy/src/index.ts`（81 行）的做法是：工具声明 `timeoutMs`，
+
+宿主派生一个 deadline signal 交给工具，**不竞速、不丢弃 promise**，等工具在信号下自己
+
+静止，再把结果改写成超时失败。
+
+本仓旧实现只有 `core.ts` 里一个 `withTimeout`（Promise.race 硬停），而且**没有任何内置
+
+工具声明 `timeoutMs`** —— 工具真挂住时，整轮对话就挂住。本批把两半接起来：
+
+- 新增 `src/main/services/agent-core/toolTimeout.ts`：`toolTimeoutMessage(ms)`（文案唯一
+
+  真源）、`withTimeout`（硬停兜底，从 core 搬来）、`runToolWithDeadline(tool, args, ctx)`。
+
+- `runToolWithDeadline` 的语义：声明了 `timeoutMs` → `deadline = AbortSignal.timeout(ms)`、
+  `signal = AbortSignal.any([ctx.signal, deadline])`（没有父 signal 时直接给 deadline），
+
+  用替换后的 `ctx.signal` 调工具，同毫秒 `withTimeout` 兜底；catch 里看
+
+  **`deadline.aborted`** 而不是错误文案 → 抛 `工具执行超时（Nms）`，由
+
+  `classifyToolFailure` 按「超时」归成 `failure.code: 'timeout'`（actions 仍含 retry）。
+
+  未声明 `timeoutMs` → 原样调用，**不引入隐式默认**。
+
+- 外部取消（用户点停止）：父 signal 先到、deadline 未触发 → 原错误上抛，保持
+
+  §45 那条「body 已经开始就绝不放弃」的取消语义。
+
+- scheduler 的 `executeToolCall` 从「三元 + `withTimeout`」改成一行
+
+  `runToolWithDeadline(tool, call.args, ctx)`。
+
+默认值（都是对现在行为的显式化，不是新能力）：
+
+| 工具                                  | timeoutMs | 理由                                                       |
+| ------------------------------------- | --------- | ---------------------------------------------------------- |
+| `read_file`                           | 30_000    | 大文件 + 慢盘读取上限                                      |
+| `write_file`                          | 30_000    | 含审批等待之外的纯写盘时间                                 |
+| `list_dir`                            | 15_000    | 目录遍历上限                                               |
+| `search_text`                         | 60_000    | 全项目扫描上限                                             |
+| `validate_flow`                       | 30_000    | 结构校验上限                                               |
+| `run_command`                         | 90_000    | 沙箱自身 60s 上限的 1.5 倍（先由沙箱收尾，宿主只保底）     |
+| 旧域 query 工具（`adaptLegacyTools`） | 120_000   | 含界面回执等待（`dispatchInstruction` 自带 15s），上限放宽 |
+| 旧域 mutation 工具                    | 不声明    | 不执行，只攒提案，没有可超时的执行体                       |
+
+行为变化：到点后模型收到的是 `[工具失败] 工具执行超时（Nms）`，整轮继续（`phase.finished`），
+
+不再可能被一个不返回的工具拖死。
+
+### 55.3 时间上下文
+
+上游 `packages/context/time-context/src/index.ts`（377 行）在每一步 pre-step 注入一条
+
+user message，并按 10 分钟节流。本仓没有"每步注入"的钩子，也不需要：一轮最长几分钟，
+
+**每轮一次采样**足够，而且不往模型历史里塞额外 user 消息（历史是用户可见的记忆文件）。
+
+落地：新增 `src/main/services/ai/timeContext.ts` 的 `buildTimeContext({ now?, timeZone?,
+
+previousMessageAt? })`，输出两行（逐字）：
+
+```
+时间：2026-10-26 07:52:31（Asia/Shanghai，周一）
+距上一条消息：约 8 分钟前
+```
+
+- 第二行三种形态：有上一条带 `ts` 的消息 → `约 N 分钟前`；没有历史 → `这是本次对话的第一条消息`；
+
+  上一条没有时间记录 → `上一条消息没有时间记录`。
+
+- elapsed 分档：< 60s「不到 1 分钟」；< 60m「约 N 分钟」；< 24h「约 N 小时 M 分钟」；
+
+  ≥ 24h「约 N 天 M 小时」；> 30 天只给天数。未来时间（时钟回拨）按「不到 1 分钟」。
+
+- 时区取请求里上报的浏览器时区，非法/缺失退回 UTC。
+- 接线：`RunTurnInput.timeNote` 追加在 system prompt 末尾（`roleNote` → `historyNote` →
+
+  `timeNote` 顺序）；`aiAgentCore` 在 **append 本轮要求之前**取 `past` 最后一条 `ts` 作
+
+  `previousMessageAt`，append 之后把 `lastMessageAt` 更新为本轮 `turnTs` —— 所以跨轮续跑
+
+  看到的是"距上一轮多久"，而不是每次都说"第一条消息"。
+
+### 55.4 文件观察门
+
+上游 `packages/fs/fs-observation-policy`（159 行）用 `ObservedStateGate` 记「谁看过哪个
+
+文件、看到的是什么版本」，写/改前按版本判定。本仓的写入面只有 `write_file`（**整份覆盖**，
+
+没有 `edit_file`），所以策略落在一条上：**覆盖既有文件前，这一轮必须读过它，且读过之后
+
+它没再变**。
+
+落地：新增 `src/main/services/agent-core/fsObservation.ts`：
+
+- `FsObservation { mtimeMs, size }`；`class FsObservationGate` 按绝对路径记版本
+
+  （`noteRead` / `assertWritable` / `noteWrite` / `versionOf`）。
+
+- 判定表：
+
+| 磁盘当前 | 这一轮读过     | 判定                                                                                |
+| -------- | -------------- | ----------------------------------------------------------------------------------- |
+| 不存在   | 不需要         | 允许（新建）                                                                        |
+| 存在     | 没读过         | 拒：`文件已存在，但这一轮还没读过它 —— 先用 read_file 读一遍，确认要改什么再覆盖。` |
+| 存在     | 读过、版本一致 | 允许                                                                                |
+| 存在     | 读过、版本变了 | 拒：`文件在你读过之后又变了（磁盘上的版本和当时不一样）—— 先重新读一遍，再写。`     |
+
+- 接线：`ToolContext.fsGate?`；`read_file` 读成功后 `await noteRead(abs)`；`write_file`
+
+  在 `onBeforeWrite` **之前** `await assertWritable(abs)`、写成功后 `await noteWrite(abs)`。
+
+  两个记录点都 `await` 是集成测试逼出来的（`void` 时"读完立刻写"会因 stat 未落定被误判成
+
+  没读过）。`LoopOptions.fsObservation` / `RunTurnInput.fsObservation` 默认关（脚本、测试、
+
+  无界面运行不变），`aiAgentCore` 生产入口显式 `true`。
+
+- fail-closed：`noteRead` / `noteWrite` 里 stat 出错就删掉记录 —— 宁可多要求一次读，也不
+
+  在版本不明时放行覆盖。
+
+### 55.5 明确没搬（及理由）
+
+- **`mcp/mcp-resources`**：它给"使用 MCP server 的 agent"提供 `list_mcp_resources` /
+
+  `read_mcp_resource` 三个工具；本仓的 `src/main/mcp` 是 **MCP server**（把 QQ 机器人能力
+
+  暴露给外部客户端），没有消费 MCP 资源的角色。要搬得先做 MCP client，那是另一个批次。
+
+- **`compaction/command-compact`**：`/compact` 依赖斜杠命令框架；本仓既没有命令注册表，
+
+  也没有"跨轮手动压缩"的入口（`applyCompaction` 只在循环内部使用）。硬做要先把压缩抽成
+
+  可调用命令，属于中等改造，不在"小件快搬"里。
+
+- **`preset/persona`**：prefix/suffix 两个提示段本身很小，但本仓预设已经是带 schema 的
+
+  分享格式（第 53 批），加字段要同时改校验、分享、撤销与界面 —— 归入预设批次更合适。
+
+### 55.6 测试与闸门
+
+- 新增：`toolTimeout.test.ts` **7 例**（超时归一 / 按时完成 / 未声明原样调用 / 工具自身
+
+  错误保留 / 父 signal 已中止 / 文案同源）、`fsObservation.test.ts` **10 例**（gate 单元
+
+  5 + 循环集成 5，含"默认关不拦""未读覆盖被拒且磁盘不变""读后写成功""读后被外部改再写
+
+  被拒"）、`timeContext.test.ts` **11 例**（固定时钟逐字断言、UTC、非法时区、周日、无历史、
+
+  未来时间、五档 elapsed）。
+
+- 改动：`core.test.ts` 48（+1 六个内置工具都声明超时）、`runTurn.test.ts` 13（+2 timeNote
+
+  出现与顺序、缺省不出现）、`legacyTools.test.ts` 12（+1 query 120s / mutation 无）。
+
+- 定向 6 文件 = **101 例**全绿；tsc node / tsc web 均 0。
+- guards **15 文件 / 107 例**（本批不新增 IPC 能力，能力台账维持 279 条；不新增直写点）。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`（日志
+
+  `_recovery/full-gate-batch55.log`）= **281 passed | 2 skipped（283 文件）**、
+
+  **3550 passed | 7 skipped（3557 例）**、`FULL_EXIT=0`（第 54 批基线 3525 例，+32）。
+
+### 55.7 真机（dev + CDP 43191）
+
+在真实项目 `projects/还原验证项目` 上建 `_probe55.txt`（内容 `old`，sha256 `CBA06B57…`），
+
+`window.qqbat.ai.agentCoreRun(projectPath, …, fullAccess: true)` 跑三步（输出原文留在
+
+`_recovery/probe55/`）：
+
+1. **时间上下文**：要求照抄 system 里以「时间：」开头的那段 → 返回
+
+   `时间：2026-10-26 07:17:58（Asia/Shanghai，周一）` / `距上一条消息：约 5 小时 46 分钟前`。
+
+2. **未读覆盖被拒**：只让 `write_file`（`path=_probe55.txt`，不读文件）→ toolResults 里
+
+   `[工具失败] 文件已存在，但这一轮还没读过它 —— 先用 read_file 读一遍，确认要改什么再覆盖。`，
+
+   `phase.finished`；磁盘 sha256 仍 `CBA06B57…`、内容仍 `old`。
+
+3. **先读再写放行**：先 `read_file` 再 `write_file` → `read_file ok:true`、`write_file ok:true`
+
+   （`已写入 _probe55.txt`），磁盘变成 `probe-after-read`（sha256 `CB5CC370…`）。
+
+收尾：删 `_probe55.txt`、停 dev / 杀 electron、43191 已 FREE（`PORT43191=FREE`、无项目
+
+进程残留）。
+
+### 55.8 涉及文件
+
+新增 `src/main/services/agent-core/fsObservation.ts`、`src/main/services/agent-core/toolTimeout.ts`、
+
+`src/main/services/ai/timeContext.ts`、三个测试文件、`docs/ai/dsh-small-packages-batch55-design.md`；
+改动 `src/main/services/agent-core/core.ts`（六个内置工具声明 `timeoutMs`、`read_file` 记观察、
+
+`write_file` 写前断言 + 写后记录、`LoopOptions.fsObservation`）、`toolGate.ts`（`ToolContext.fsGate`）、
+
+`scheduler.ts`（走 `runToolWithDeadline`）、`runTurn.ts`（`timeNote` / `fsObservation`）、
+
+`legacyTools.ts`（query 工具 120s）、`src/main/ipc/aiAgentCore.ts`（每轮时间采样 + 生产开启
+
+观察门）、`core/runTurn/legacyTools` 三个测试、`docs/ai/dsh-source-adaptation-2026-10-24.md` §14。

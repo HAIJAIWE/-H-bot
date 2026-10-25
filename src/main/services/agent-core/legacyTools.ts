@@ -62,11 +62,15 @@ export interface LegacyToolBridge {
  */
 export function adaptLegacyTool(def: AiToolDefinition, bridge: LegacyToolBridge): Tool {
   const isMutation = def.category === 'mutation'
+  /** 旧域 query 工具的执行上限（第 55 批）：`executeTool` 没有内部超时；界面指令自己有 15s */
+  const LEGACY_QUERY_TIMEOUT_MS = 120_000
   return {
     name: def.name,
     description: def.description,
     parameters: def.parameters as Record<string, unknown>,
     category: def.category ?? 'mutation',
+    // 只给 query：mutation 在本仓只攒提案、立即返回，给超时只会让"攒提案"看起来可能失败
+    ...(isMutation ? {} : { timeoutMs: LEGACY_QUERY_TIMEOUT_MS }),
     /**
      * **提案制工具不用再过审批闸门**（2026-10-26）：mutation 的分支只往
      * `pendingOperations` 里 push，真正的落盘要等用户在界面上点确认 —— 那一步就是审批。

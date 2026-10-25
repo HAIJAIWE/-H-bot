@@ -81,6 +81,7 @@ import {
 import { AGENT_ROLE_HINT } from '@shared/ai/roleHints'
 import { activeFileHintFor, withImageNote } from '../services/ai/promptHints'
 import { summarizeDroppedHistory } from '../services/ai/contextDigest'
+import { buildTimeContext } from '../services/ai/timeContext'
 import type { ApprovalRequest } from '../services/agent-core/contracts'
 import { logger } from '../services/infra/logger'
 
@@ -330,6 +331,12 @@ export function registerAiAgentCoreIpc(): void {
        * 上下文里出现两次。
        */
       const past = await loadHistory(projectPath, memoryFile)
+      /**
+       * 时间上下文（第 55 批）：本轮第一次采样要拿"上一条模型可见消息"的时间。
+       * 取 `past` 的最后一条而不是读时钟文件 —— 记忆就是时间轴，顺序天然对齐。
+       * 注意必须在**本轮要求被 append 之前**取；之后每轮追加完更新即可。
+       */
+      let lastMessageAt: string | null = past.length > 0 ? (past[past.length - 1].ts ?? null) : null
       const { messages: history, retention } = historyToMessages(past)
       /**
        * 历史注记 = "省略了 N 条" + **被省略内容的确定性摘要**。
@@ -585,17 +592,21 @@ export function registerAiAgentCoreIpc(): void {
          * 图本身不落盘（一张截图 base64 就几 MB，会撑爆 JSONL），只在记忆里留一句
          * 「（附了 N 张图，仅那一轮可见）」—— 与助手链路同一个口径（promptHints）。
          */
+        const turnTs = new Date().toISOString() // 本轮要求的时间：既落盘，也做下一轮的"距上一条"
+        // 时间上下文在 append 前算：previousMessageAt 必须是**本轮之前**最后一条（第 55 批）
+        const timeNote = buildTimeContext({ previousMessageAt: lastMessageAt })
         await appendHistoryEntries(
           projectPath,
           [
             {
-              ts: new Date().toISOString(),
+              ts: turnTs,
               role: 'user',
               content: withImageNote(currentRequirement, turnImages?.length ?? 0),
             },
           ],
           memoryFile,
         )
+        lastMessageAt = turnTs
         streamed = false
         boundary = false
         reasoningForUi = ''
@@ -706,6 +717,9 @@ export function registerAiAgentCoreIpc(): void {
           ...(turnImages && turnImages.length > 0 ? { images: turnImages } : {}),
           ...(roleNote ? { roleNote } : {}),
           ...(historyNote ? { historyNote } : {}),
+          // 第 55 批：时间上下文（每轮一次采样）与文件观察门（覆盖既有文件前必须读过）
+          timeNote,
+          fsObservation: true,
           ...(maxRounds ? { maxRounds } : {}),
           /**
            * 循环内的上下文闸门：messages 在一轮里只增不减（每跑一次工具多一条输出），

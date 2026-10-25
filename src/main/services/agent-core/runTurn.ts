@@ -119,6 +119,17 @@ export interface RunTurnInput {
    * token 只来自厂商回传（没回传就是 0 + usageReported=false），contextTokens 是本地估算。
    */
   onStats?: (stats: AiRunStats) => void
+  /**
+   * **时间上下文**（第 55 批，语义对齐上游 context/time-context）：调用方算好的
+   * 两行中文（时间 / 距上一条消息），拼在系统提示尾部（historyNote 之后）。
+   * 不传 = 不加（脚本/测试的默认）。
+   */
+  timeNote?: string
+  /**
+   * **文件观察门**（第 55 批，语义对齐上游 fs/fs-observation-policy）：开了之后
+   * `write_file` 覆盖既有文件前必须"这一轮读过且读完没变"。默认关；生产入口显式传 true。
+   */
+  fsObservation?: boolean
 }
 
 export interface RunTurnResult {
@@ -214,7 +225,9 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
           ) +
           (input.planOnly ? '\n\n' + PLAN_ONLY_NOTE : '') +
           (input.roleNote ? '\n\n' + input.roleNote : '') +
-          (input.historyNote ? '\n\n' + input.historyNote : ''),
+          (input.historyNote ? '\n\n' + input.historyNote : '') +
+          // 第 55 批：时间上下文放在最后（离"现在"最近；不改变上面各段的位置）
+          (input.timeNote ? '\n\n' + input.timeNote : ''),
       },
       ...(input.history ?? []).map(h => ({ role: h.role, content: h.content })),
       {
@@ -245,6 +258,7 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
     ...(input.signal ? { signal: input.signal } : {}),
     ...(input.compaction ? { compaction: input.compaction } : {}),
     ...(input.onCompact ? { onCompact: input.onCompact } : {}),
+    ...(input.fsObservation ? { fsObservation: true } : {}),
   })
   reportStats()
   return {

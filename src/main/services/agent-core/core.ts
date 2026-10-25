@@ -13,6 +13,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { AgentServices } from './contracts'
 import { toApprovalRequest } from './toolGate'
 import type { ApprovalTool, GateRequest, ToolContext } from './toolGate'
+import { FsObservationGate } from './fsObservation'
 
 // 契约（GateRequest / ToolContext）在 toolGate.ts —— 别的模块照旧从 core 拿，避免一次性改一大片
 export type { GateRequest, ToolContext } from './toolGate'
@@ -232,6 +233,8 @@ export const CORE_TOOLS: Tool[] = [
     description: '读工作区内的文本文件（大文件请配合 offset/limit 分块读）',
     readOnly: true,
     category: 'query',
+    // 第 55 批：内置工具必须自己声明超时（不给调度器隐式默认，见 toolTimeout 的说明）
+    timeoutMs: 30_000,
     parameters: {
       type: 'object',
       properties: {
@@ -244,6 +247,10 @@ export const CORE_TOOLS: Tool[] = [
     async run(args, ctx) {
       const abs = resolveInWorkspace(ctx.workspace, args.path)
       const raw = await readFile(abs, 'utf-8')
+      // 文件观察门（第 55 批）：记下"这一轮读过它、版本是多少"。noteRead 自己吞 stat 错误；
+      // 这里 await 不是等结果，而是保证下一轮写之前记录一定已落 —— 否则模型紧接着调
+      // write_file 时，stat 的回调可能还没跑，会被误判成"没读过"。
+      await ctx.fsGate?.noteRead(abs)
       const offset = Math.max(1, Math.floor(Number(args.offset ?? 1)) || 1)
       const limit = Math.floor(Number(args.limit ?? 0)) || 0
       if (offset === 1 && limit <= 0) return raw
@@ -258,6 +265,7 @@ export const CORE_TOOLS: Tool[] = [
   {
     name: 'write_file',
     category: 'mutation',
+    timeoutMs: 30_000,
     description: '写工作区内的文本文件（整文件覆盖；必须过写闸门）',
     parameters: {
       type: 'object',
@@ -274,6 +282,9 @@ export const CORE_TOOLS: Tool[] = [
     }),
     async run(args, ctx) {
       const abs = resolveInWorkspace(ctx.workspace, args.path)
+      // 文件观察门（第 55 批）：覆盖既有文件前必须"这一轮读过且读完没变"。
+      // 放在 onBeforeWrite 之前：被门拒绝的写没有改盘，记了反而会让撤回多删一个文件。
+      if (ctx.fsGate) await ctx.fsGate.assertWritable(abs)
       // 闸门过了才记 before：被拒的写入没有改动，记了反而会让撤回多删一个文件
       if (ctx.onBeforeWrite) {
         try {
@@ -283,12 +294,16 @@ export const CORE_TOOLS: Tool[] = [
         }
       }
       await writeFile(abs, String(args.content ?? ''), 'utf-8')
+      // 写后刷新版本：同一个文件一次运行里可以连续覆盖（await 理由同 read_file）
+      await ctx.fsGate?.noteWrite(abs)
       return '已写入 ' + String(args.path)
     },
   },
   {
     name: 'run_command',
     category: 'mutation',
+    // 沙箱自身超时上限 60s（sandbox.ts）；外层给 1.5 倍余量
+    timeoutMs: 90_000,
     description: '在工作区里跑白名单命令（node / pnpm / git / npx），同步拿回 stdout/stderr',
     parameters: {
       type: 'object',
@@ -313,6 +328,7 @@ export const CORE_TOOLS: Tool[] = [
   {
     name: 'validate_flow',
     category: 'query',
+    timeoutMs: 30_000,
     description: '校验 .qqbat/flow.json 的结构（端口断开/悬空引用等），返回问题列表',
     readOnly: true,
     parameters: {
@@ -347,6 +363,7 @@ export const CORE_TOOLS: Tool[] = [
   {
     name: 'list_dir',
     category: 'query',
+    timeoutMs: 15_000,
     description: '列目录下的条目（子目录以 / 结尾；跳过 node_modules/.git/dist/out/.qqbat）',
     readOnly: true,
     parameters: {
@@ -373,6 +390,8 @@ export const CORE_TOOLS: Tool[] = [
   {
     name: 'search_text',
     category: 'query',
+    // 最多扫 4000 个文件（MAX_SEARCH_FILES）；机械盘上留足余量
+    timeoutMs: 60_000,
     description:
       '在工作区里按正则搜文本，返回「文件:行号: 内容」（只读，跳过 node_modules/.git 等）',
     parameters: {
@@ -497,6 +516,11 @@ export interface LoopOptions {
   services?: AgentServices
   commandTimeoutMs?: number
   /**
+   * 文件观察门（第 55 批）：开了才在 `write_file` 覆盖既有文件前要求"这一轮读过它"。
+   * 默认**关**（runAgentLoop 的裸调用/测试行为不变）；生产入口 `ipc/aiAgentCore` 显式传 true。
+   */
+  fsObservation?: boolean
+  /**
    * 工具**开始**执行（流式界面靠它先摆一行"运行中"）。
    *
    * 没有它的话，界面只能等整轮跑完才看到工具行 —— 一次十几秒的循环在用户眼里
@@ -615,26 +639,6 @@ export function normalizeToolOutcome(raw: unknown): ToolRunOutcome {
   return { text: String(raw ?? '') }
 }
 
-/**
- * 给一个 promise 加超时：到点拒绝（消息里带毫秒数），并**清掉计时器**。
- * 计时器不清理会让 Node 进程多挂 ms 毫秒（脚本退出时尤其明显）。
- */
-export function withTimeout<T>(p: Promise<T>, ms: number, label = '工具执行'): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label}超时（${ms}ms）`)), ms)
-    p.then(
-      v => {
-        clearTimeout(timer)
-        resolve(v)
-      },
-      e => {
-        clearTimeout(timer)
-        reject(e)
-      },
-    )
-  })
-}
-
 /** 调度器/诊断用的工具结果条目（按模型顺序落地的那些） */
 export interface ToolResultEntry {
   name: string
@@ -666,6 +670,8 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
         : undefined),
     commandTimeoutMs: opts.commandTimeoutMs,
     ...(opts.onBeforeWrite ? { onBeforeWrite: opts.onBeforeWrite } : {}),
+    // 文件观察门（第 55 批）：一次运行一个，随循环对象回收
+    ...(opts.fsObservation ? { fsGate: new FsObservationGate() } : {}),
   }
   const messages: ChatTurn[] = [...(opts.initialTurns ?? [])]
   // 与上游一致：不否决调用，只在事后把"你在重复"摆到模型眼前（链只活这一次运行）

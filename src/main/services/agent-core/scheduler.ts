@@ -13,7 +13,8 @@
 import type { ToolFailure } from '@shared/ai/toolFailure'
 import { classifyToolFailure, toolFailureForCode } from '@shared/ai/toolFailure'
 import type { ChatTurn, Tool, ToolCall, ToolContext, ToolResultEntry } from './core'
-import { normalizeToolOutcome, withTimeout } from './core'
+import { normalizeToolOutcome } from './core'
+import { runToolWithDeadline } from './toolTimeout'
 import type { BatchCommit, BatchPipeline } from '../../vendor/dsh/tool-batch/batch'
 import { executeToolBatch } from '../../vendor/dsh/tool-batch/batch'
 import { toolErrorMessage } from '../../vendor/dsh/tool-pipeline/pipeline'
@@ -75,9 +76,8 @@ export async function executeToolCall(
   let concludesTurn: boolean | undefined
   try {
     if (!tool) throw new Error('未知工具: ' + call.name)
-    const raw = await (tool.timeoutMs
-      ? withTimeout(tool.run(call.args, ctx), tool.timeoutMs)
-      : tool.run(call.args, ctx))
+    // 第 55 批：超时语义（deadline signal + 硬停兜底）收进 ./toolTimeout，这里只调用
+    const raw = await runToolWithDeadline(tool, call.args, ctx)
     const outcome = normalizeToolOutcome(raw)
     output = outcome.text
     // 显式 ok 优先；没给才回退到前缀（兼容只有字符串的老工具）

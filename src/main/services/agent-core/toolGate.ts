@@ -9,6 +9,7 @@
 //
 // 这里只有**类型**和两个纯函数：真正的"问人"发生在 toolPipeline 里（它拿到 ctx.gate）。
 import type { ApprovalRequest } from './contracts'
+import type { FsObservationGate } from './fsObservation'
 
 /**
  * 需要人点头的动作。
@@ -47,6 +48,12 @@ export interface ToolContext {
   onBeforeWrite?: (relPath: string) => Promise<void>
   /** 命令执行超时（毫秒） */
   commandTimeoutMs?: number
+  /**
+   * 文件观察门（第 55 批）：不传 = 不检查（脚本/测试的默认）。
+   * 开了之后 `write_file` 覆盖既有文件前，必须"这一轮读过它，且读完之后磁盘没再变"
+   * —— 语义对齐上游 `fs/fs-observation-policy`，见 `./fsObservation`。
+   */
+  fsGate?: FsObservationGate
 }
 
 /**

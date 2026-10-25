@@ -275,3 +275,48 @@ describe('★ 总入口：模型 → 工具 → 落盘（默认拒绝写）', ()
     expect(r.stats.completionTokens).toBe(0)
   })
 })
+
+describe('★ 第 55 批：时间上下文拼进系统提示尾部', () => {
+  it('★ timeNote 在 system 里，且排在 roleNote / historyNote 之后', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'))
+    let first: any[] = []
+    const call = (async (_c: unknown, m: any, _t: unknown, cb: any) => {
+      first = m
+      cb.onComplete('ok')
+    }) as never
+    const timeNote = '时间：2026-10-26 08:00:00（Asia/Shanghai，周一）\n距上一条消息：约 8 分钟前'
+    await runAgentTurn({
+      projectPath: ws,
+      requirement: '现在几点',
+      config,
+      call,
+      maxRounds: 1,
+      roleNote: '你是流程助手',
+      historyNote: '更早的 3 条已省略',
+      timeNote,
+    })
+    const system: string = first[0].content
+    expect(system).toContain(timeNote)
+    expect(system.indexOf('你是流程助手')).toBeLessThan(system.indexOf('更早的 3 条已省略'))
+    expect(system.indexOf('更早的 3 条已省略')).toBeLessThan(system.indexOf(timeNote))
+    // 系统提示仍然是消息列表的第一条
+    expect(first[0].role).toBe('system')
+  })
+
+  it('不传 timeNote：系统提示里没有时间行（脚本/测试的默认）', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'))
+    let first: any[] = []
+    const call = (async (_c: unknown, m: any, _t: unknown, cb: any) => {
+      first = m
+      cb.onComplete('ok')
+    }) as never
+    await runAgentTurn({
+      projectPath: ws,
+      requirement: '随便聊聊',
+      config,
+      call,
+      maxRounds: 1,
+    })
+    expect(first[0].content).not.toContain('距上一条消息')
+  })
+})
