@@ -1401,3 +1401,63 @@ user: [工具 verify_greet] 来自界面 来自界面 来自界面
 - 断裂二的端到端复验被厂商额度挡住了：这轮跑完紧接着返回
   `403 AllocationQuota.FreeTierOnly`（"Free quota exhausted"）。协议配对由上面三条单测钉住，
   等额度恢复要再跑一次 `_recovery/ex-pair-verify.js` 看它是否一轮收尾。
+
+## 36. 上游已经有成熟实现，别再手写：先搬 `repeat-tool-reminder`（2026-10-25）
+
+§35 修完「工具的广告/调用/配对」之后，有一件事被摆到桌面上：这几处都是我**手写**的，
+而上游 DSH 里本来就有成熟版本。当时的说法是「dispatch / pendingOperations 是我们自己的接口」——
+这话只对一半：**它们只是我们那一层的接线，通用算法上游其实都有。** 把候选摊开量一遍：
+
+| 上游包                                                    | 行数                 | 耦合（`extends Service` / `static inject`） | 我们能拿到的部分                                                                      |
+| --------------------------------------------------------- | -------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `guard/repeat-tool-reminder/src/index.ts`                 | 219                  | **0 / 0**（只有 `ctx.on` 两处）             | 全是纯算法：规范化参数、通配符、阈值校验、两段提醒文案                                |
+| `llm/llm/src/assembler.ts`                                | 194                  | 0 / 0                                       | delta → 消息块的**唯一**组装算法（text / reasoning / tool_calls / interruptedBlocks） |
+| `llm/llm/src/assistant-stream.ts`                         | 501                  | 0 / 0                                       | 无损流记录 + 回放读取（依赖 `assembler`）                                             |
+| `core/agent-loop/src/agent.ts`（`ReactLoopAgent`）        | 703                  | 1 / 1                                       | 循环状态机：准备步、工具批、收尾、取消                                                |
+| `core/tools/src/{pipeline,batch,executor,json-schema}.ts` | 720 / 264 / 94 / 610 | 1 / 1                                       | 工具流水线、批调度、参数校验                                                          |
+| `interaction/user-approval/src/index.ts`                  | 307                  | 1 / 1                                       | 审批决策记录与「批一次还是每次问」                                                    |
+| `util/output-retention/src/index.ts`                      | 429                  | 待查                                        | 上游 worktree/快照保留，暂无对应物                                                    |
+
+结论：**Service 只有一处，纯算法在 Service 里面。** 所谓「搬不动」指的是那一层接线，不是算法。
+所以从这一节开始改成：**能用上游的就先搬上游，搬不动的写清为什么**（不再默认手写）。
+
+### 36.1 这一批搬的是什么
+
+`src/main/vendor/dsh/repeat-tool-reminder/detector.ts`（96 行）：
+`sortJsonValue` / `canonicalizeArguments`（深键排序 —— 模型给的参数是无序对象）、
+`wildcardToRegExp`（`*` 通配、其余按字面）、`previewArguments`（头部截断 + 省略字数）、
+`validateThresholds`（空表 / 非整数 / 小于 2 / 重复，全部抛错不静默回退）、
+`GENTLE_REMINDER` 与 `detailedReminder` —— **文案一字不改**。
+
+接线 `src/main/services/agent-core/repeatGuard.ts`（`RepeatGuard`）：上游的链是
+`WeakMap<Agent, Chain>`，我们是**一次 `runAgentLoop` 一条链**；`observe(name, args)` 命中阈值返回文本，
+循环在**这一组工具结果之后**把它当成一条 user 回合推进对话（先事实、后判断）。
+
+三条与上游一致的语义，别改：
+
+1. **只对连续相同的调用计数**：任何一次不同的调用把链清零；
+2. **失败/被拒的调用也计数** —— 模型反复锤同一个被拒调用正是最该点破的循环；
+3. **用户插话重置链**（`inbox` 推进一条 user 回合后 `reset()`）：跨插话的重复不算空转。
+
+### 36.2 为什么提醒是 user 回合，而不是硬拦
+
+上游的注释写得很清楚：这是 _advisory_ —— 它只**富化**下一次请求的上下文，不否决、不改写调用。
+我们照做：`repeatGuard: false` 可关，默认阈值为 `[3, 5, 8]`（第 3 次温和，第 5/8 次点名工具与次数）。
+真正的拦截在审批闸（写盘/命令）那一层，两者不混。
+
+### 36.3 测试
+
+- `tests/main/services/agent-core/repeatGuard.test.ts`（8 例）：键序不同仍算同一次、换参数清零、
+  温和 → 点名升级、include/exclude 通配透明、`reset` 重来、参数预览上限与省略标注、
+  四条非法配置抛错、循环集成（第 3 次相同调用后**下一轮请求里**出现提醒 user 回合，`rounds === 4`）、
+  `repeatGuard: false` 时一次都不插。
+- 闸门：`tsc -p tsconfig.node.json` 0；`node scripts/vendor-audit.mjs` → vendored **7** + 适配层 2，OK
+  （顺手发现 §34 那批 todo 文件被 prettier 重排过、哈希对不上，已 `--update` 修正）。
+
+### 36.4 下一步（按同一原则，不再手写）
+
+1. `llm/llm/src/assembler.ts`（194 行，纯）：替掉 `src/shared/types/ai-provider.ts` 里手写的两条流解析
+   （text / reasoning / tool_calls 增量与 id 分配）——我们那版是照着厂商 delta 猜的；
+2. `core/agent-loop/src/agent.ts` 的循环状态机：把 `core.ts` 的 `while` 换成它的阶段流转
+   （准备步 → 工具批 → 收尾），我们只留「工具注册表 = 我们的工具 / 模型 = 我们的 provider」这层适配；
+3. 之后才是 §32 记的那笔账：旧 27 个工具并进同一张表（统一双引擎）。

@@ -48,6 +48,8 @@ async function runWithGrowth(toolRounds: number): Promise<{
       { role: 'user', content: 'REQ-TASK' },
     ],
     maxRounds: toolRounds + 2,
+    // 这个测试要的是"同一调用重复 5 次把上下文顶爆"，重复提醒会多插一条 user 回合干扰断言
+    repeatGuard: false,
     compaction: { budgetTokens: 2000, keepRecentTurns: 2 },
     onCompact: info => outcomes.push(info),
     model: async messages => {
@@ -92,6 +94,7 @@ describe('★ 循环内压缩', () => {
           { role: 'user', content: 'REQ-TASK' },
         ],
         maxRounds: 7,
+        repeatGuard: false,
         ...(compaction ? { compaction: { budgetTokens: 2000, keepRecentTurns: 2 } } : {}),
         model: async messages => {
           seen.push(messages.map(m => ({ ...m })))

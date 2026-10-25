@@ -35,16 +35,17 @@
 
 ## 目录
 
-| 路径                           | 来源                                                              | 说明                                                                              |
-| ------------------------------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `token-meter/estimate.ts`      | `packages/llm/token-meter/src/estimate.ts`                        | 固定密度启发式定价（块结构开销、角色框开销）                                      |
-| `token-meter/measure.ts`       | **本仓库适配层**                                                  | 字符计量：ASCII 记 1、宽字符记 4（上游直接 `text.length / 4`，对中文低估约 4 倍） |
-| `token-meter/types.ts`         | **本仓库适配层**                                                  | 上游 `@deepseek-ai/dsh-llm` / `dsh-session` 类型的最小垫片                        |
-| `tool-result-pruner/config.ts` | `packages/compaction/compaction-tool-result-pruner/src/config.ts` | `PRUNE_MARKER` / `DEFAULTS` / `resolveConfig`                                     |
-| `tool-result-pruner/prune.ts`  | 同上 `src/index.ts` 的两个方法                                    | `measureContent` / `pruneContent` 提成纯函数，剪枝逻辑没改                        |
-| `tool-result-pruner/types.ts`  | 同上 `src/types.ts`                                               | 只留配置类型（`PrunedEntry` / `PruneResult` 绑 `SessionSeq`，已删）               |
-| `todo/types.ts`                | `packages/todo/tool-todo/src/types.ts`                            | `TodoItem` 与三态生命周期（投影的 declare module 已删）                           |
-| `todo/todo-list.ts`            | 同目录 `src/index.ts` 的纯函数                                    | 工具描述、`toTodoList` 校验（文案未改）、计数与回执文案                           |
+| 路径                               | 来源                                                              | 说明                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `token-meter/estimate.ts`          | `packages/llm/token-meter/src/estimate.ts`                        | 固定密度启发式定价（块结构开销、角色框开销）                                      |
+| `token-meter/measure.ts`           | **本仓库适配层**                                                  | 字符计量：ASCII 记 1、宽字符记 4（上游直接 `text.length / 4`，对中文低估约 4 倍） |
+| `token-meter/types.ts`             | **本仓库适配层**                                                  | 上游 `@deepseek-ai/dsh-llm` / `dsh-session` 类型的最小垫片                        |
+| `tool-result-pruner/config.ts`     | `packages/compaction/compaction-tool-result-pruner/src/config.ts` | `PRUNE_MARKER` / `DEFAULTS` / `resolveConfig`                                     |
+| `tool-result-pruner/prune.ts`      | 同上 `src/index.ts` 的两个方法                                    | `measureContent` / `pruneContent` 提成纯函数，剪枝逻辑没改                        |
+| `tool-result-pruner/types.ts`      | 同上 `src/types.ts`                                               | 只留配置类型（`PrunedEntry` / `PruneResult` 绑 `SessionSeq`，已删）               |
+| `todo/types.ts`                    | `packages/todo/tool-todo/src/types.ts`                            | `TodoItem` 与三态生命周期（投影的 declare module 已删）                           |
+| `todo/todo-list.ts`                | 同目录 `src/index.ts` 的纯函数                                    | 工具描述、`toTodoList` 校验（文案未改）、计数与回执文案                           |
+| `repeat-tool-reminder/detector.ts` | `packages/guard/repeat-tool-reminder/src/index.ts`                | 重复调用检测纯算法（规范化参数、通配符、阈值校验、两段提醒文案），Cordis 接线已删 |
 
 标「本仓库适配层」的**不是上游文件**，不参与哈希对账，改它们不需要同步上游。
 
@@ -53,6 +54,7 @@
 - 循环内 token 估算：`src/main/services/agent-core/tokenEstimate.ts` → `token-meter/`；
 - 工具结果掐头留尾：`src/main/services/agent-core/toolResultPrune.ts` → `tool-result-pruner/`；
 - 模型的多步清单：`src/main/services/agent-core/todoTool.ts` → `todo/`（清单条在 `ChatPanel` 顶部）；
+- 连续重复调用的提醒：`src/main/services/agent-core/repeatGuard.ts` → `repeat-tool-reminder/`（命中阈值插一条 user 提醒，不否决调用）；
 - 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33。
 
 ## 更新上游时的做法

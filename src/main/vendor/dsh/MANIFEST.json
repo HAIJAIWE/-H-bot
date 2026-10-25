@@ -62,7 +62,7 @@
       "sourcePath": "packages/todo/tool-todo/src/types.ts",
       "sourceSha256": "33868cc6852c37d188c79329e0a48c9206adc3c82521f2e52e492c25e0381bbe",
       "targetPath": "src/main/vendor/dsh/todo/types.ts",
-      "targetSha256": "a764a6512a269c13b0f937a951e03ed3b3cc56f662cd55e34c95e2c23a1def08",
+      "targetSha256": "4aa4442666436697713050dca6cd88ed0f960121050e8102416aa7a1eb348e63",
       "adaptedNotes": [
         "删掉两个 declare module（@deepseek-ai/dsh-session 与 dsh-session-projection 的事件/投影扩展，本仓库没有那套类型）",
         "补 TodoStatus / TODO_STATUSES / TodoCounts 三个本仓库要用的具名类型（上游是内联枚举与局部 count 函数）"
@@ -73,7 +73,7 @@
       "sourcePath": "packages/todo/tool-todo/src/index.ts",
       "sourceSha256": "80559ed95b7fc9c1dc083312f187885254bf2c1498d0f7a079dad21427d24def",
       "targetPath": "src/main/vendor/dsh/todo/todo-list.ts",
-      "targetSha256": "3dada9a03bc7d73e6057285ad1926b6066d8f16fbb4a1a9c9cc079581ecf45f5",
+      "targetSha256": "9dade586bbc4e2476956428953078a09cdf261a2b976a981c92c59c163a3def2",
       "adaptedNotes": [
         "只取纯函数：四段 DESCRIPTION 文案、describe()→describeTodoTool()、toTodoList()（校验文案与顺序一字未改）",
         "没有搬 Cordis apply()/defineTool/ctx.sessionProjections 投影（要上游 Session 重放），也没搬 z / schemastery 依赖",
@@ -91,6 +91,19 @@
       "targetPath": "src/main/vendor/dsh/token-meter/types.ts",
       "targetSha256": "1ecda9f3223bcfc7360a4e92a8f71b73578a1990d0c3700dc08d139a1e24773c",
       "purpose": "上游 ContentBlock / Message 类型的最小垫片（不依赖上游包）"
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/guard/repeat-tool-reminder/src/index.ts",
+      "sourceSha256": "1e917986fe9c5187d8f0fa11154ab2bf3b7c1d30db991540f4d1e62a2c59236d",
+      "targetPath": "src/main/vendor/dsh/repeat-tool-reminder/detector.ts",
+      "targetSha256": "9f63d9230c012250656b50143c52d96d283390b2994915cefb38d170741f8fad",
+      "adaptedNotes": [
+        "只取纯算法：sortJsonValue/canonicalizeArguments、wildcardToRegExp、previewArguments、validateThresholds、GENTLE_REMINDER、detailedReminder（文案一字不改）",
+        "删掉 Cordis 的 apply()/ctx.on(tools/post-execute, agent/pre-step)、schemastery Config、createUserMessage 与 MessageSource 声明",
+        "新增导出的默认常量：DEFAULT_REPEAT_THRESHOLDS、DEFAULT_ARGUMENTS_PREVIEW_CHARS（值取上游 Config 的 default）",
+        "计数链改由调用方（src/main/services/agent-core/repeatGuard.ts）持有：上游是 WeakMap<Agent, Chain>，我们一次 runAgentLoop 一条链"
+      ]
     }
   ]
 }

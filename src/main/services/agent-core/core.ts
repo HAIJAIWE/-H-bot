@@ -23,6 +23,7 @@ import { normalizeFlow, validateFlow } from '@shared/nodes/flowNormalize'
 import { applyCompaction, type CompactionOptions, type CompactionOutcome } from './contextGate'
 import { MAX_TOOL_OUTPUT_CHARS, modelFacingOutput } from './toolOutput'
 import { TODO_TOOL } from './todoTool'
+import { RepeatGuard, type RepeatGuardOptions } from './repeatGuard'
 
 export { MAX_TOOL_OUTPUT_CHARS, clampToolOutput } from './toolOutput'
 
@@ -500,6 +501,8 @@ export interface LoopOptions {
   maxRounds?: number
   /** 一批里最多同时跑几个工具（默认 10；1 = 全串行，测试与保守模型用） */
   maxParallelToolCalls?: number
+  /** 连续重复调用的提醒（搬自 DSH `guard/repeat-tool-reminder`）；`false` = 关掉 */
+  repeatGuard?: RepeatGuardOptions | false
   signal?: AbortSignal
   /**
    * **step 边界收输入**：每轮开始前问一次有没有新消息（用户中途插话/纠偏）。
@@ -686,6 +689,8 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
     ...(opts.onBeforeWrite ? { onBeforeWrite: opts.onBeforeWrite } : {}),
   }
   const messages: ChatTurn[] = [...(opts.initialTurns ?? [])]
+  // 与上游一致：不否决调用，只在事后把"你在重复"摆到模型眼前（链只活这一次运行）
+  const repeat = opts.repeatGuard === false ? undefined : new RepeatGuard(opts.repeatGuard ?? {})
   const toolResults: LoopResult['toolResults'] = []
   let finalText = ''
   let rounds = 0
@@ -700,7 +705,11 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
     opts.onStep?.({ step: rounds, maxSteps: maxRounds })
     // 轮边界：先消费 inbox（中途插话），再问模型
     const injected = opts.inbox?.()
-    if (injected) messages.push(injected)
+    if (injected) {
+      messages.push(injected)
+      // 用户插话改变了上下文：跨插话的重复不算循环（上游同样的 reset 语义）
+      repeat?.reset()
+    }
     // 问模型之前先看上下文装不装得下：撑爆时厂商不会报错，它只会截掉系统提示
     const compacted = await applyCompaction(messages, opts.compaction)
     if (compacted) opts.onCompact?.(compacted)
@@ -729,6 +738,8 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
      */
     let cursor = 0
     while (cursor < calls.length) {
+      // 这一组命中的"你在重复"提醒：等整组落完再一次性推回去（别插在结果中间）
+      const reminders: string[] = []
       const { consumed } = await runToolGroup(calls, cursor, rounds, {
         ctx,
         tools,
@@ -738,7 +749,11 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
         isAborted: () => opts.signal?.aborted === true,
         modelFacing: (name, output) => modelFacingOutput(name, output, opts),
         ...(opts.onToolStart ? { onToolStart: opts.onToolStart } : {}),
-        ...(opts.onToolResult ? { onToolResult: opts.onToolResult } : {}),
+        onToolResult: (call, output, ok, failure) => {
+          const reminder = repeat?.observe(call.name, call.args)
+          if (reminder) reminders.push(reminder)
+          opts.onToolResult?.(call, output, ok, failure)
+        },
         ...(opts.services
           ? {
               trace: (e: { kind: 'tool'; name: string; ms: number; ok: boolean }): void => {
@@ -752,6 +767,10 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
       })
       if (consumed <= 0) break
       cursor += consumed
+      // 用 user 回合推进：先落事实（结果），再说判断（你在空转）
+      if (reminders.length > 0) {
+        messages.push({ role: 'user', content: reminders.join('\n\n') })
+      }
       if (opts.signal?.aborted) break
     }
   }
