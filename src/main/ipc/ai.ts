@@ -36,6 +36,7 @@ import {
   setAiConfig,
 } from '../services/ai/index'
 import { clearThread, listThreads, threadFile } from '../services/ai/threads'
+import { clearPresetSession } from '../services/ai/presetLock'
 import {
   appendHistoryEntries,
   loadHistory,
@@ -510,6 +511,8 @@ function registerAiIpc(projectService) {
     return tryIpcAsync(async () => {
       assertProjectPathAllowed(baseDir, parsed.data.projectPath)
       await clearThread(parsed.data.projectPath, parsed.data.threadId)
+      // 记忆与预设锁必须一起清：只清记忆会留下"已开始"的锁，用户清空后还是换不了预设
+      await clearPresetSession(parsed.data.projectPath, parsed.data.threadId)
       return null
     })
   })

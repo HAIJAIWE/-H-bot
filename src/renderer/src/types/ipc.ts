@@ -4,7 +4,7 @@ import type { FlowGraph, NodeSpec } from '@shared/types/flow'
 import type { NodeSpecV2 } from '@shared/types/nodeV2'
 import type { BotLogEntry, ExecuteNodeEvent } from '@shared/types/runtime'
 import type { AiAllowRule, AiConfig, AiRunStats, AiToolDefinition } from '@shared/types/ai'
-import type { AgentPresetRoster } from '@shared/ai/presetRoster'
+import type { AgentPresetRoster, PresetSessionState } from '@shared/ai/presetRoster'
 import type { Proposal } from '@shared/types/proposal'
 import type { MetricSnapshot } from '../stores/metricsStore'
 import type { PluginInfo, PluginPackage } from '@shared/types/plugin-sdk'
@@ -551,7 +551,11 @@ export interface QqbatApi {
     /** 读预设注册表（坏条目带 broken、字段被忽略带 notes；宿主侧唯一裁决） */
     getPresets: (
       projectPath: string,
-    ) => Promise<{ ok: true; data: AgentPresetRoster } | { ok: false; error: string }>
+      threadId?: string,
+    ) => Promise<
+      | { ok: true; data: AgentPresetRoster & { session?: PresetSessionState } }
+      | { ok: false; error: string }
+    >
     /** 保存会话预设（整表覆盖；未知工具/插件以 warnings 返回，不拒绝） */
     savePresets: (
       projectPath: string,

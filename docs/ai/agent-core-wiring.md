@@ -2555,3 +2555,121 @@ dev 起窗 + CDP 43191 smoke：窗口正常、控制台 0 error、`ai.tools()` �
 
 `headroomTokens`（缺 contextWindow）、`compactionRetries`（我们的 plan 一次丢掉整个中段，
 二次压没有合法收益）、`compactNow / modelSwitch` 触发、`overflowRetries > 1`。
+
+## §50 第十二批：预设会话锁（2026-10-26）
+
+§48 把预设做成了注册表，但预设仍是"每一轮都能改"的选择：这一轮以「只读巡检」开始，
+下一轮在同一个会话里换「全放行」，权限组合就放开了 —— 这不是 DSH 的 `agent-preset` 语义。
+这一批补上**会话锁**：会话开始过一轮之后，预设固定，换名直接拒绝。
+
+### 50.1 锁的是线程，不是预设字段
+
+DSH 的锁是**会话级**的（`packages/preset/agent-preset-registry/src/index.ts:369`）：
+会话已经启动过，换 preset 抛 `RemoteError('agent-preset/locked','This session has already started',{sessionId,agentPreset})`。
+空白会话仍可换，选择会落盘，resume/fork 靠会话投影的 `agentPreset` 重建。
+
+qqbat 的会话单位是**线程**（`default` 或 `t-xxx`），所以锁也按线程：
+
+- 锁文件 = `threadFile(projectPath, threadId) + '.preset.json'`
+  （default → `.qqbat/ai-history.jsonl.preset.json`，其它 → `.qqbat/ai-history/<id>.jsonl.preset.json`）；
+- 内容只有 `{ "preset": "只读巡检" }`（`null` 也是真实值 = 跟页面）；
+- **不新增 IPC**：`ai:getPresets` 扩成可选 `threadId`，带就多回一个 `session`
+  （`{started,preset,locked,problem?}`），菜单据此禁用换预设。这样 capability catalog、
+  权限策略、文档登记都不用为一读一写再开两条通道。
+
+实现：`src/main/services/ai/presetLock.ts`（`presetLockFile` / `writePresetSession` /
+`clearPresetSession` / `decideSessionPreset` / `readPresetSession`），形状放
+`src/shared/ai/presetRoster.ts` 的 `PresetSessionState`。
+
+### 50.2 四种状态，坏数据不留模糊
+
+| 线程状态                    | 锁文件                   | 行为                                               |
+| --------------------------- | ------------------------ | -------------------------------------------------- |
+| 空白（`past.length === 0`） | 缺失/坏                  | 用这一轮传的值；坏锁可以覆盖（还没有"过去"可保护） |
+| 已开始                      | 缺失（§48 之前的老会话） | 视为跟页面锁：显式换名拒绝；不传则沿用 null        |
+| 已开始                      | 有记录                   | 同值放行；异值拒绝；这一轮没传就沿用记录           |
+| 已开始                      | 读不出来                 | fail-closed：这一轮根本不开始，先清空会话          |
+
+拒绝文案分两档，都带**怎么修**：
+
+- 有记录换名：`这个会话已经以预设「只读巡检」开始，不能再换成「全放行」。要换预设，先清空这个会话。`
+- 锁坏了：`这个会话的预设记录读不出来（锁文件不是对象）。为了不悄悄换掉权限组合，这一轮没有开始；先清空这个会话再选预设。`
+
+为什么老会话"缺失"要按跟页面锁，而不是"没有记录就随便换"：§48 之前写过的会话也可能
+已经跑过带权限的轮次，只是当时没存锁；这时放行换名等于**静默提权**。宁可让用户清空重开。
+
+### 50.3 运行时顺序：先裁决，再解析，最后落锁
+
+`src/main/ipc/aiAgentCore.ts` 的 `ai:agentCoreRun`：
+
+1. `past = await loadHistory(...)`（:290）—— 这一轮有没有历史，决定"空不空白"；
+2. `decideSessionPreset(projectPath, threadId, past.length > 0, requested ?? null)`；
+3. `!ok` → 直接 `return { ok:false, error }`，不解析、不跑模型；
+4. `decision.preset` 才去 `resolvePresetForRun`（§48 的 fail-closed 仍在：查不到就这一轮不开）；
+5. 解析**成功之后**才 `writePresetSession`（`decision.persist` 为真时）。
+
+第 5 步的顺序是本批的纪律：先写锁再解析，会出现"锁里记了一个查不到的预设，下一轮永久开不了"；
+写锁失败也 fail-closed ——
+
+`这一轮的预设没能记下来（<原因>）。为了不让这个会话的权限组合变成"没人知道"，这一轮没有开始。`
+
+### 50.4 清空会话必须连带删锁
+
+`src/main/ipc/ai.ts` 的 `ai:clearThread` 在 `clearThread(...)` 之后 `await clearPresetSession(...)`。
+记忆清空了、锁还在，用户点完"清空"再选预设会被一句"这个会话已经以……开始"挡住，
+而界面已经没有任何历史 —— 看起来就是坏了。锁是会话数据的一部分，跟着会话一起清。
+
+### 50.5 界面：锁定时只认主进程的值
+
+`AgentPresetMenu` 拿 `threadId` 读 `getPresets`：
+
+- `locked = session.locked`，`shownPreset = locked ? session.preset : preset` —— 触发器、勾选、
+  高亮全部按 `shownPreset`；调用方 store 里残留的旧值不会盖过锁；
+- 跟随页面 / 四个角色 / 每条预设都 `disabled={disabled || locked}`；「编辑预设…」仍可点
+  （编辑文件不是换这一轮的权限组合）；
+- 菜单顶部一条琥珀说明，坏锁优先显示 `problem`；触发器 `title` 写"要换先清空会话"；
+- 锁定时 `onSessionPreset(session.preset)` 把锁值同步回 `ChatPanel`，后者比较后再 `setPreset`，
+  避免无谓渲染循环。
+
+`aiStore` 的 `newThread` / `switchThread` 改走 `get().setActiveThread(id)`：以前它们直接
+`set({activeThreadId})`，只换 id 不恢复该线程的预设槽，切线程后 preset 仍是上一条线程的值。
+这一处是"锁"之前就存在的漏，本批顺手钉住（测试见 50.6）。
+
+### 50.6 测试（+16）
+
+- 新建 `tests/main/services/ai/presetLock.test.ts` **9 例**：锁路径（default / 具名线程）、
+  空白线程传值/落 null、同值放行、异值拒绝、已锁不传沿用、老会话 missing 拒绝、
+  坏锁 fail-closed、空白可覆盖坏锁、清空后二次清空不抛。
+- `tests/main/ipc/aiAgentCore-ipc.test.ts` **24 → 27**：锁定沿用锁值（不传 preset 也按锁跑）、
+  锁定换名直接拒绝且不跑循环、空白线程解析成功后才落锁；`ai:getPresets` 带 threadId 回 session。
+  该文件的 mock 里新增 `presetLock` 三函数，默认"不锁、persist:false"，老用例不受影响。
+- `tests/renderer/components/ai/AgentPresetMenu.test.tsx` **10 → 13**：锁定态触发器只认锁值、
+  选择项全禁用、`onSessionPreset` 被调、编辑仍可用；坏锁显示原因；未锁定不回写。
+- `tests/renderer/stores/aiStorePresetThread.test.ts` **2 → 3**：新线程不继承旧线程预设，
+  `switchThread` 切回去能恢复。
+- 定位跑（guards + ai + agent-core + 上面三个文件）= **55 文件 / 447 例**绿。
+- 全量 \`node node_modules/vitest/vitest.mjs run --maxWorkers=2\`（日志 \`_recovery/full-gate-batch50b.log\`）
+  = **273 passed | 2 skipped（275 文件）**、**3449 passed | 7 skipped（3456 例）**、\`FULL_EXIT=0\`；
+  guards 单独 **15 文件 / 107 例**；tsc node/web 均 0。
+- 真机（CDP 43191，截图 \`_recovery/ui-b50-lock.png\`）：\`getPresets\` 对 default 线程
+  （38 条消息）回 \`{started:true,preset:null,locked:true}\`；菜单触发器 title 是
+  「会话已锁定（跟页面）：要换先清空会话」，展开后顶部有琥珀色说明条，
+  角色与预设项全部 disabled，只有「编辑预设…」仍可点。
+
+### 50.7 闸门收尾的两个形状问题
+
+- **preload 的载荷必须是对象字面量**：\`ipcPayloadContract\` 用正则扫 \`invoke('通道', {…})\`，
+  写成 \`threadId ? { projectPath, threadId } : { projectPath }\` 会让整条通道从扫描里消失。
+  改成永远传 \`{ projectPath, threadId }\`：schema 里 threadId 可选，handler 用 \`if (!threadId)\`
+  区分"只读注册表"和"带锁状态"，两种调用都合法。
+- **\`aiAgentCore.ts\` 810 → 916**：本批新增的是会话锁的三步顺序与 fail-closed 注释，属于
+  handler 的编排而不是可复用逻辑；按 \`fileGrowth\` 守卫允许的第二种修法登记快照
+  （\`node scripts/update-file-size-baseline.mjs\`），提交信息里写明"认这笔账"。
+  同一轮快照顺带收进了第 48/49 批遗留的几行（capabilityCatalog.generated、ChatPanel、
+  types/ipc、preload、aiStore），它们都还在原守卫的 +80 行容差内，只是快照落到了真实行数。
+
+### 50.8 明确没做
+
+内置预设（DSH 的 `builtin` 行）、`isDefault`、导入导出、resume/fork 的锁复制
+（qqbat 目前没有磁盘级 fork 会话的入口）、"降权换预设"（只收紧不放开的换名是否允许，
+DSH 也不允许，保持一致）、锁文件的损坏自动修复（坏锁只能清空会话，不猜）。

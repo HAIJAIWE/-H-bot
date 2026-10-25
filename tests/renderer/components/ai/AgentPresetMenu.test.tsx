@@ -41,6 +41,7 @@ function setup(
     override?: AgentMode | null
     preset?: string | null
     projectPath?: string | undefined
+    threadId?: string
   } = {},
 ) {
   // 回调按真实签名声明：给 vi.fn() 留默认的 Procedure 类型，tsc 会说它不是
@@ -51,13 +52,16 @@ function setup(
     onPickPreset: vi.fn<(name: string) => void>(),
     onEditPresets: vi.fn<() => void>(),
     onResolve: vi.fn<(meta: AgentPresetRow | null) => void>(),
+    onSessionPreset: vi.fn<(name: string | null) => void>(),
   }
   render(
     <AgentPresetMenu
       projectPath={'projectPath' in props ? props.projectPath : '/p'}
       override={props.override ?? null}
       preset={props.preset ?? null}
+      threadId={props.threadId}
       onResolve={spies.onResolve}
+      onSessionPreset={spies.onSessionPreset}
       onPickPage={spies.onPickPage}
       onPickRole={spies.onPickRole}
       onPickPreset={spies.onPickPreset}
@@ -109,6 +113,67 @@ describe('角色/预设菜单', () => {
     await waitFor(() =>
       expect(s.onResolve).toHaveBeenCalledWith({ name: '只读巡检', role: 'coder' }),
     )
+  })
+
+  it('★ 会话已锁定：触发器只认锁里的预设，选择项全禁用，锁值同步回调用方', async () => {
+    getPresets.mockResolvedValue({
+      ok: true,
+      data: {
+        presets: ROSTER.presets,
+        session: { started: true, preset: '只读巡检', locked: true },
+      },
+    })
+    // 调用方手里还留着"全放行"（切线程前选的）——界面必须以主进程的锁为准
+    const s = setup({ preset: '全放行', threadId: 't-1' })
+    await waitFor(() => expect(s.onSessionPreset).toHaveBeenCalledWith('只读巡检'))
+    const summary = screen.getByTitle(t('ai.preset.lockedTitle', { preset: '只读巡检' }))
+    expect(summary.textContent).toContain('只读巡检')
+    expect(summary.textContent).not.toContain('全放行')
+    // 跟随页面 / 角色 / 预设都不能再选
+    expect(screen.getByTitle(t('ai.preset.followPageHint'))).toBeDisabled()
+    expect(screen.getByTitle(t('ai.mode.coderHint'))).toBeDisabled()
+    const lockedRow = await screen.findByTitle(
+      t('ai.preset.roleFixed', { role: t('ai.mode.coder') }),
+    )
+    expect(lockedRow).toBeDisabled()
+    fireEvent.click(lockedRow)
+    expect(s.onPickPreset).not.toHaveBeenCalled()
+    // 「编辑预设…」不是换权限组合，仍然可用
+    expect(screen.getByTitle(t('ai.agentCore.presetEditTitle'))).not.toBeDisabled()
+    expect(getPresets).toHaveBeenCalledWith('/p', 't-1')
+  })
+
+  it('坏锁要说清原因（不是装作正常锁定）', async () => {
+    getPresets.mockResolvedValue({
+      ok: true,
+      data: {
+        presets: ROSTER.presets,
+        session: {
+          started: true,
+          preset: '只读巡检',
+          locked: true,
+          problem: '锁文件不是对象',
+        },
+      },
+    })
+    setup({ threadId: 't-1' })
+    expect(
+      await screen.findByText(t('ai.preset.lockedProblem', { reason: '锁文件不是对象' })),
+    ).toBeInTheDocument()
+  })
+
+  it('未锁定：选择项可用，也不会把预设回写调用方', async () => {
+    getPresets.mockResolvedValue({
+      ok: true,
+      data: {
+        presets: ROSTER.presets,
+        session: { started: false, preset: null, locked: false },
+      },
+    })
+    const s = setup({ threadId: 't-1' })
+    await screen.findByText('只读巡检')
+    expect(s.onSessionPreset).not.toHaveBeenCalled()
+    expect(screen.getByTitle(t('ai.mode.coderHint'))).not.toBeDisabled()
   })
 
   it('「编辑预设…」是另一个入口，点了回调', () => {

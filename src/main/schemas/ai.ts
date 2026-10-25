@@ -108,6 +108,16 @@ var rollbackTurnSchema = z.object({
   threadId: z.string().optional(),
 })
 var aiProjectPathSchema = z.object({ projectPath: z.string().min(1) })
+/** 读预设注册表；带 threadId 时顺带回这条线程的锁状态（第 50 批） */
+var aiPresetRosterSchema = z.object({
+  projectPath: z.string().min(1),
+  threadId: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
+})
 /** 读某条线程的历史（不传 threadId = 默认那份 = 老行为） */
 var aiHistorySchema = z.object({
   projectPath: z.string().min(1),
@@ -213,6 +223,7 @@ export {
   rewindToSchema,
   rollbackTurnSchema,
   aiProjectPathSchema,
+  aiPresetRosterSchema,
   aiHistorySchema,
   aiThreadSchema,
   aiAgentCoreRunSchema,

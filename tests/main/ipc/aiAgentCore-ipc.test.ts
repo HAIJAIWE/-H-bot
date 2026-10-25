@@ -24,6 +24,10 @@ const h = vi.hoisted(() => ({
   /** 预设注册表：运行时按名字裁决（fail-closed）、菜单读整份注册表 */
   resolvePresetForRun: vi.fn(),
   readPresetRoster: vi.fn(),
+  /** 会话预设锁（第 50 批）：默认"没锁"，各用例按需改 */
+  decideSessionPreset: vi.fn(),
+  readPresetSession: vi.fn(),
+  writePresetSession: vi.fn(),
   /** 主进程发出去的事件（只在回调里发的那些，比如 ai:compact，要靠它断言） */
   send: vi.fn(),
   /** 旧 27 工具适配器：这里只验接线（真适配器另有 legacyTools 的测试） */
@@ -67,6 +71,11 @@ vi.mock('@main/services/ai/presets', () => ({
   readPresetRoster: h.readPresetRoster,
   writePresets: vi.fn(),
 }))
+vi.mock('@main/services/ai/presetLock', () => ({
+  decideSessionPreset: h.decideSessionPreset,
+  readPresetSession: h.readPresetSession,
+  writePresetSession: h.writePresetSession,
+}))
 vi.mock('@main/services/infra/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
@@ -109,6 +118,23 @@ describe('ai:agentCoreRun 接线', () => {
         preset: { name },
       }))
     h.readPresetRoster.mockReset().mockResolvedValue({ presets: [] })
+    h.decideSessionPreset
+      .mockReset()
+      .mockImplementation(
+        async (
+          _projectPath: string,
+          _threadId: string,
+          _started: boolean,
+          requested: string | null,
+        ) => ({
+          ok: true,
+          decision: { preset: requested, persist: false },
+        }),
+      )
+    h.readPresetSession
+      .mockReset()
+      .mockResolvedValue({ started: false, preset: null, locked: false })
+    h.writePresetSession.mockReset().mockResolvedValue(undefined)
     h.send.mockReset()
     h.runOnboarding.mockReset().mockResolvedValue({ ok: true, finalText: '开荒好了' })
     h.validateProposal.mockReset().mockResolvedValue({ issues: [], introduced: [] })
@@ -554,6 +580,50 @@ describe('ai:agentCoreRun 接线', () => {
     expect(h.runAgentTurn).not.toHaveBeenCalled()
   })
 
+  it('★ 会话已锁定：界面不传 preset 也沿用锁里的值（不能少传一个字段就放开）', async () => {
+    h.decideSessionPreset.mockResolvedValue({
+      ok: true,
+      decision: { preset: '只读巡检', persist: false },
+    })
+    // 用空临时项目：D:/p 在别的用例里已经被写过历史，会变成"已开始"
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-lock-'))
+    try {
+      const res = (await invoke({ projectPath: dir, requirement: '继续' })) as { ok: boolean }
+      expect(res.ok).toBe(true)
+      expect(h.decideSessionPreset).toHaveBeenCalledWith(dir, 'default', false, null)
+      expect(h.resolvePresetForRun).toHaveBeenCalledWith(dir, '只读巡检')
+      // 已锁的会话不再落盘：锁是上一轮写的
+      expect(h.writePresetSession).not.toHaveBeenCalled()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('★ 会话已锁定还换名：直接拒绝，不开始循环', async () => {
+    h.decideSessionPreset.mockResolvedValue({
+      ok: false,
+      error: '这个会话已经以预设「只读巡检」开始，不能再换成「全放行」。要换预设，先清空这个会话。',
+    })
+    const res = (await invoke({
+      projectPath: 'D:/p',
+      requirement: 'x',
+      preset: '全放行',
+    })) as { ok: boolean; error?: string }
+    expect(res.ok).toBe(false)
+    expect(res.error).toContain('先清空这个会话')
+    expect(h.resolvePresetForRun).not.toHaveBeenCalled()
+    expect(h.runAgentTurn).not.toHaveBeenCalled()
+  })
+
+  it('空白线程：预设解析成功后才落锁（解析失败不写）', async () => {
+    h.decideSessionPreset.mockResolvedValue({
+      ok: true,
+      decision: { preset: '只读巡检', persist: true },
+    })
+    await invoke({ projectPath: 'D:/p', requirement: 'x', preset: '只读巡检' })
+    expect(h.writePresetSession).toHaveBeenCalledWith('D:/p', 'default', '只读巡检')
+  })
+
   it('ai:getPresets：把注册表原样交出去（坏条目/notes/fileProblem 都由服务层裁决）', async () => {
     const roster = {
       presets: [
@@ -566,5 +636,16 @@ describe('ai:agentCoreRun 接线', () => {
     const res = await invokeChannel('ai:getPresets', { projectPath: 'D:/p' })
     expect(res).toEqual({ ok: true, data: roster })
     expect(h.readPresetRoster).toHaveBeenCalledWith('D:/p')
+    expect(h.readPresetSession).not.toHaveBeenCalled()
+  })
+
+  it('ai:getPresets 带 threadId：额外回会话锁状态（菜单据此禁用换预设）', async () => {
+    const roster = { presets: [] }
+    const session = { started: true, preset: '只读巡检', locked: true }
+    h.readPresetRoster.mockResolvedValue(roster)
+    h.readPresetSession.mockResolvedValue(session)
+    const res = await invokeChannel('ai:getPresets', { projectPath: 'D:/p', threadId: 't-1' })
+    expect(res).toEqual({ ok: true, data: { ...roster, session } })
+    expect(h.readPresetSession).toHaveBeenCalledWith('D:/p', 't-1')
   })
 })

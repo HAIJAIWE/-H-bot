@@ -702,6 +702,10 @@ const ALLOWED: Record<string, Allowed> = {
     why: '【应用自有数据】对话历史 .qqbat/ai-history*.jsonl：追加、压缩后重写、清空',
     counts: { appendFile: 2, rm: 1, writeFile: 2 },
   },
+  'src/main/services/ai/presetLock.ts': {
+    why: '【应用自有数据】会话预设锁 .qqbat/ai-history*.jsonl.preset.json：原子写；清空线程时连同删除',
+    counts: { rm: 1 },
+  },
   'src/main/services/bot/pending.ts': {
     why: '【应用自有数据】待确认动作 .qqbat/bot-pending/**.json：落盘 / 确认或作废时删除',
     counts: { rm: 1, writeFile: 1 },

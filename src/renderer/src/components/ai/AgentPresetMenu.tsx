@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react'
 import { t } from '../../i18n'
 import { useLocaleSubscription } from '../../stores/i18nStore'
 import { MODE_OF_ROLE, type AgentMode, type AgentRole } from '@shared/ai/roleDomains'
-import type { AgentPresetRow } from '@shared/ai/presetRoster'
+import type { AgentPresetRow, PresetSessionState } from '@shared/ai/presetRoster'
 import { AI_MODE_BUTTONS } from './agentModes'
 
 export interface AgentPresetMenuProps {
@@ -29,6 +29,10 @@ export interface AgentPresetMenuProps {
   override: AgentMode | null
   /** 选中的自定义预设名；null = 没用预设 */
   preset: string | null
+  /** 当前线程（第 50 批）：带上才能读到会话锁状态 */
+  threadId?: string
+  /** 会话锁生效时，把锁里的预设同步回调用方（界面以主进程为准，不自己猜） */
+  onSessionPreset?: (name: string | null) => void
   /** 选中预设的元信息（边界行/提示用；主进程仍自己裁决，不依赖这里） */
   onResolve?: (meta: AgentPresetRow | null) => void
   /** 变更计数：编辑保存后 +1，触发重新读注册表 */
@@ -49,6 +53,8 @@ export function AgentPresetMenu({
   projectPath,
   override,
   preset,
+  threadId,
+  onSessionPreset,
   onResolve,
   reloadKey,
   disabled,
@@ -61,45 +67,57 @@ export function AgentPresetMenu({
   useLocaleSubscription()
   const [rows, setRows] = useState<AgentPresetRow[]>([])
   const [fileProblem, setFileProblem] = useState<string | undefined>(undefined)
+  const [session, setSession] = useState<PresetSessionState | undefined>(undefined)
   useEffect(() => {
     if (!projectPath) {
       setRows([])
       setFileProblem(undefined)
+      setSession(undefined)
       return
     }
     let alive = true
     void (async () => {
       try {
-        const res = await window.qqbat.ai.getPresets(projectPath)
+        const res = await window.qqbat.ai.getPresets(projectPath, threadId)
         if (!alive) return
         if (res.ok) {
           setRows(res.data.presets)
           setFileProblem(res.data.fileProblem)
+          setSession(res.data.session)
         } else {
           setRows([])
           setFileProblem(res.error)
+          setSession(undefined)
         }
       } catch {
         if (alive) {
           setRows([])
           setFileProblem(undefined)
+          setSession(undefined)
         }
       }
     })()
     return () => {
       alive = false
     }
-  }, [projectPath, reloadKey])
+  }, [projectPath, threadId, reloadKey])
+  /** 会话锁生效时以主进程为准：把锁里的选择同步回 store（回调方负责比较，避免循环） */
+  useEffect(() => {
+    if (session?.locked) onSessionPreset?.(session.preset)
+  }, [session, onSessionPreset])
   // 把"选中项的元信息"报给调用方（界面显示用；主进程仍会自己裁决）
   useEffect(() => {
     onResolve?.(preset ? (rows.find(r => r.name === preset && !r.broken) ?? null) : null)
   }, [preset, rows, onResolve])
   const usable = rows.filter(r => !r.broken)
   const broken = rows.filter(r => r.broken)
-  const selectedUsable = preset ? usable.some(r => r.name === preset) : true
+  /** 会话锁：开始过一轮就不能再换（第 50 批）。锁定时界面只认锁里的值。 */
+  const locked = session?.locked ?? false
+  const shownPreset = locked ? (session?.preset ?? null) : preset
+  const selectedUsable = shownPreset ? usable.some(r => r.name === shownPreset) : true
   /** 触发器上显示的那个名字：预设名 > 角色名 > 跟随页面 */
-  const currentLabel = preset
-    ? preset + (selectedUsable ? '' : ' ⚠')
+  const currentLabel = shownPreset
+    ? shownPreset + (selectedUsable ? '' : ' ⚠')
     : override
       ? t(AI_MODE_BUTTONS.find(b => b.mode === override)?.labelKey ?? 'ai.mode.builder')
       : t('ai.mode.followPage')
@@ -117,7 +135,11 @@ export function AgentPresetMenu({
     <details className="relative min-w-0">
       <summary
         className="flex min-w-0 cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 [&::-webkit-details-marker]:hidden"
-        title={t('ai.preset.title')}
+        title={
+          locked
+            ? t('ai.preset.lockedTitle', { preset: shownPreset ?? t('ai.mode.followPage') })
+            : t('ai.preset.title')
+        }
       >
         <span className="shrink-0 text-zinc-500">{t('ai.preset.trigger')}</span>
         <span className="min-w-0 truncate text-zinc-300">{currentLabel}</span>
@@ -130,19 +152,36 @@ export function AgentPresetMenu({
         100cqw = 最近容器（aside 右栏）的宽度，180px 栏下收到 164px，行内靠 truncate 收尾。
       */}
       <div className="absolute bottom-full left-0 z-20 mb-1 w-[min(16rem,calc(100cqw-1rem))] space-y-0.5 rounded-lg border border-zinc-700 bg-zinc-900 p-1.5 text-xs shadow-xl">
+        {/* 会话锁：先解释为什么下面的可选项都点不了，否则禁用态看起来像坏了 */}
+        {locked ? (
+          <div
+            className="mx-1 my-0.5 rounded border border-amber-900/60 bg-amber-950/40 px-1.5 py-1 text-[10px] leading-4 text-amber-300"
+            title={
+              session?.problem
+                ? t('ai.preset.lockedProblem', { reason: session.problem })
+                : t('ai.preset.locked', { preset: shownPreset ?? t('ai.mode.followPage') })
+            }
+          >
+            <span className="line-clamp-2">
+              {session?.problem
+                ? t('ai.preset.lockedProblem', { reason: session.problem })
+                : t('ai.preset.locked', { preset: shownPreset ?? t('ai.mode.followPage') })}
+            </span>
+          </div>
+        ) : null}
         {/* 跟随页面：相当于"没有预设、角色跟着页签走" */}
         <button
           type="button"
           className={rowClass}
-          aria-pressed={!override && !preset}
-          disabled={disabled}
+          aria-pressed={!override && !shownPreset}
+          disabled={disabled || locked}
           title={t('ai.preset.followPageHint')}
           onClick={e => {
             closeMenu(e.currentTarget)
             onPickPage()
           }}
         >
-          {!override && !preset ? mark : <span className="w-3 shrink-0" />}
+          {!override && !shownPreset ? mark : <span className="w-3 shrink-0" />}
           <span className="min-w-0 flex-1 truncate">{t('ai.mode.followPage')}</span>
           {/* 180px 栏下这行只剩个"按页签"的碎影，索性让位 —— 和会话头插件计数同一个手法。 */}
           <span className="hidden shrink-0 text-[10px] text-zinc-600 @min-[220px]:inline">
@@ -151,14 +190,14 @@ export function AgentPresetMenu({
         </button>
         <div className="px-1 pt-1 text-[10px] text-zinc-500">{t('ai.preset.groupRole')}</div>
         {AI_MODE_BUTTONS.map(({ mode, icon, labelKey, hintKey }) => {
-          const active = !preset && override === mode
+          const active = !shownPreset && override === mode
           return (
             <button
               key={mode}
               type="button"
               className={rowClass}
               aria-pressed={active}
-              disabled={disabled}
+              disabled={disabled || locked}
               title={t(hintKey)}
               onClick={e => {
                 closeMenu(e.currentTarget)
@@ -188,14 +227,14 @@ export function AgentPresetMenu({
           <div className="px-1 py-1 text-zinc-500">{t('ai.preset.empty')}</div>
         ) : (
           usable.map(row => {
-            const active = preset === row.name
+            const active = shownPreset === row.name
             return (
               <button
                 key={row.name}
                 type="button"
                 className={rowClass}
                 aria-pressed={active}
-                disabled={disabled}
+                disabled={disabled || locked}
                 title={titleOf(row)}
                 onClick={e => {
                   closeMenu(e.currentTarget)

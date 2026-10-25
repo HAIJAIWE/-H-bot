@@ -754,6 +754,9 @@
       "brokenTag": "unusable",
       "fileProblem": "Cannot read the preset file: {reason}",
       "notesHint": "Some fields were ignored",
+      "locked": "This session started with preset \"{preset}\" and cannot switch. Clear the session first.",
+      "lockedProblem": "Cannot read the session lock: {reason}. This turn will not start; clear the session and pick again.",
+      "lockedTitle": "Session locked ({preset}): clear the session to switch",
       "impact": {
         "title": "What this turn unlocks",
         "fullBadge": "Fully allowed",

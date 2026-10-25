@@ -13,8 +13,8 @@
 // 与 DSH `agent-preset-registry` 的对应关系：
 //   · `AgentPresetRow` ≈ DSH 的 `AgentPresetRow`（id/name/description/broken）；
 //   · `AgentPresetRoster` ≈ DSH 的 `AgentPresetRoster`（含激活失败的声明）；
-//   · 我们**不搬**"会话内锁定"（`agent-preset/locked`）—— qqbat 的预设约束的是**这一轮**
-//     的权限边界，换一轮换一个预设是正常用法，不是配置漂移。
+//   · `PresetSessionState` ≈ DSH 的会话投影 `agentPreset` + `agent-preset/locked`
+//     （区别：我们按**线程**锁，DSH 按 session；空白线程仍可换）。
 import type { AgentRole } from './roleDomains'
 
 /** 预设文件在项目里的相对路径（磁盘契约；主进程与编辑器都用这一份） */
@@ -68,4 +68,21 @@ export interface AgentPresetRoster {
   presets: AgentPresetRow[]
   /** 文件级问题（JSON 解析失败 / 顶层不是数组）；缺省 = 文件没问题或不存在 */
   fileProblem?: string
+}
+
+/**
+ * 一条**线程**的预设会话状态（第 50 批）。
+ *
+ * 语义对齐 DSH：会话开始后组合固定，不能再换；空白线程可换且选择落盘。
+ * 与 DSH 的差别只在粒度 —— 我们按线程锁（一个项目可以有多个互不影响的会话）。
+ */
+export interface PresetSessionState {
+  /** 这条线程是否已经有过一轮（历史非空）。false = 还能自由换 */
+  started: boolean
+  /** 锁定的预设名；null = 跟页面（明确"没有预设"，不是"还不知道"） */
+  preset: string | null
+  /** started 为 true 即锁死；老会话没有记录时也算锁定（按 null 锁） */
+  locked: boolean
+  /** 会话记录本身坏了的原因（界面提示；运行时直接 fail-closed） */
+  problem?: string
 }

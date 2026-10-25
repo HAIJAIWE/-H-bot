@@ -317,6 +317,14 @@ export const ChatPanel = React.memo(function ChatPanel() {
   const fullAccess = useAiStore(s => s.fullAccess)
   const preset = useAiStore(s => s.preset)
   const setPreset = useAiStore(s => s.setPreset)
+  /** 当前线程（第 50 批）：会话锁按线程算，菜单要拿它去问主进程 */
+  const activeThreadId = useAiStore(s => s.activeThreadId)
+  const syncSessionPreset = useCallback(
+    (name: string | null) => {
+      if (useAiStore.getState().preset !== name) setPreset(name)
+    },
+    [setPreset],
+  )
   /** 当前预设的元信息（权限模式）：只用于界面提示，主进程仍自己解析 */
   const [presetMeta, setPresetMeta] = useState<AgentPresetRow | null>(null)
   /**
@@ -1086,6 +1094,8 @@ export const ChatPanel = React.memo(function ChatPanel() {
             projectPath={projectPath}
             override={agentModeOverride}
             preset={preset}
+            threadId={activeThreadId}
+            onSessionPreset={syncSessionPreset}
             onResolve={setPresetMeta}
             reloadKey={presetEpoch}
             disabled={streaming}

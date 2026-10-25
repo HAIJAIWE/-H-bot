@@ -20,7 +20,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import {
   aiAgentCoreRunSchema,
   aiAgentCoreSteerSchema,
-  aiProjectPathSchema,
+  aiPresetRosterSchema,
   aiSavePresetsSchema,
 } from '../schemas/ai'
 import { resolveAuthorAiConfig } from '../services/ai/appAiConfig'
@@ -45,6 +45,11 @@ import { assistantHistoryEntry } from '../services/agent-core/uiTrace'
 import { listTools } from '../services/agent-core/core'
 import { clearTodos, getTodos } from '../services/agent-core/todoStore'
 import { readPresetRoster, resolvePresetForRun, writePresets } from '../services/ai/presets'
+import {
+  decideSessionPreset,
+  readPresetSession,
+  writePresetSession,
+} from '../services/ai/presetLock'
 import type { AgentPresetRow } from '@shared/ai/presetRoster'
 import { listMainPlugins, pluginOwnedTools } from '../services/plugins/host'
 import { scopeToolsByPlugins } from '../services/plugins/scoping'
@@ -182,14 +187,21 @@ export function registerAiAgentCoreIpc(): void {
    * 以前没有读接口，菜单自己读原始 JSON 再解析 —— 容错口径与主进程不一样，
    * 于是"菜单里看得到、跑起来查不到"是可能的。现在菜单只显示这里返回的 roster：
    * 坏条目带 `broken` 原因、字段被忽略带 `notes`，看到的就是跑起来会发生的。
+   *
+   * 第 50 批起可选收 `threadId`：带上就额外回这条线程的**锁状态**（`session`），
+   * 菜单据此禁用换预设。刻意不新开 IPC —— 读的仍是同一份注册表 + 同一条线程，
+   * 多一条通道只会让能力清单、payload 契约、权限策略各多一份要同步的东西。
    */
   ipcMain.handle('ai:getPresets', async (_event, args: unknown) => {
-    const parsed = aiProjectPathSchema.safeParse(args)
+    const parsed = aiPresetRosterSchema.safeParse(args)
     if (!parsed.success) {
       return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
     }
     try {
-      return { ok: true, data: await readPresetRoster(parsed.data.projectPath) }
+      const roster = await readPresetRoster(parsed.data.projectPath)
+      if (!parsed.data.threadId) return { ok: true, data: roster }
+      const session = await readPresetSession(parsed.data.projectPath, parsed.data.threadId)
+      return { ok: true, data: { ...roster, session } }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
@@ -379,12 +391,37 @@ export function registerAiAgentCoreIpc(): void {
        * 以前这里读**两次**盘（先 resolvePresetTools 拿白名单、再 readPreset 拿角色），
        * 而且查不到就 `undefined`：白名单静默消失、角色悄悄退回页面默认，全程没有任何提示。
        * 现在一次解析；传了名字却查不到 / 那一条坏了，**这一轮不开跑**并把原因说清楚。
+       *
+       * 第 50 批起先过**线程锁**（对齐 DSH 的 agent-preset/locked）：线程已经有过一轮，
+       * 就只能沿用当初那一套组合。界面忘传 preset 时用锁里的值补上（不能因为少传一个字段
+       * 就悄悄放开权限）；显式换名直接拒绝。落盘只在空白线程 + 预设解析成功之后 ——
+       * 解析失败还写锁，等于把一条跑不起来的选择钉死在这个会话上。
        */
+      const decided = await decideSessionPreset(
+        projectPath,
+        threadId,
+        past.length > 0,
+        parsed.data.preset ?? null,
+      )
+      if (!decided.ok) return { ok: false, error: decided.error }
       let runPreset: AgentPresetRow | undefined
-      if (parsed.data.preset) {
-        const resolved = await resolvePresetForRun(projectPath, parsed.data.preset)
+      if (decided.decision.preset) {
+        const resolved = await resolvePresetForRun(projectPath, decided.decision.preset)
         if (!resolved.ok) return { ok: false, error: resolved.error }
         runPreset = resolved.preset
+      }
+      if (decided.decision.persist) {
+        try {
+          await writePresetSession(projectPath, threadId, decided.decision.preset)
+        } catch (e) {
+          return {
+            ok: false,
+            error:
+              '这一轮的预设没能记下来（' +
+              (e instanceof Error ? e.message : String(e)) +
+              '）。为了不让这个会话的权限组合变成"没人知道"，这一轮没有开始。',
+          }
+        }
       }
       /**
        * **本轮工具白名单**（会话级预设的原语）：传了就只有这些工具进提示与调用表。

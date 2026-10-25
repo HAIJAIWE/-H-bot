@@ -754,6 +754,9 @@
       "brokenTag": "不可用",
       "fileProblem": "预设文件读不了：{reason}",
       "notesHint": "有字段没生效",
+      "locked": "这个会话已经以预设「{preset}」开始，不能再换。要换先清空会话。",
+      "lockedProblem": "会话锁读不出来：{reason}。这一轮不会开始，先清空会话再选。",
+      "lockedTitle": "会话已锁定（{preset}）：要换先清空会话",
       "impact": {
         "title": "这一轮会放开什么",
         "fullBadge": "完全放行",

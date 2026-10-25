@@ -1235,7 +1235,8 @@ export const useAiStore = create<AiState>((set, get) => {
      */
     newThread: projectPath => {
       const id = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-      set({ activeThreadId: id })
+      // 走 setActiveThread 而不是直接 set：新线程的预设槽位也要跟着切（第 50 批）
+      get().setActiveThread(id)
       get().clearMessages()
       if (projectPath) {
         set(st => ({
@@ -1247,7 +1248,8 @@ export const useAiStore = create<AiState>((set, get) => {
     /** 切到某条线程：从磁盘读回它的记忆（force 绕过"界面已有内容就不覆盖"的保护） */
     switchThread: async (projectPath, threadId) => {
       if (!projectPath) return
-      set({ activeThreadId: threadId })
+      // 同上：切换线程时恢复该线程的预设（第 50 批修掉"切线程后 preset 不跟"）
+      get().setActiveThread(threadId)
       get().clearMessages()
       set(st => ({
         conversations: { ...st.conversations, [projectPath]: emptyConversation() },
