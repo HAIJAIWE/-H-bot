@@ -35,6 +35,7 @@ import { beginTurn, endTurn, recordFileBefore } from '../services/flow/turnJourn
 import type { RunTurnResult } from '../services/agent-core/runTurn'
 import { isAbsolute, relative } from 'path'
 import { runAgentTurn } from '../services/agent-core/runTurn'
+import { runOnboardingTurn } from './aiAgentCoreOnboarding'
 import { listTools } from '../services/agent-core/core'
 import { clearTodos, getTodos } from '../services/agent-core/todoStore'
 import { readPreset, resolvePresetTools, writePresets } from '../services/ai/presets'
@@ -171,6 +172,19 @@ export function registerAiAgentCoreIpc(): void {
       return { ok: false, error: '这个项目的循环还在跑：先停下来再发新的要求。' }
     }
     const win = BrowserWindow.fromWebContents(event.sender)
+    /**
+     * **开荒**（还没有项目）：同一条循环，另一套装配（2026-10-25 双引擎收口）。
+     *
+     * 以前这里走的是助手链路 `ai:chat`，于是"有没有项目"决定的是**用哪套引擎** ——
+     * 工具表、提案形状、报错文案全都不一样。用户看到的是一开荒就换了个 AI。
+     * 现在分支只剩"装配不同"：循环、事件通道、提案卡片都是同一份。
+     *
+     * 放在 `RUNNING` 登记**之前**：开荒没有项目路径可作键，也不该跟项目内运行互斥
+     * （它们操作的不是同一个工作区，不会被"两条循环抢着写盘"伤到）。
+     */
+    if (projectPath.trim() === '') {
+      return runOnboardingTurn({ win, requirement, ...(images ? { images } : {}) })
+    }
     const ctrl = new AbortController()
     RUNNING.set(projectPath, ctrl)
     /**

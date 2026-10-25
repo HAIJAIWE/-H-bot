@@ -1575,3 +1575,84 @@ user: [工具 verify_greet] 来自界面 来自界面 来自界面
 ### 38.5 下一步
 
 旧 27 个工具并进同一张表（单循环统一双引擎，§32）；`ReactLoopAgent` 只作参考，不再尝试整类搬运。
+
+## 39. 开荒也走同一条循环：双引擎时代到此结束（2026-10-25）
+
+### 39.1 最后一条分叉
+
+§32 之后，"有项目"的所有对话都走 `ai:agentCoreRun`。只剩一种情况还在旧助手链路：
+**用户还没有任何项目**。`aiStore.sendMessage` 里写着 `if (projectPath) { runAgentCoreTurn } else { window.qqbat.ai.chat }` ——
+后者经 `ipc/ai.ts` 进 `services/ai/index.ts` 的 `processAiChat`（`chatRun.ts`）。
+
+于是同一个应用里有两套行为：
+
+|          | 旧开荒链路                                                | 循环                                |
+| -------- | --------------------------------------------------------- | ----------------------------------- |
+| 工具表   | `toolsForOnboarding`：3 个（search / describe / propose） | 34 个（§32 之后旧 27 个也并进来了） |
+| 提示     | `ONBOARDING_HINT` 拼在助手提示里                          | `buildSystemPrompt` 的 workspace 段 |
+| 提案     | `chatRun.emitProposal`                                    | 循环回执 → handler 出卡片           |
+| 失败文案 | `ai:error` 之外还有 `sendFailed` 横幅                     | `ai:error`，渲染层统一一条 listener |
+
+用户看到的就是"一开荒就变了个 AI"。
+
+### 39.2 判断：没有工作区也是一个工作区
+
+循环本身**不假设磁盘存在** —— 会假设的是**适配器**：工具会读文件、提示要写"工作区：<路径>"、审批要按路径判作用域。
+开荒这一段的工具全是 query / 提议（不落地），提示本来就有 workspace 为空的分支，审批根本轮不到。
+所以这里不该"再写一条循环"，只该**换装配**：
+
+- 工具 = `adaptLegacyTools({ projectPath: '', role: 'builder', pendingOperations })` 后按
+  `ONBOARDING_TOOLS` 过滤 → 只剩 `search_capabilities` / `describe_capability` / `propose_capability`；
+- 提示 = `buildSystemPrompt('')`（`prompt.ts` 的 workspace 空分支）+ `ONBOARDING_HINT`；
+- 提案 = 旧工具攒进 `pendingOperations` 的 capability 操作，`createProposal` 原样出卡片；
+- **记忆 / 轮次日志 / 插话 / 预设 / trace / spill / compaction 全部跳过** —— 它们都以 `projectPath` 为键，
+  拿空串去 `resolve` 就是往 cwd 里写东西（本仓库为这类事付过代价）。
+
+### 39.3 改了什么
+
+| 位置                                                  | 变化                                                                                                                                           |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main/ipc/aiAgentCore.ts:185-186`                 | `projectPath.trim() === ''` → 早返回 `runOnboardingTurn({ win, requirement, images? })`；放在 `RUNNING` 登记**之前**（开荒不与项目内运行互斥） |
+| `src/main/ipc/aiAgentCoreOnboarding.ts`（新，137 行） | `ONBOARDING_MAX_ROUNDS = 8`；装配 → `runAgentTurn` → 提案/正文二选一；事件形状与主链路逐字段一致                                               |
+| `src/main/schemas/ai.ts`                              | `projectPath` 由 `.min(1)` 改 `.max(500)` —— **空串 = 开荒**是合法输入，不再被 schema 挡在门外                                                 |
+| `src/main/services/agent-core/prompt.ts`              | `role` / `rules` 两段改成 workspace 感知：空 → "用户还没有打开任何项目 / 这一阶段没有文件可读可写" + 5 条开荒规矩                              |
+| `src/renderer/src/stores/aiStore.ts`                  | 删掉 `if (!projectPath) fail(needProject)` 与整个 `ai.chat` 分支 → 一行 `await runAgentCoreTurn(...)`                                          |
+| i18n `zh-CN.json` / `en-US.json`                      | 删 `ai.agentCore.needProject`、`ai.ops.sendFailed`、`ai.ops.sendFailedBanner`（orphanKeys 闸门要求）                                           |
+
+轮数上限比项目内的 12 小：开荒的产出是**一张提案卡片**，不是把活干完 —— 问清需求 → 查能力 → 提议，三步就该收。
+
+### 39.4 事件形状：为什么 `projectPath` 要显式写空串
+
+渲染层 `routeTo(projectPath)` 对空串的语义是"当前视图"，这正是开荒要的（没有项目可路由）。
+所以每一个 emit 都把 `projectPath: ''` **写在字面上**，而不是省略兜底；`ai:toolCall` 的 `status`
+仍按 `output.startsWith('[工具失败]')` 判 error（循环里失败是返回值，不是异常）。
+收尾只有两种：有 `pendingOperations` 就发 `ai:proposal`、不发 `ai:response`（两条都发会让同一轮长出两份尾巴）。
+
+单独一个文件也是**闸门逼出来的**：`tests/guards/agentCoreEventContract.test.ts` 第一例钉死了
+`aiAgentCore.ts` 里 16 条 `ai:*` 发送的**顺序**，往里塞第四种状态只会让那条断言越来越脆；
+新文件的事件顺序由它自己的测试钉。
+
+### 39.5 测试
+
+- `tests/main/ipc/aiAgentCoreOnboarding.test.ts`（**8 例**）：schema 允许空串且仍限长；只给 3 个工具 + 8 轮 + `ONBOARDING_HINT`
+  且**不传** history/session/spill/inbox/compaction/approval；事件通道顺序与载荷键；`[工具失败]` → status error；
+  有提议只发提案（validation/verdict 缺省即"未校验"）；没有模型配置；工具表为空要**明确报装配错**；循环抛错 → `ai:error` + idle。
+- `tests/main/ipc/aiAgentCore-ipc.test.ts` 加 1 例「`projectPath` 为空 = 开荒装配」：断言走 `runOnboardingTurn`，
+  项目内那条路的 trace / 审批一步都没碰。
+- 定向：`tests/guards` + `agent-core` + `renderer` + 这两个 ipc 文件 → **16 文件 / 115 例**（`tests/guards` 单独 15 / 107）。
+- `tsc -p tsconfig.node.json` 与 `tsconfig.web.json` 均 **EXIT=0**；全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`：
+  **273 文件（269 passed / 4 skipped）、3401 例（3391 passed / 10 skipped）、EXIT=0**。
+- 真机：**只有 mock 钉着** —— 厂商额度 403（`Free quota exhausted`）还没恢复，开荒没有真实模型跑过一轮；
+  这一条如实记在这里，不要等它变成"曾经验证过"。
+
+### 39.6 还没做完：旧引擎的物理删除
+
+`processAiChat` / `chatRun.ts` / `ai:chat` 通道 / preload 的 `ai.chat` 都还在 —— **渲染层已无调用方**
+（`grep '\.ai\.chat\('` 只剩 ipc 与 services），但删不掉的原因不是"舍不得"：
+
+- `src/main/services/ai/lanes.ts:221`、`scout.ts:112`、`verifierLlm.ts:118` 都还在用
+  `chatRun.ts` 的 `runOneRound` 当**单轮 harness** —— 并行子代理与提案复核靠它，不是助手链路的一部分；
+- 约 15 个测试文件（`ai-ipc.test.ts`、evals、projectPathGuard …）还在断言这条通道。
+
+所以下一步是**先把 `runOneRound` 抽成一个独立的单轮执行器**（从 `chatRun` 里剥出来，不依赖 `state` 的助手语义），
+再把 `processAiChat` 与通道一起删。在那之前，旧引擎留着但没有任何 UI 入口 —— 这一条要写在注释里，别让人以为它还在用。

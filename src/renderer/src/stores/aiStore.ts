@@ -622,11 +622,11 @@ async function runAgentCoreTurn(
       content: t('ai.agentCore.failed', { message }),
     })
   }
-  // 循环要读写文件，必须有一个项目目录（开荒模式没有 → 直接说清楚，别让它自己找）
-  if (!projectPath) {
-    fail(t('ai.agentCore.needProject'))
-    return
-  }
+  /**
+   * 空路径**不再是错误**（2026-10-25，双引擎收口）：没有项目 = 开荒，
+   * 主进程按同一条循环的另一套装配跑（见 ipc/aiAgentCoreOnboarding.ts）。
+   * 以前这里直接失败 —— 因为那时循环只会读写文件，没有工作目录就无从下手。
+   */
   try {
     // 线程：与助手共用同一个选择器 —— 在这一条对话里继续，两种模式是同一件事
     const res = await window.qqbat.ai.agentCoreRun(
@@ -1271,14 +1271,14 @@ export const useAiStore = create<AiState>((set, get) => {
        */
       const activeFilePath = useEditorStore.getState().activeFilePath
       /**
-       * **循环是唯一入口**（2026-10-20 合并双引擎第 3 步）。
+       * **循环是唯一入口**（2026-10-20 合并双引擎第 3 步；2026-10-25 收口开荒）。
        *
-       * 有项目 → 这一轮交给 workspace-first 循环（`ai:agentCoreRun`）：它自己读/写/跑/校验，
-       * 每个写盘动作都过审批，最后回执里带着"干了什么"。
-       * 没有项目 → 还是 `ai:chat`：开荒对话没有工作目录，循环无从读写（"帮我起一个"这种
-       * 需求本来就该走助手链路；等它落了盘、有了项目，下一句自然就进循环了）。
+       * 有项目 → workspace-first 循环：自己读/写/跑/校验，每个写盘动作都过审批。
+       * **没有项目 → 同一条循环的开荒装配**（工具只剩能力发现/提议，不碰磁盘）：
+       * 用户第一句话"帮我做个 XX 机器人"从这里就开始积累同一种体验，
+       * 而不是开荒一套 AI、进了项目又换一套。
        *
-       * 两条链路**互斥**而不是叠加：叠在一起会让同一句话跑两遍，审批弹窗也会来两回。
+       * 渲染层只剩这一条路 —— 下一句在项目建好后自然还是它（projectPath 从空变有）。
        */
       /**
        * M5 按模式分专家：把**当前页面**一起送过去（低代码页 = 改流程，代码页 = 改代码）。
@@ -1290,53 +1290,7 @@ export const useAiStore = create<AiState>((set, get) => {
        */
       const centerTab = useUiStore.getState().centerTab
       const mode = agentMode ?? resolveAgentMode(centerTab, get().agentModeOverride)
-      if (projectPath) {
-        await runAgentCoreTurn(projectPath, text, mode, images, activeFilePath)
-        return
-      }
-      try {
-        const res = await window.qqbat.ai.chat(
-          projectPath,
-          text,
-          mode,
-          get().activeThreadId,
-          images,
-          activeFilePath,
-        )
-        /**
-         * ⚠️ **主进程「明确拒绝」也要收尾**（2026-10-15 真机踩到）。
-         *
-         * `ai:chat` 有两种失败：① 抛异常（下面的 catch 管）；② **返回 `{ok:false}`**
-         * —— 参数校验失败 / 消息为空 / 路径越界 / 取不到窗口，这些都走 tryIpc 的返回值。
-         * 第二种**不会 throw**，不处理的话 `streaming` 永远停在 true：
-         * 界面一直转圈、日志里一条请求都没有、再也发不出第二条消息（用户原话「他不动了」）。
-         */
-        if (res && res.ok === false) {
-          const message = res.error ?? 'unknown error'
-          set({
-            streaming: false,
-            currentChunk: '',
-            agentState: { state: 'error', message: t('ai.ops.sendFailed', { message }) },
-          })
-          get().addMessage({
-            role: 'system',
-            content: t('ai.ops.sendFailedBanner', { message }),
-          })
-        }
-      } catch (e) {
-        // 网络异常 / IPC 通道关闭时，ai.chat 会 reject。
-        // 若不捕获，streaming 永远停留在 true，UI 会一直显示"思考中"动画且无法再次发送。
-        const message = e instanceof Error ? e.message : String(e)
-        set({
-          streaming: false,
-          currentChunk: '',
-          agentState: { state: 'error', message: t('ai.ops.sendFailed', { message }) },
-        })
-        get().addMessage({
-          role: 'system',
-          content: t('ai.ops.sendFailedBanner', { message }),
-        })
-      }
+      await runAgentCoreTurn(projectPath, text, mode, images, activeFilePath)
     },
 
     // ====== 事务性 batch 操作 ======

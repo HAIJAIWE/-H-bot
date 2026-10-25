@@ -581,8 +581,6 @@
       "proposalRolledBackReason": "Proposal 执行失败已回滚：{error}",
       "rollbackBatchFailed": "回滚批处理失败",
       "rolledBackRestoreFailed": "Proposal 执行失败已回滚。以下文件恢复失败，请手动检查：{files}",
-      "sendFailed": "发送失败：{message}",
-      "sendFailedBanner": "⚠️ 发送失败：{message}",
       "sourceRefMissing": "connect 操作的 sourceRef 未注册且节点不存在: {ref}",
       "targetRefMissing": "connect 操作的 targetRef 未注册且节点不存在: {ref}",
       "unknownKind": "未知 operation kind: {kind}",
@@ -729,7 +727,6 @@
       "fullAccessTitle": "完全权限：本次运行不再逐个审批（不写规则表；关掉或重启即恢复）",
       "fullAccessFromPreset": "预设授予完全权限",
       "fullAccessFromPresetTitle": "当前预设声明 permissionMode=full：本次运行不逐次审批（不写规则表）",
-      "needProject": "循环模式要先打开一个项目 —— 它得知道自己的工作目录在哪。",
       "emptyReply": "循环跑完了（{rounds} 轮），但模型没有给出文字回复。",
       "failed": "循环模式执行失败：{message}"
     },

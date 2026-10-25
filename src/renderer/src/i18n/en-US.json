@@ -581,8 +581,6 @@
       "proposalRolledBackReason": "The proposal failed and has been rolled back: {error}",
       "rollbackBatchFailed": "Failed to roll back the batch",
       "rolledBackRestoreFailed": "The proposal failed and has been rolled back. These files could not be restored — check them manually: {files}",
-      "sendFailed": "Send failed: {message}",
-      "sendFailedBanner": "⚠️ Send failed: {message}",
       "sourceRefMissing": "The sourceRef of this connect operation is neither registered nor an existing node: {ref}",
       "targetRefMissing": "The targetRef of this connect operation is neither registered nor an existing node: {ref}",
       "unknownKind": "Unknown operation kind: {kind}",
@@ -729,7 +727,6 @@
       "fullAccessTitle": "Full access: no per-action approval for this run (no rule is saved; turning it off or restarting restores approval)",
       "fullAccessFromPreset": "Preset grants full access",
       "fullAccessFromPresetTitle": "The selected preset sets permissionMode=full: no per-action approval this run (no rule saved)",
-      "needProject": "Loop mode needs an open project — it has to know its working directory.",
       "emptyReply": "The loop finished ({rounds} rounds) but the model returned no text.",
       "failed": "Loop mode failed: {message}"
     },
