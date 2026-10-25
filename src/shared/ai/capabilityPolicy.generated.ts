@@ -565,6 +565,7 @@ export const CAPABILITIES_BY_DOMAIN: Record<string, string[]> = {
     'ai.onProposal',
     'ai.onResponse',
     'ai.onStats',
+    'ai.onTodo',
     'ai.onToolCall',
     'ai.onWarning',
     'ai.previewAiTurn',

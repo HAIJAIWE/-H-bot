@@ -1,5 +1,5 @@
 // src/preload/index.ts
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron'
 
 const api = {
   /**
@@ -109,22 +109,22 @@ const api = {
     kill: (id: string) => ipcRenderer.invoke('terminal:kill', { id }),
     onData: (callback: (data: { id: string; data: string }) => void) => {
       const handler = (_event: unknown, items: Array<{ id: string; data: string }>) => {
-        for (const item of items) callback(item);
-      };
-      ipcRenderer.on('terminal:batchData', handler);
-      return () => ipcRenderer.removeListener('terminal:batchData', handler);
+        for (const item of items) callback(item)
+      }
+      ipcRenderer.on('terminal:batchData', handler)
+      return () => ipcRenderer.removeListener('terminal:batchData', handler)
     },
   },
   runtime: {
     onLog: (callback: (data: unknown) => void) => {
-      const handler = (_event: unknown, d: unknown) => callback(d);
-      ipcRenderer.on('runtime:batchLog', handler);
-      return () => ipcRenderer.removeListener('runtime:batchLog', handler);
+      const handler = (_event: unknown, d: unknown) => callback(d)
+      ipcRenderer.on('runtime:batchLog', handler)
+      return () => ipcRenderer.removeListener('runtime:batchLog', handler)
     },
     onExecuteNode: (callback: (data: unknown) => void) => {
-      const handler = (_event: unknown, d: unknown) => callback(d);
-      ipcRenderer.on('runtime:executeNode', handler);
-      return () => ipcRenderer.removeListener('runtime:executeNode', handler);
+      const handler = (_event: unknown, d: unknown) => callback(d)
+      ipcRenderer.on('runtime:executeNode', handler)
+      return () => ipcRenderer.removeListener('runtime:executeNode', handler)
     },
     injectTestMessage: (
       projectPath: string,
@@ -260,11 +260,11 @@ const api = {
     log: (
       projectPath: string,
       entry: {
-        user: string;
-        table: string;
-        action: 'update' | 'insert' | 'delete';
-        before: string | null;
-        after: string | null;
+        user: string
+        table: string
+        action: 'update' | 'insert' | 'delete'
+        before: string | null
+        after: string | null
       },
     ) => ipcRenderer.invoke('audit:log', projectPath, entry),
     list: (projectPath: string, page: number, pageSize: number) =>
@@ -305,7 +305,7 @@ const api = {
       allowDestructive: process.env.QQBAT_AI_ALLOW_DESTRUCTIVE === '1',
       allowedTargets: (process.env.QQBAT_AI_ALLOWED_TARGETS ?? '')
         .split(',')
-        .map((s) => s.trim())
+        .map(s => s.trim())
         .filter(Boolean),
     },
     /**
@@ -382,15 +382,15 @@ const api = {
     savePresets: (
       projectPath: string,
       presets: Array<{
-        name: string;
-        allowedTools?: string[];
-        plugins?: string[];
-        permissionMode?: 'ask' | 'full';
-        description?: string;
+        name: string
+        allowedTools?: string[]
+        plugins?: string[]
+        permissionMode?: 'ask' | 'full'
+        description?: string
         /** 角色（builder / coder / duo / creator）：同时决定提示与写域 */
-        role?: string;
+        role?: string
         /** 这一轮额外的要求（拼在角色说明之后；≤2000 字，超了截断） */
-        prompt?: string;
+        prompt?: string
       }>,
     ) => ipcRenderer.invoke('ai:savePresets', { projectPath, presets }),
     /**
@@ -492,35 +492,35 @@ const api = {
     /** 主进程在等某个工具调用的批准（界面据此弹出确认条） */
     onApprovalRequest: (
       cb: (data: {
-        projectPath?: string;
-        callId: string;
-        toolName: string;
-        args: Record<string, unknown>;
-        hint: string;
-        timeoutMs: number;
+        projectPath?: string
+        callId: string
+        toolName: string
+        args: Record<string, unknown>
+        hint: string
+        timeoutMs: number
       }) => void,
     ) => {
-      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data);
-      ipcRenderer.on('ai:approvalRequest', listener);
-      return () => ipcRenderer.removeListener('ai:approvalRequest', listener);
+      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data)
+      ipcRenderer.on('ai:approvalRequest', listener)
+      return () => ipcRenderer.removeListener('ai:approvalRequest', listener)
     },
     /** 批准已出结果（界面把确认条收掉、把卡片标成已批/已拒） */
     onApprovalResolved: (
       cb: (data: {
-        projectPath?: string;
-        callId: string;
-        decision: 'allow' | 'deny' | 'always';
+        projectPath?: string
+        callId: string
+        decision: 'allow' | 'deny' | 'always'
       }) => void,
     ) => {
-      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data);
-      ipcRenderer.on('ai:approvalResolved', listener);
-      return () => ipcRenderer.removeListener('ai:approvalResolved', listener);
+      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data)
+      ipcRenderer.on('ai:approvalResolved', listener)
+      return () => ipcRenderer.removeListener('ai:approvalResolved', listener)
     },
 
     onChunk: (cb: (data: { projectPath?: string; text: string }) => void) => {
-      const listener = (_e: unknown, data: { projectPath?: string; text: string }) => cb(data);
-      ipcRenderer.on('ai:chunk', listener);
-      return () => ipcRenderer.removeListener('ai:chunk', listener);
+      const listener = (_e: unknown, data: { projectPath?: string; text: string }) => cb(data)
+      ipcRenderer.on('ai:chunk', listener)
+      return () => ipcRenderer.removeListener('ai:chunk', listener)
     },
     /**
      * 循环内上下文被压缩（**循环独有**：助手链路的压缩在发起前就做完了）。
@@ -528,18 +528,18 @@ const api = {
      */
     onCompact: (
       cb: (data: {
-        projectPath?: string;
-        dropped: number;
-        tokensBefore: number;
-        tokensAfter: number;
+        projectPath?: string
+        dropped: number
+        tokensBefore: number
+        tokensAfter: number
       }) => void,
     ) => {
       const listener = (
         _e: unknown,
         data: { projectPath?: string; dropped: number; tokensBefore: number; tokensAfter: number },
-      ) => cb(data);
-      ipcRenderer.on('ai:compact', listener);
-      return () => ipcRenderer.removeListener('ai:compact', listener);
+      ) => cb(data)
+      ipcRenderer.on('ai:compact', listener)
+      return () => ipcRenderer.removeListener('ai:compact', listener)
     },
     /**
      * 工具调用事件（主进程在**开始/结束**时各发一条）。
@@ -549,46 +549,60 @@ const api = {
      */
     onToolCall: (
       cb: (data: {
-        projectPath?: string;
-        id: string;
-        name?: string;
-        args?: Record<string, unknown>;
+        projectPath?: string
+        id: string
+        name?: string
+        args?: Record<string, unknown>
         /**
          * 工具的**呈现契约**（可选：主进程有才带，缺省不带键）。
          * 形状与主进程 `agent-core/core.ts` 的 ToolPresentation、渲染层
          * `types/ipc.ts` 的同名接口一致 —— preload 不 import 主进程/渲染层代码，
          * 跨进程形状只能在这里再写一遍（与既有载荷声明同一做法）。
          */
-        presentation?: import('@shared/ai/toolPresentation').ToolPresentation;
+        presentation?: import('@shared/ai/toolPresentation').ToolPresentation
         /** 失败分类 + 建议动作（只在失败时带；老主进程不带键） */
-        failure?: import('@shared/ai/toolFailure').ToolFailure;
-        status: 'running' | 'done' | 'error' | 'aborted';
-        result?: string;
-        timestamp: number;
+        failure?: import('@shared/ai/toolFailure').ToolFailure
+        status: 'running' | 'done' | 'error' | 'aborted'
+        result?: string
+        timestamp: number
       }) => void,
     ) => {
-      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data);
-      ipcRenderer.on('ai:toolCall', listener);
-      return () => ipcRenderer.removeListener('ai:toolCall', listener);
+      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data)
+      ipcRenderer.on('ai:toolCall', listener)
+      return () => ipcRenderer.removeListener('ai:toolCall', listener)
     },
     /** 步边界：这一轮走到第几步（1-based，maxSteps 是本轮上限） */
     onAgentStep: (cb: (data: { projectPath?: string; step: number; maxSteps: number }) => void) => {
       const listener = (
         _e: unknown,
         data: { projectPath?: string; step: number; maxSteps: number },
-      ) => cb(data);
-      ipcRenderer.on('ai:agentStep', listener);
-      return () => ipcRenderer.removeListener('ai:agentStep', listener);
+      ) => cb(data)
+      ipcRenderer.on('ai:agentStep', listener)
+      return () => ipcRenderer.removeListener('ai:agentStep', listener)
+    },
+    /**
+     * 任务清单变了（`todo_write` 写成功之后；每轮开始先发一条空的 = 清空）。
+     * 整表覆盖语义：收到什么就整体替换界面上的清单。
+     */
+    onTodo: (
+      cb: (data: {
+        projectPath?: string
+        todos: { content: string; status: 'pending' | 'in_progress' | 'completed' }[]
+      }) => void,
+    ) => {
+      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data)
+      ipcRenderer.on('ai:todo', listener)
+      return () => ipcRenderer.removeListener('ai:todo', listener)
     },
     onResponse: (cb: (data: { projectPath?: string; message: string }) => void) => {
-      const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data);
-      ipcRenderer.on('ai:response', listener);
-      return () => ipcRenderer.removeListener('ai:response', listener);
+      const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data)
+      ipcRenderer.on('ai:response', listener)
+      return () => ipcRenderer.removeListener('ai:response', listener)
     },
     onNeedRollback: (cb: (data: { projectPath?: string }) => void) => {
-      const listener = (_e: unknown, data: { projectPath?: string }) => cb(data);
-      ipcRenderer.on('ai:needRollback', listener);
-      return () => ipcRenderer.removeListener('ai:needRollback', listener);
+      const listener = (_e: unknown, data: { projectPath?: string }) => cb(data)
+      ipcRenderer.on('ai:needRollback', listener)
+      return () => ipcRenderer.removeListener('ai:needRollback', listener)
     },
     /**
      * 主进程下发一条写指令（P1-1 回执协议）。
@@ -598,62 +612,62 @@ const api = {
      */
     onClientInstruction: (
       cb: (data: {
-        projectPath?: string;
-        requestId?: string;
-        instruction: { name: string; args: Record<string, unknown> };
+        projectPath?: string
+        requestId?: string
+        instruction: { name: string; args: Record<string, unknown> }
       }) => void,
     ) => {
       const listener = (
         _e: unknown,
         data: {
-          projectPath?: string;
-          requestId?: string;
-          instruction: { name: string; args: Record<string, unknown> };
+          projectPath?: string
+          requestId?: string
+          instruction: { name: string; args: Record<string, unknown> }
         },
-      ) => cb(data);
-      ipcRenderer.on('ai:clientInstruction', listener);
-      return () => ipcRenderer.removeListener('ai:clientInstruction', listener);
+      ) => cb(data)
+      ipcRenderer.on('ai:clientInstruction', listener)
+      return () => ipcRenderer.removeListener('ai:clientInstruction', listener)
     },
     /** 回一条写指令的执行结果（applied / rejected / failed） */
     resolveInstruction: (result: {
-      requestId: string;
+      requestId: string
       outcome:
         | { status: 'applied'; detail?: string }
         | { status: 'rejected'; reason: string }
-        | { status: 'failed'; reason: string };
+        | { status: 'failed'; reason: string }
     }) => ipcRenderer.invoke('ai:instructionResult', result),
     onAgentState: (
       cb: (data: {
-        projectPath?: string;
-        state: string;
-        message?: string;
+        projectPath?: string
+        state: string
+        message?: string
         /** 多智能体阶段进度（侦察/规划/并行/执行）；没有就不带 */
         stage?: {
-          id: string;
-          label: string;
-          status: 'start' | 'done' | 'skip' | 'fail';
-          ms?: number;
-          detail?: string;
-        };
+          id: string
+          label: string
+          status: 'start' | 'done' | 'skip' | 'fail'
+          ms?: number
+          detail?: string
+        }
       }) => void,
     ) => {
       const listener = (
         _e: unknown,
         data: {
-          projectPath?: string;
-          state: string;
-          message?: string;
+          projectPath?: string
+          state: string
+          message?: string
           stage?: {
-            id: string;
-            label: string;
-            status: 'start' | 'done' | 'skip' | 'fail';
-            ms?: number;
-            detail?: string;
-          };
+            id: string
+            label: string
+            status: 'start' | 'done' | 'skip' | 'fail'
+            ms?: number
+            detail?: string
+          }
         },
-      ) => cb(data);
-      ipcRenderer.on('ai:agentState', listener);
-      return () => ipcRenderer.removeListener('ai:agentState', listener);
+      ) => cb(data)
+      ipcRenderer.on('ai:agentState', listener)
+      return () => ipcRenderer.removeListener('ai:agentState', listener)
     },
     /**
      * **本轮的统计**（状态条）：轮数 / 步数 / 厂商回传的 token / 缓存命中 / 上下文占用。
@@ -667,22 +681,22 @@ const api = {
       const listener = (
         _e: unknown,
         data: { projectPath?: string; stats: import('@shared/types/ai').AiRunStats },
-      ) => cb(data);
-      ipcRenderer.on('ai:stats', listener);
-      return () => ipcRenderer.removeListener('ai:stats', listener);
+      ) => cb(data)
+      ipcRenderer.on('ai:stats', listener)
+      return () => ipcRenderer.removeListener('ai:stats', listener)
     },
     onProposal: (
       cb: (data: {
-        projectPath?: string;
-        proposal: import('@shared/types/proposal').Proposal;
+        projectPath?: string
+        proposal: import('@shared/types/proposal').Proposal
       }) => void,
     ) => {
       const listener = (
         _e: unknown,
         data: { projectPath?: string; proposal: import('@shared/types/proposal').Proposal },
-      ) => cb(data);
-      ipcRenderer.on('ai:proposal', listener);
-      return () => ipcRenderer.removeListener('ai:proposal', listener);
+      ) => cb(data)
+      ipcRenderer.on('ai:proposal', listener)
+      return () => ipcRenderer.removeListener('ai:proposal', listener)
     },
     /**
      * `ai:error` / `ai:warning` —— 主进程侧的运行期结果。
@@ -692,14 +706,14 @@ const api = {
      * （输入框永久禁用）。可见性与收尾都靠这两条（2026-10-06 审查发现）。
      */
     onError: (cb: (data: { projectPath?: string; message: string }) => void) => {
-      const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data);
-      ipcRenderer.on('ai:error', listener);
-      return () => ipcRenderer.removeListener('ai:error', listener);
+      const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data)
+      ipcRenderer.on('ai:error', listener)
+      return () => ipcRenderer.removeListener('ai:error', listener)
     },
     onWarning: (cb: (data: { projectPath?: string; message: string }) => void) => {
-      const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data);
-      ipcRenderer.on('ai:warning', listener);
-      return () => ipcRenderer.removeListener('ai:warning', listener);
+      const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data)
+      ipcRenderer.on('ai:warning', listener)
+      return () => ipcRenderer.removeListener('ai:warning', listener)
     },
   },
   data: {
@@ -739,9 +753,9 @@ const api = {
     getVariables: () => ipcRenderer.invoke('debug:getVariables'),
     setBreakpoints: (bps: unknown[]) => ipcRenderer.invoke('debug:setBreakpoints', bps),
     onStateChanged: (cb: (state: unknown) => void) => {
-      const listener = (_e: unknown, state: unknown) => cb(state);
-      ipcRenderer.on('debug:stateChanged', listener);
-      return () => ipcRenderer.removeListener('debug:stateChanged', listener);
+      const listener = (_e: unknown, state: unknown) => cb(state)
+      ipcRenderer.on('debug:stateChanged', listener)
+      return () => ipcRenderer.removeListener('debug:stateChanged', listener)
     },
   },
   history: {
@@ -788,9 +802,9 @@ const api = {
     rendererLog: (line: string) => ipcRenderer.invoke('diagnostics:rendererLog', { line }),
     onProgress: (cb: (data: { phase: string; message: string; error?: string }) => void) => {
       const listener = (_e: unknown, data: { phase: string; message: string; error?: string }) =>
-        cb(data);
-      ipcRenderer.on('diagnostics:progress', listener);
-      return () => ipcRenderer.removeListener('diagnostics:progress', listener);
+        cb(data)
+      ipcRenderer.on('diagnostics:progress', listener)
+      return () => ipcRenderer.removeListener('diagnostics:progress', listener)
     },
   },
   // 说明：`debugger:*`（源码级调试 / debugpy）**已整个删除**（2026-09-30）。
@@ -807,9 +821,9 @@ const api = {
     fork: (projectPath: string, builtinKind: string, newName: string) =>
       ipcRenderer.invoke('customNode:fork', { projectPath, builtinKind, newName }),
     onChanged: (cb: (data: { projectPath: string }) => void) => {
-      const listener = (_e: unknown, data: { projectPath: string }) => cb(data);
-      ipcRenderer.on('customNode:changed', listener);
-      return () => ipcRenderer.removeListener('customNode:changed', listener);
+      const listener = (_e: unknown, data: { projectPath: string }) => cb(data)
+      ipcRenderer.on('customNode:changed', listener)
+      return () => ipcRenderer.removeListener('customNode:changed', listener)
     },
   },
   // 说明：`template` 域（列表/应用/保存/导入导出流程模板）随模板库一并移除 ——
@@ -822,9 +836,9 @@ const api = {
     exportToCSV: () => ipcRenderer.invoke('metrics:exportToCSV'),
     exportToJSON: () => ipcRenderer.invoke('metrics:exportToJSON'),
     onSnapshot: (cb: (data: unknown) => void) => {
-      const listener = (_e: unknown, data: unknown) => cb(data);
-      ipcRenderer.on('metrics:snapshot', listener);
-      return () => ipcRenderer.removeListener('metrics:snapshot', listener);
+      const listener = (_e: unknown, data: unknown) => cb(data)
+      ipcRenderer.on('metrics:snapshot', listener)
+      return () => ipcRenderer.removeListener('metrics:snapshot', listener)
     },
   },
   crash: {
@@ -835,9 +849,9 @@ const api = {
       ipcRenderer.send('crash:capture', { message, stack, extra }),
     exportDiagnostic: () => ipcRenderer.invoke('crash:exportDiagnostic'),
     onShowCrashPanel: (cb: () => void) => {
-      const listener = () => cb();
-      ipcRenderer.on('crash:showPanel', listener);
-      return () => ipcRenderer.removeListener('crash:showPanel', listener);
+      const listener = () => cb()
+      ipcRenderer.on('crash:showPanel', listener)
+      return () => ipcRenderer.removeListener('crash:showPanel', listener)
     },
   },
   // 说明：旧的 `resources`（resources:startMonitor / stopMonitor / getSnapshot / onSnapshot）
@@ -855,25 +869,25 @@ const api = {
       ipcRenderer.invoke('resourceMonitor:setConfig', config),
     getHistory: () => ipcRenderer.invoke('resourceMonitor:getHistory'),
     onUsage: (cb: (data: unknown) => void) => {
-      const listener = (_e: unknown, data: unknown) => cb(data);
-      ipcRenderer.on('resourceMonitor:usage', listener);
-      return () => ipcRenderer.removeListener('resourceMonitor:usage', listener);
+      const listener = (_e: unknown, data: unknown) => cb(data)
+      ipcRenderer.on('resourceMonitor:usage', listener)
+      return () => ipcRenderer.removeListener('resourceMonitor:usage', listener)
     },
     onConfig: (cb: (data: unknown) => void) => {
-      const listener = (_e: unknown, data: unknown) => cb(data);
-      ipcRenderer.on('resourceMonitor:config', listener);
-      return () => ipcRenderer.removeListener('resourceMonitor:config', listener);
+      const listener = (_e: unknown, data: unknown) => cb(data)
+      ipcRenderer.on('resourceMonitor:config', listener)
+      return () => ipcRenderer.removeListener('resourceMonitor:config', listener)
     },
     onStatus: (cb: (data: unknown) => void) => {
-      const listener = (_e: unknown, data: unknown) => cb(data);
-      ipcRenderer.on('resourceMonitor:status', listener);
-      return () => ipcRenderer.removeListener('resourceMonitor:status', listener);
+      const listener = (_e: unknown, data: unknown) => cb(data)
+      ipcRenderer.on('resourceMonitor:status', listener)
+      return () => ipcRenderer.removeListener('resourceMonitor:status', listener)
     },
     onAlert: (cb: (data: { type: string; message: string; timestamp: number }) => void) => {
       const listener = (_e: unknown, data: { type: string; message: string; timestamp: number }) =>
-        cb(data);
-      ipcRenderer.on('resourceMonitor:alert', listener);
-      return () => ipcRenderer.removeListener('resourceMonitor:alert', listener);
+        cb(data)
+      ipcRenderer.on('resourceMonitor:alert', listener)
+      return () => ipcRenderer.removeListener('resourceMonitor:alert', listener)
     },
   },
   stateStore: {
@@ -999,18 +1013,19 @@ const api = {
       msgId: string,
     ) => ipcRenderer.invoke('official:recallMessage', { projectPath, chatType, chatId, msgId }),
     onStatusChange: (callback: (data: unknown) => void) => {
-      const handler = (_event: unknown, d: unknown) => callback(d);
-      ipcRenderer.on('official:statusChanged', handler);
-      return () => ipcRenderer.removeListener('official:statusChanged', handler);
+      const handler = (_event: unknown, d: unknown) => callback(d)
+      ipcRenderer.on('official:statusChanged', handler)
+      return () => ipcRenderer.removeListener('official:statusChanged', handler)
     },
     onMessage: (callback: (data: unknown) => void) => {
-      const handler = (_event: unknown, d: unknown) => callback(d);
-      ipcRenderer.on('official:message', handler);
-      return () => ipcRenderer.removeListener('official:message', handler);
+      const handler = (_event: unknown, d: unknown) => callback(d)
+      ipcRenderer.on('official:message', handler)
+      return () => ipcRenderer.removeListener('official:message', handler)
     },
     startTranslator: (projectPath: string, port: number) =>
       ipcRenderer.invoke('official:startTranslator', { projectPath, port }),
-    stopTranslator: (projectPath: string) => ipcRenderer.invoke('official:stopTranslator', { projectPath }),
+    stopTranslator: (projectPath: string) =>
+      ipcRenderer.invoke('official:stopTranslator', { projectPath }),
     getTranslatorStatus: () => ipcRenderer.invoke('official:getTranslatorStatus', {}),
   },
   aiProvider: {
@@ -1026,11 +1041,12 @@ const api = {
     stop: (projectPath: string) => ipcRenderer.invoke('botManager:stop', { projectPath }),
     restart: (projectPath: string) => ipcRenderer.invoke('botManager:restart', { projectPath }),
     register: (projectPath: string) => ipcRenderer.invoke('botManager:register', { projectPath }),
-    unregister: (projectPath: string) => ipcRenderer.invoke('botManager:unregister', { projectPath }),
+    unregister: (projectPath: string) =>
+      ipcRenderer.invoke('botManager:unregister', { projectPath }),
     onStatusChanged: (cb: (data: unknown) => void) => {
-      const listener = (_e: unknown, data: unknown) => cb(data);
-      ipcRenderer.on('botManager:statusChanged', listener);
-      return () => ipcRenderer.removeListener('botManager:statusChanged', listener);
+      const listener = (_e: unknown, data: unknown) => cb(data)
+      ipcRenderer.on('botManager:statusChanged', listener)
+      return () => ipcRenderer.removeListener('botManager:statusChanged', listener)
     },
     offStatusChanged: () => {},
   },
@@ -1038,21 +1054,20 @@ const api = {
     export: (params: unknown) => ipcRenderer.invoke('docker:export', params),
     openFolder: (path: string) => ipcRenderer.invoke('docker:openFolder', { path }),
     onProgress: (cb: (data: unknown) => void) => {
-      const listener = (_e: unknown, d: unknown) => cb(d);
-      ipcRenderer.on('docker:progress', listener);
-      return () => ipcRenderer.removeListener('docker:progress', listener);
+      const listener = (_e: unknown, d: unknown) => cb(d)
+      ipcRenderer.on('docker:progress', listener)
+      return () => ipcRenderer.removeListener('docker:progress', listener)
     },
   },
   ssh: {
     deploy: (params: unknown) => ipcRenderer.invoke('ssh:deploy', params),
     testConnection: (params: unknown) => ipcRenderer.invoke('ssh:testConnection', params),
     onLog: (cb: (data: unknown) => void) => {
-      const listener = (_e: unknown, d: unknown) => cb(d);
-      ipcRenderer.on('ssh:log', listener);
-      return () => ipcRenderer.removeListener('ssh:log', listener);
+      const listener = (_e: unknown, d: unknown) => cb(d)
+      ipcRenderer.on('ssh:log', listener)
+      return () => ipcRenderer.removeListener('ssh:log', listener)
     },
   },
-};
+}
 
-contextBridge.exposeInMainWorld('qqbat', api);
-
+contextBridge.exposeInMainWorld('qqbat', api)

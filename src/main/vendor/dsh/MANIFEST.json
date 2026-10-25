@@ -58,6 +58,29 @@
       ]
     },
     {
+      "kind": "vendored",
+      "sourcePath": "packages/todo/tool-todo/src/types.ts",
+      "sourceSha256": "33868cc6852c37d188c79329e0a48c9206adc3c82521f2e52e492c25e0381bbe",
+      "targetPath": "src/main/vendor/dsh/todo/types.ts",
+      "targetSha256": "a764a6512a269c13b0f937a951e03ed3b3cc56f662cd55e34c95e2c23a1def08",
+      "adaptedNotes": [
+        "删掉两个 declare module（@deepseek-ai/dsh-session 与 dsh-session-projection 的事件/投影扩展，本仓库没有那套类型）",
+        "补 TodoStatus / TODO_STATUSES / TodoCounts 三个本仓库要用的具名类型（上游是内联枚举与局部 count 函数）"
+      ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/todo/tool-todo/src/index.ts",
+      "sourceSha256": "80559ed95b7fc9c1dc083312f187885254bf2c1498d0f7a079dad21427d24def",
+      "targetPath": "src/main/vendor/dsh/todo/todo-list.ts",
+      "targetSha256": "3dada9a03bc7d73e6057285ad1926b6066d8f16fbb4a1a9c9cc079581ecf45f5",
+      "adaptedNotes": [
+        "只取纯函数：四段 DESCRIPTION 文案、describe()→describeTodoTool()、toTodoList()（校验文案与顺序一字未改）",
+        "没有搬 Cordis apply()/defineTool/ctx.sessionProjections 投影（要上游 Session 重放），也没搬 z / schemastery 依赖",
+        "新增 countTodos() / formatTodoSummary()：把上游 execute() 里的计数与 output.render 的回执文案提成纯函数"
+      ]
+    },
+    {
       "kind": "adaptation",
       "targetPath": "src/main/vendor/dsh/token-meter/measure.ts",
       "targetSha256": "a4dd8d0cb9ea72f545e15033b499368624fbb7f3aeb2c4eb9da2e83271e9ac05",

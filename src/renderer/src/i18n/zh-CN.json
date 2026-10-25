@@ -350,6 +350,11 @@
   "ai": {
     "send": "发送",
     "generating": "生成中...",
+    "todo": {
+      "title": "任务清单",
+      "summary": "已完成 {done}/{total}",
+      "more": "还有 {n} 条"
+    },
     "chat": {
       "batchMode": "事务操作中... 30 秒后自动提交",
       "clearTitle": "清空当前对话（含模型记忆）",

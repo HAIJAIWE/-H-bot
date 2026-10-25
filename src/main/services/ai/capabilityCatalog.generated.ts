@@ -36,7 +36,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityLayer, string> = {
   X: '助手自身或内部管道，不对外开放',
 }
 
-/** 台账：271 条（R 0 / Q 83 / M 103 / P 8 / F 3 / X 74） */
+/** 台账：272 条（R 0 / Q 83 / M 103 / P 8 / F 3 / X 75） */
 export const CAPABILITY_CATALOG: CapabilityEntry[] = [
   {
     id: 'adapter.current',
@@ -342,6 +342,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:stats',
+    channelKind: 'on',
+  },
+  {
+    id: 'ai.onTodo',
+    ns: 'ai',
+    method: 'onTodo',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:todo',
     channelKind: 'on',
   },
   {

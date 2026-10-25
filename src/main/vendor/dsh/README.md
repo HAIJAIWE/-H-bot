@@ -28,7 +28,10 @@
 - `packages/compaction/compaction-basic/src/index.ts`（477 行，import 22 个 `@deepseek-ai/*`）；
 - 同目录 `region.ts`（601 行，绑 `SessionSeq` / `EpochHeader` / `dsh-token-meter`）；
 - `packages/llm/token-meter/src/index.ts`（297 行，Cordis `Service` + 会话投影重放）；
-- `packages/compaction/compaction-tool-result-pruner/src/index.ts` 的 `pruneSession()`（要 `Session` 的 shadow-price 协议）。
+- `packages/compaction/compaction-tool-result-pruner/src/index.ts` 的 `pruneSession()`（要 `Session` 的 shadow-price 协议）；
+- `packages/plan/plan-mode/src/index.ts`（452 行，`PlanModeController extends Service` + 会话投影 + 系统提示注册）；
+- `packages/preset/agent-preset-registry/**`（绑死 DSH 那四个预设 id 与 Cordis YAML 插件行，换不到我们的语义上）；
+- `packages/compaction/compaction-image-offload/**`（我们循环里的图只挂在当轮首个 user 回合、且不落盘，历史里没有旧图可搬）。
 
 ## 目录
 
@@ -40,6 +43,8 @@
 | `tool-result-pruner/config.ts` | `packages/compaction/compaction-tool-result-pruner/src/config.ts` | `PRUNE_MARKER` / `DEFAULTS` / `resolveConfig`                                     |
 | `tool-result-pruner/prune.ts`  | 同上 `src/index.ts` 的两个方法                                    | `measureContent` / `pruneContent` 提成纯函数，剪枝逻辑没改                        |
 | `tool-result-pruner/types.ts`  | 同上 `src/types.ts`                                               | 只留配置类型（`PrunedEntry` / `PruneResult` 绑 `SessionSeq`，已删）               |
+| `todo/types.ts`                | `packages/todo/tool-todo/src/types.ts`                            | `TodoItem` 与三态生命周期（投影的 declare module 已删）                           |
+| `todo/todo-list.ts`            | 同目录 `src/index.ts` 的纯函数                                    | 工具描述、`toTodoList` 校验（文案未改）、计数与回执文案                           |
 
 标「本仓库适配层」的**不是上游文件**，不参与哈希对账，改它们不需要同步上游。
 
@@ -47,6 +52,7 @@
 
 - 循环内 token 估算：`src/main/services/agent-core/tokenEstimate.ts` → `token-meter/`；
 - 工具结果掐头留尾：`src/main/services/agent-core/toolResultPrune.ts` → `tool-result-pruner/`；
+- 模型的多步清单：`src/main/services/agent-core/todoTool.ts` → `todo/`（清单条在 `ChatPanel` 顶部）；
 - 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33。
 
 ## 更新上游时的做法

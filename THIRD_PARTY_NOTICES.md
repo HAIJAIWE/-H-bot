@@ -22,6 +22,8 @@
 - `packages/compaction/compaction-tool-result-pruner/src/config.ts` → `src/main/vendor/dsh/tool-result-pruner/config.ts`（剪枝预算校验、标记、默认值）
 - `packages/compaction/compaction-tool-result-pruner/src/types.ts` → `src/main/vendor/dsh/tool-result-pruner/types.ts`（配置类型）
 - `packages/compaction/compaction-tool-result-pruner/src/index.ts` → `src/main/vendor/dsh/tool-result-pruner/prune.ts`（`measureContent` / `pruneContent` 两个纯函数）
+- `packages/todo/tool-todo/src/types.ts` → `src/main/vendor/dsh/todo/types.ts`（清单条目与三态类型）
+- `packages/todo/tool-todo/src/index.ts` → `src/main/vendor/dsh/todo/todo-list.ts`（工具描述、`toTodoList` 校验、计数与回执文案）
 
 改动原则（详见设计文档 `docs/ai/dsh-source-adaptation-2026-10-24.md` §0 / §2）：
 

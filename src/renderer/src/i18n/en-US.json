@@ -350,6 +350,11 @@
   "ai": {
     "send": "Send",
     "generating": "Generating...",
+    "todo": {
+      "title": "Task list",
+      "summary": "{done}/{total} done",
+      "more": "{n} more"
+    },
     "chat": {
       "batchMode": "Transaction in progress... auto-commits in 30 seconds",
       "clearTitle": "Clear this chat (including model memory)",

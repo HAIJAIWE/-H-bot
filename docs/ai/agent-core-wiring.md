@@ -1263,3 +1263,80 @@ retry = planCompaction() ──剪完可能就够了
   搬它等于搬会话模型；目前区间选择仍是本仓库 `planCompaction`。
 - **`pruneSession()` 没搬**：要上游 Session 与 shadow-price 事件协议。
 - **图片价仍是 1000/张的粗估**：上游图像 offload 后按引用价算，那是 route 的账。
+
+## 34. 第二批：`todo_write` —— 模型自己的多步清单（2026-10-25）
+
+第一批（§33）之后，按「算法密集、与运行时无关」重新过了一遍上游剩下的候选，结论是只有 todo 值得搬：
+
+| 候选                                           | 结论   | 为什么                                                                                                                           |
+| ---------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/todo/tool-todo`                      | **搬** | 纯函数（描述文案 / 校验 / 计数）+ 一个工具 + 一条界面清单条；我们循环缺「多步任务清单」，长任务容易跑偏                          |
+| `packages/plan/plan-mode`                      | 不搬   | `PlanModeController extends Service` + `inject = ['tools','systemPrompt','sessionProjections','agents']`，452 行全绑 Cordis 会话 |
+| `packages/preset/agent-preset-registry`        | 不搬   | 只认 DSH 那四个预设 id 与 Cordis YAML 插件行，换不到我们的「角色 / 预设」语义                                                    |
+| `packages/compaction/compaction-image-offload` | 不搬   | 我们循环里的图只挂在当轮首个 user 回合、且不落盘，历史里没有旧图可 offload                                                       |
+| `packages/llm/llm-retry` + `retry-policy.ts`   | 不搬   | 已有 `services/ai/llmRetry.ts`，口径相同（5 次、500ms 起、指数 + 抖动）                                                          |
+| `packages/util/output-retention`               | 暂不搬 | 429 行，处理的是上游 worktree / 快照保留，我们没有对应物                                                                         |
+
+### 34.1 搬了什么
+
+| 上游                                   | 我们这里                       | 改了什么                                                                                            |
+| -------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `packages/todo/tool-todo/src/types.ts` | `vendor/dsh/todo/types.ts`     | 删两个 `declare module`（会话事件 / 投影扩展），补 `TodoStatus` / `TodoCounts` 具名类型             |
+| `packages/todo/tool-todo/src/index.ts` | `vendor/dsh/todo/todo-list.ts` | 只取纯函数：四段描述文案、`describeTodoTool`、`toTodoList`；新增 `countTodos` / `formatTodoSummary` |
+
+没搬：`apply()` / `defineTool` / `ctx.sessionProjections` 投影（要上游 Session 重放）、`zod` / `schemastery` 依赖。
+
+### 34.2 为什么只搬「清单」不搬「计划」
+
+上游这两件事是分开的：**plan** 是给人看的关卡（进入/审阅/退出，绑会话与系统提示），
+**todo** 是模型自己的脚手架（整表替换、后写覆盖、每轮清空）。我们的「先计划」开关（§20）已经
+承担了前者的一半，缺的正是后者 —— 所以只搬 todo，不动 plan-mode。
+
+### 34.3 接线四处
+
+1. **工具注册**：`core.ts` 在 `for (const builtin of CORE_TOOLS) registerTool(builtin)` 之后单独
+   `registerTool(TODO_TOOL)` —— **不能**塞进 `CORE_TOOLS`：`builtinHostPlugins` 有一道防御，
+   任何没被 `FILES_TOOLS / RUNTIME_TOOLS / FLOW_TOOLS` 认领的 `CORE_TOOLS` 都会让插件注册直接 throw。
+2. **存储**：`agent-core/todoStore.ts` 是进程内 `Map`，键 `resolve(workspace)` —— 两个项目各一份。
+   读/写都返回副本，调用方改不到内部状态。
+3. **事件**：`ai:todo { projectPath, todos }`。每轮开始先 `clearTodos` 再发一张空表（清单是这一轮的
+   脚手架，不继承上一轮）；工具完成时**复用唯一的 `onToolEnd` 钩子**（`call.name === 'todo_write'`
+   且输出不以 `[工具失败]` 开头才发），没有新开订阅。
+4. **界面**：`ChatPanel` 输入框上方一条清单（只列前 6 条 + 「还有 N 条」，完成项划线），
+   文案在 `ai.todo.*`。清单为空时整条不渲染。
+
+### 34.4 校验口径（与上游一字不差）
+
+- `invalid todo: \`content\` must be a non-empty string`（trim 后为空）；
+- `invalid todos: duplicate content "…"`（trim 后重复）；
+- `invalid todos: at most one task may be in_progress (got N)`（只在 `!allowParallel` 时可能触发）。
+
+`ALLOW_PARALLEL_IN_PROGRESS = true`：我们的调度器本来就能并行跑工具（§7 的 `runToolGroup`），
+上游这里也是**部署选择**而不是模型开关，所以固定成允许并行，描述里就写「几个同时做」。
+
+### 34.5 为什么不落盘
+
+清单是「这一轮打算怎么做」，不是历史真相；真要留痕，历史里已有 `todo_write` 的调用与回执。
+代价说清楚：**重启应用后清单条消失**（重放历史还能看到最后一次写入）。要持久化的话，正确做法是
+往 `.qqbat/ai-history.jsonl` 落一条专用事件，而不是把 Map 序列化到磁盘 —— 本批没做。
+
+### 34.6 测试与闸门
+
+- `tests/main/services/agent-core/todoTool.test.ts`（8 例）：描述只差一句、trim/空串/重复、
+  并行活跃数、计数与回执文案、已注册进 `listTools()`、按工作区隔离、非数组直接拒、校验失败不覆盖上一份。
+- `agentCoreEventContract`：`REQUIRED_KEYS` 加 `'ai:todo': ['projectPath','todos']`，agent-core 的
+  通道期望 +2 条 `ai:todo`。
+- 能力台账：附录 A 加 `ai.onTodo = X`；总表 `ai` 行 50 / X 50、小计 268、出口 X+⛔ = 70；
+  `node scripts/gen-capability-catalog.mjs` 重生成两份目录。
+- `node scripts/vendor-audit.mjs`：vendored 6 + 适配层 2，上游快照可对账。
+
+### 34.7 教训：这台机器上别裸跑 `pnpm`
+
+`pnpm vendor:audit` / `pnpm -s vitest …` 会先做 deps-status 检查，发现 `node_modules` 与 lockfile
+不一致就想 **purge 重装**；无 TTY 时直接 abort（`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`），
+表现为「EXIT=1 且零输出」。闸门一律走二进制：
+
+```powershell
+node node_modules/vitest/vitest.mjs run tests/guards --maxWorkers=2
+node scripts/vendor-audit.mjs
+```
