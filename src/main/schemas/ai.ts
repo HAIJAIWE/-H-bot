@@ -108,6 +108,11 @@ var rollbackTurnSchema = z.object({
   threadId: z.string().optional(),
 })
 var aiProjectPathSchema = z.object({ projectPath: z.string().min(1) })
+/** 设置项目默认预设（`null` = 跟页面，删掉记录） */
+var aiSetPresetDefaultSchema = z.object({
+  projectPath: z.string().min(1),
+  preset: z.string().min(1).max(120).nullable(),
+})
 /** 读预设注册表；带 threadId 时顺带回这条线程的锁状态（第 50 批） */
 var aiPresetRosterSchema = z.object({
   projectPath: z.string().min(1),
@@ -164,7 +169,13 @@ var aiAgentCoreRunSchema = z.object({
   planFirst: z.boolean().optional(),
   fullAccess: z.boolean().optional(),
   allowedTools: z.array(z.string().min(1)).optional(),
-  preset: z.string().min(1).max(120).optional(),
+  /**
+   * 预设名。三种状态必须区分（第 51 批）：
+   * · 字符串 = 用户明确选了这个预设；
+   * · `null`   = 用户明确选了"跟页面"（不套项目默认）；
+   * · 缺省     = 这一轮没表态（渲染层从未替这条线程选过）→ 空白线程套默认。
+   */
+  preset: z.union([z.string().min(1).max(120), z.null()]).optional(),
   agentMode: z.enum(['blocks', 'code', 'duo', 'creator']).optional(),
   /**
    * 用户贴的图片（data URL）。与助手链路同一套上限：单张 ≤6e6 字符、最多 4 张。
@@ -223,6 +234,7 @@ export {
   rewindToSchema,
   rollbackTurnSchema,
   aiProjectPathSchema,
+  aiSetPresetDefaultSchema,
   aiPresetRosterSchema,
   aiHistorySchema,
   aiThreadSchema,

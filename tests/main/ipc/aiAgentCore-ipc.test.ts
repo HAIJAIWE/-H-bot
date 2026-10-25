@@ -24,6 +24,9 @@ const h = vi.hoisted(() => ({
   /** 预设注册表：运行时按名字裁决（fail-closed）、菜单读整份注册表 */
   resolvePresetForRun: vi.fn(),
   readPresetRoster: vi.fn(),
+  /** 第 51 批：空白线程套项目默认；默认坏了 fail-closed */
+  resolveDefaultPreset: vi.fn(),
+  writePresetDefault: vi.fn(),
   /** 会话预设锁（第 50 批）：默认"没锁"，各用例按需改 */
   decideSessionPreset: vi.fn(),
   readPresetSession: vi.fn(),
@@ -69,6 +72,8 @@ vi.mock('@main/services/ai/verifier', () => ({ buildVerdict: h.buildVerdict }))
 vi.mock('@main/services/ai/presets', () => ({
   resolvePresetForRun: h.resolvePresetForRun,
   readPresetRoster: h.readPresetRoster,
+  resolveDefaultPreset: h.resolveDefaultPreset,
+  writePresetDefault: h.writePresetDefault,
   writePresets: vi.fn(),
 }))
 vi.mock('@main/services/ai/presetLock', () => ({
@@ -118,6 +123,8 @@ describe('ai:agentCoreRun 接线', () => {
         preset: { name },
       }))
     h.readPresetRoster.mockReset().mockResolvedValue({ presets: [] })
+    h.resolveDefaultPreset.mockReset().mockResolvedValue({ ok: true, preset: null })
+    h.writePresetDefault.mockReset().mockResolvedValue(undefined)
     h.decideSessionPreset
       .mockReset()
       .mockImplementation(
@@ -637,6 +644,67 @@ describe('ai:agentCoreRun 接线', () => {
     expect(res).toEqual({ ok: true, data: roster })
     expect(h.readPresetRoster).toHaveBeenCalledWith('D:/p')
     expect(h.readPresetSession).not.toHaveBeenCalled()
+  })
+
+  it('★ 空白线程没表态：套项目默认（默认只影响新会话）', async () => {
+    h.resolveDefaultPreset.mockResolvedValue({ ok: true, preset: '只读巡检' })
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-default-'))
+    try {
+      await invoke({ projectPath: dir, requirement: 'x' })
+      expect(h.resolveDefaultPreset).toHaveBeenCalledWith(dir)
+      expect(h.decideSessionPreset).toHaveBeenCalledWith(dir, 'default', false, '只读巡检')
+      expect(h.resolvePresetForRun).toHaveBeenCalledWith(dir, '只读巡检')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('★ 显式 null（跟页面）：不套默认，也不读默认文件', async () => {
+    h.resolveDefaultPreset.mockResolvedValue({ ok: true, preset: '只读巡检' })
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-null-'))
+    try {
+      await invoke({ projectPath: dir, requirement: 'x', preset: null })
+      expect(h.resolveDefaultPreset).not.toHaveBeenCalled()
+      expect(h.decideSessionPreset).toHaveBeenCalledWith(dir, 'default', false, null)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('★ 默认预设坏了：fail-closed，不开始循环（默认也是权限口径）', async () => {
+    h.resolveDefaultPreset.mockResolvedValue({
+      ok: false,
+      error: '默认预设不可用：默认预设「夜巡」不存在或不可用；为避免静默放开权限，这一轮没有开始',
+    })
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-baddefault-'))
+    try {
+      const res = (await invoke({ projectPath: dir, requirement: 'x' })) as {
+        ok: boolean
+        error?: string
+      }
+      expect(res.ok).toBe(false)
+      expect(res.error).toContain('默认预设不可用')
+      expect(h.runAgentTurn).not.toHaveBeenCalled()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('★ ai:setPresetDefault：写默认 / 服务层拒绝时把原因带回来', async () => {
+    const ok = await invokeChannel('ai:setPresetDefault', {
+      projectPath: 'D:/p',
+      preset: '只读巡检',
+    })
+    expect(ok).toEqual({ ok: true })
+    expect(h.writePresetDefault).toHaveBeenCalledWith('D:/p', '只读巡检')
+
+    h.writePresetDefault.mockRejectedValue(new Error('不能把「夜巡」设为默认：它不是可用的预设'))
+    const bad = (await invokeChannel('ai:setPresetDefault', {
+      projectPath: 'D:/p',
+      preset: '夜巡',
+    })) as { ok: boolean; error?: string }
+    expect(bad.ok).toBe(false)
+    expect(bad.error).toContain('不是可用的预设')
   })
 
   it('ai:getPresets 带 threadId：额外回会话锁状态（菜单据此禁用换预设）', async () => {

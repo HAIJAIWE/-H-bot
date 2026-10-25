@@ -116,6 +116,19 @@ describe('预设编辑（表单）', () => {
     expect(savePresets).not.toHaveBeenCalled()
   })
 
+  it('★ 内置预设名不提交（主进程会整表拒绝，界面先拦）', async () => {
+    render(<PresetEditor open projectPath="/p" onClose={() => {}} onSaved={() => {}} />)
+    await screen.findByRole('button', { name: '只读巡检' })
+    fireEvent.change(screen.getByLabelText(t('ai.agentCore.presetFieldName')), {
+      target: { value: '标准' },
+    })
+    save()
+    expect(
+      await screen.findByText(t('ai.agentCore.presetBuiltinName', { name: '标准' })),
+    ).toBeInTheDocument()
+    expect(savePresets).not.toHaveBeenCalled()
+  })
+
   it('重名不提交', async () => {
     render(<PresetEditor open projectPath="/p" onClose={() => {}} onSaved={() => {}} />)
     await screen.findByRole('button', { name: '全放行' })

@@ -14,13 +14,19 @@
 //   · `AgentPresetRow` ≈ DSH 的 `AgentPresetRow`（id/name/description/broken）；
 //   · `AgentPresetRoster` ≈ DSH 的 `AgentPresetRoster`（含激活失败的声明）；
 //   · `PresetSessionState` ≈ DSH 的会话投影 `agentPreset` + `agent-preset/locked`
-//     （区别：我们按**线程**锁，DSH 按 session；空白线程仍可换）。
+//     （区别：我们按**线程**锁，DSH 按 session；空白线程仍可换）；
+//   · 第 51 批的 `builtin` / `isDefault` ≈ DSH 的 builtin 行与 `selectedDefault`：
+//     `isDefault` 是**算出来的展示字段**，不写进预设文件；默认值单独存一份。
 import type { AgentRole } from './roleDomains'
 
 /** 预设文件在项目里的相对路径（磁盘契约；主进程与编辑器都用这一份） */
 export const PRESETS_FILE = '.qqbat/agent-presets.json'
 /** 文件名（相对 `.qqbat/`） */
 export const PRESETS_BASENAME = 'agent-presets.json'
+/** 默认预设记录（与预设文件分开：改名/删条目不该顺手改掉默认值；缺失 = 跟页面） */
+export const PRESET_DEFAULT_FILE = '.qqbat/agent-preset-default.json'
+/** 默认记录文件名（相对 `.qqbat/`） */
+export const PRESET_DEFAULT_BASENAME = 'agent-preset-default.json'
 /** 名字上限：菜单一行放得下，也够区分（与主进程原值一致，不在这里收紧） */
 export const PRESET_NAME_MAX = 40
 /** 附加要求上限：太长会把角色强调句挤成背景噪声（提示词预算也是钱） */
@@ -60,14 +66,22 @@ export interface AgentPresetRow extends AgentPreset {
   broken?: string
   /** 被忽略/截断的字段说明（空 = 文件里的值都生效了） */
   notes?: string[]
+  /** 随程序发布的内置项（不能删、不能同名覆盖；菜单/编辑器显示"内置"） */
+  builtin?: boolean
+  /** 当前项目默认预设计算出来的标记（DSH `remoteExportList` 的 isDefault） */
+  isDefault?: boolean
 }
 
 /** 一次读取的结果：能用的与用不了的都在里面，外加"整个文件读不了"的原因 */
 export interface AgentPresetRoster {
-  /** 可用的在前（按 order，再按文件顺序），不可用的按文件顺序附在后面 */
+  /** 内置项 + 用户可用项（按 order），不可用的按文件顺序附在后面 */
   presets: AgentPresetRow[]
   /** 文件级问题（JSON 解析失败 / 顶层不是数组）；缺省 = 文件没问题或不存在 */
   fileProblem?: string
+  /** 当前项目配置的默认预设名；null/缺省 = 跟页面（不是"还不知道"） */
+  defaultPreset?: string | null
+  /** 默认值读不出来 / 指向的条目不存在或坏了（界面提示；运行时按 fail-closed 处理） */
+  defaultProblem?: string
 }
 
 /**

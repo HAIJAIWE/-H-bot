@@ -326,8 +326,11 @@ const api = {
       fullAccess?: boolean,
       /** 本轮允许的工具名白名单（预设用；不传 = 注册表全量） */
       allowedTools?: string[],
-      /** 会话预设名（读 .qqbat/agent-presets.json；显式 allowedTools 优先） */
-      preset?: string,
+      /**
+       * 会话预设名（读 .qqbat/agent-presets.json；显式 allowedTools 优先）。
+       * `null` = 明确跟页面；不传 = 没表态（空白线程会套项目默认，见第 51 批）。
+       */
+      preset?: string | null,
       /** 角色（界面模式）：按角色裁工具 + 角色提示词 */
       agentMode?: 'blocks' | 'code' | 'duo' | 'creator',
       /** 这一轮贴的图（data URL；只进这一轮，不进记忆） */
@@ -372,6 +375,12 @@ const api = {
      */
     getPresets: (projectPath: string, threadId?: string) =>
       ipcRenderer.invoke('ai:getPresets', { projectPath, threadId }),
+    /**
+     * 设置项目默认预设（第 51 批）。`null` = 跟页面（删掉记录）。
+     * 默认值单独存 `.qqbat/agent-preset-default.json`，不写进预设数组。
+     */
+    setPresetDefault: (projectPath: string, preset: string | null) =>
+      ipcRenderer.invoke('ai:setPresetDefault', { projectPath, preset }),
     /**
      * **插话**：把一句话塞进正在跑的那一轮（下一个步边界注入给模型）。
      * 没在跑时主进程会直接拒绝 —— 界面据此提示"先发一条新要求"。

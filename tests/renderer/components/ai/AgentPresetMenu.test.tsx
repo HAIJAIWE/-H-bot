@@ -24,10 +24,12 @@ const ROSTER: AgentPresetRoster = {
 }
 
 let getPresets: ReturnType<typeof vi.fn>
+let setPresetDefault: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   getPresets = vi.fn().mockResolvedValue({ ok: true, data: ROSTER })
-  window.qqbat = { ai: { getPresets } } as never
+  setPresetDefault = vi.fn().mockResolvedValue({ ok: true })
+  window.qqbat = { ai: { getPresets, setPresetDefault } } as never
 })
 
 afterEach(() => {
@@ -92,7 +94,7 @@ describe('角色/预设菜单', () => {
 
   it('★ 预设来自注册表，点了回调收到**名字**（不是文件里的 id）', async () => {
     const s = setup()
-    fireEvent.click(await screen.findByText('只读巡检'))
+    fireEvent.click(await screen.findByRole('button', { name: '只读巡检' }))
     expect(s.onPickPreset).toHaveBeenCalledWith('只读巡检')
   })
 
@@ -171,9 +173,52 @@ describe('角色/预设菜单', () => {
       },
     })
     const s = setup({ threadId: 't-1' })
-    await screen.findByText('只读巡检')
+    await screen.findByRole('button', { name: '只读巡检' })
     expect(s.onSessionPreset).not.toHaveBeenCalled()
     expect(screen.getByTitle(t('ai.mode.coderHint'))).not.toBeDisabled()
+  })
+
+  it('★ 默认预设下拉：显示 registry 的默认值，改选调 IPC 并把「默认」徽标挪过去', async () => {
+    getPresets.mockResolvedValue({
+      ok: true,
+      data: {
+        presets: [
+          { name: '只读巡检', role: 'coder', isDefault: true },
+          { name: '全放行', permissionMode: 'full' },
+        ],
+        defaultPreset: '只读巡检',
+      },
+    })
+    setup()
+    const select = (await screen.findByTitle(t('ai.preset.defaultHint'))) as HTMLSelectElement
+    await waitFor(() => expect(select).toHaveValue('只读巡检'))
+    fireEvent.change(select, { target: { value: '全放行' } })
+    await waitFor(() => expect(setPresetDefault).toHaveBeenCalledWith('/p', '全放行'))
+    await waitFor(() => expect(select).toHaveValue('全放行'))
+    // 徽标跟着默认值走（不是"文件里写死"的那条）
+    const row = screen.getByRole('button', { name: /全放行/ })
+    expect(row.textContent).toContain(t('ai.preset.defaultTag'))
+  })
+
+  it('★ 默认保存失败：回滚到原值并说原因（不然界面显示成功、磁盘没变）', async () => {
+    setPresetDefault.mockResolvedValue({
+      ok: false,
+      error: '不能把「夜巡」设为默认：它不是可用的预设',
+    })
+    getPresets.mockResolvedValue({
+      ok: true,
+      data: { presets: ROSTER.presets, defaultPreset: '只读巡检' },
+    })
+    setup()
+    const select = (await screen.findByTitle(t('ai.preset.defaultHint'))) as HTMLSelectElement
+    await waitFor(() => expect(select).toHaveValue('只读巡检'))
+    fireEvent.change(select, { target: { value: '全放行' } })
+    await waitFor(() => expect(select).toHaveValue('只读巡检'))
+    expect(
+      await screen.findByText(
+        t('ai.preset.defaultProblem', { reason: '不能把「夜巡」设为默认：它不是可用的预设' }),
+      ),
+    ).toBeInTheDocument()
   })
 
   it('「编辑预设…」是另一个入口，点了回调', () => {

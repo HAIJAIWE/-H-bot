@@ -23,6 +23,7 @@ import {
   aiNoteTurnSchema,
   aiProjectPathSchema,
   aiPresetRosterSchema,
+  aiSetPresetDefaultSchema,
   aiThreadSchema,
   rewindToSchema,
   aiFallbacksSchema,
@@ -46,6 +47,10 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
   'ai:savePresets': {
     shape: aiSavePresetsSchema.shape,
     note: '保存会话预设（整表覆盖）：projectPath + presets[]（未知工具/插件回 warnings）',
+  },
+  'ai:setPresetDefault': {
+    shape: aiSetPresetDefaultSchema.shape,
+    note: '设置项目默认预设：projectPath + preset（null = 跟页面；只影响空白线程）',
   },
   'ai:getPresets': {
     shape: aiPresetRosterSchema.shape,

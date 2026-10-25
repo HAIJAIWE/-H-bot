@@ -526,8 +526,11 @@ export interface QqbatApi {
       fullAccess?: boolean,
       /** 本轮允许的工具名白名单（预设用；不传 = 注册表全量） */
       allowedTools?: string[],
-      /** 会话预设名（读 .qqbat/agent-presets.json；显式 allowedTools 优先） */
-      preset?: string,
+      /**
+       * 会话预设名（读 .qqbat/agent-presets.json；显式 allowedTools 优先）。
+       * `null` = 明确跟页面；不传 = 没表态（空白线程会套项目默认，见第 51 批）。
+       */
+      preset?: string | null,
       /** 角色（界面模式）：按角色裁工具 + 角色提示词 */
       agentMode?: 'blocks' | 'code' | 'duo' | 'creator',
       /** 这一轮贴的图（data URL；只进这一轮，不进记忆） */
@@ -548,6 +551,11 @@ export interface QqbatApi {
         }
       | { ok: false; error: string }
     >
+    /** 设置项目默认预设（`null` = 跟页面；第 51 批） */
+    setPresetDefault: (
+      projectPath: string,
+      preset: string | null,
+    ) => Promise<{ ok: true } | { ok: false; error: string }>
     /** 读预设注册表（坏条目带 broken、字段被忽略带 notes；宿主侧唯一裁决） */
     getPresets: (
       projectPath: string,

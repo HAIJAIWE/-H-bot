@@ -22,6 +22,7 @@ import {
   aiAgentCoreSteerSchema,
   aiPresetRosterSchema,
   aiSavePresetsSchema,
+  aiSetPresetDefaultSchema,
 } from '../schemas/ai'
 import { resolveAuthorAiConfig } from '../services/ai/appAiConfig'
 import { appendTrace } from '../services/ai/trace'
@@ -44,7 +45,13 @@ import { runOnboardingTurn } from './aiAgentCoreOnboarding'
 import { assistantHistoryEntry } from '../services/agent-core/uiTrace'
 import { listTools } from '../services/agent-core/core'
 import { clearTodos, getTodos } from '../services/agent-core/todoStore'
-import { readPresetRoster, resolvePresetForRun, writePresets } from '../services/ai/presets'
+import {
+  readPresetRoster,
+  resolveDefaultPreset,
+  resolvePresetForRun,
+  writePresetDefault,
+  writePresets,
+} from '../services/ai/presets'
 import {
   decideSessionPreset,
   readPresetSession,
@@ -202,6 +209,26 @@ export function registerAiAgentCoreIpc(): void {
       if (!parsed.data.threadId) return { ok: true, data: roster }
       const session = await readPresetSession(parsed.data.projectPath, parsed.data.threadId)
       return { ok: true, data: { ...roster, session } }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  /**
+   * `ai:setPresetDefault` —— 设置/清除项目默认预设（第 51 批）。
+   *
+   * 与预设表**分开存**：默认值是"这个项目新会话从哪套权限开始"的策略，
+   * 不是某条预设的字段。改名/删条目不该顺手改掉默认值；反过来，
+   * 默认值指向的条目被删了，读注册表时会给 `defaultProblem`，运行时 fail-closed。
+   */
+  ipcMain.handle('ai:setPresetDefault', async (_event, args: unknown) => {
+    const parsed = aiSetPresetDefaultSchema.safeParse(args)
+    if (!parsed.success) {
+      return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
+    }
+    try {
+      await writePresetDefault(parsed.data.projectPath, parsed.data.preset)
+      return { ok: true }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
@@ -397,11 +424,30 @@ export function registerAiAgentCoreIpc(): void {
        * 就悄悄放开权限）；显式换名直接拒绝。落盘只在空白线程 + 预设解析成功之后 ——
        * 解析失败还写锁，等于把一条跑不起来的选择钉死在这个会话上。
        */
+      /**
+       * 三态必须分开处理（第 51 批）：
+       *  · 字符串 = 明确选了；
+       *  · `null`   = 明确选了"跟页面"；
+       *  · 缺省     = 这一轮没表态 —— **只有空白线程**才套项目默认。
+       *
+       * 已经跑过的线程不套默认：默认是"新会话从哪开始"，不是"旧会话被无声改口径"。
+       * 默认值读坏了也 fail-closed（默认同样是权限口径）。
+       */
+      let requestedPreset = parsed.data.preset
+      if (requestedPreset === undefined) {
+        if (past.length === 0) {
+          const defaults = await resolveDefaultPreset(projectPath)
+          if (!defaults.ok) return { ok: false, error: defaults.error }
+          requestedPreset = defaults.preset
+        } else {
+          requestedPreset = null
+        }
+      }
       const decided = await decideSessionPreset(
         projectPath,
         threadId,
         past.length > 0,
-        parsed.data.preset ?? null,
+        requestedPreset,
       )
       if (!decided.ok) return { ok: false, error: decided.error }
       let runPreset: AgentPresetRow | undefined

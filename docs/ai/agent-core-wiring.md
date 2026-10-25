@@ -2670,6 +2670,143 @@ qqbat 的会话单位是**线程**（`default` 或 `t-xxx`），所以锁也按�
 
 ### 50.8 明确没做
 
-内置预设（DSH 的 `builtin` 行）、`isDefault`、导入导出、resume/fork 的锁复制
+内置预设（DSH 的 `builtin` 行）、`isDefault`（第 51 批已补，见 §51）、导入导出、resume/fork 的锁复制
 （qqbat 目前没有磁盘级 fork 会话的入口）、"降权换预设"（只收紧不放开的换名是否允许，
 DSH 也不允许，保持一致）、锁文件的损坏自动修复（坏锁只能清空会话，不猜）。
+
+## 51. 内置预设与项目默认（2026-10-26，第 51 批）
+
+第 48 批的预设注册表只回答"文件里有哪几条"；第 50 批回答"这条会话还能不能换"。这一批补
+另外两件事：**随程序来的预设**（不用用户写文件也有两条兜底），以及**这个项目的新会话从哪套
+权限开始**（默认预设）。
+
+两件事刻意分开：内置项是 `presets[]` 里的行，默认值是另一份文件里的一个名字。
+把默认写进某条预设（比如给 `标准` 加 `isDefault: true`），删改那一条就会顺手改掉默认策略，
+而且同一个数组里出现两个 `isDefault` 时"谁赢"没有天然答案。
+
+### 51.1 内置项：随程序发布，不许同名覆盖
+
+新建 `src/shared/ai/builtinPresets.ts`，两条（对齐 DSH 的 standard / minimal）：
+
+| 名字       | order | role | permissionMode | allowedTools                                                                         |
+| ---------- | ----- | ---- | -------------- | ------------------------------------------------------------------------------------ |
+| `标准`     | 1     | 不设 | 不设（ask）    | 不设（全部工具）                                                                     |
+| `最小只读` | 3     | 不设 | `ask`          | read_file / list_dir / search_text / list_nodes / check_capabilities / validate_flow |
+
+`标准` 是"什么都没限制"的命名版本，适合当默认值；`最小只读` 把写与命令**物理上**从工具表拿掉，
+不是靠提示词劝。两条都不固定角色（跟页面走），也不换模型。
+
+与 DSH 的一处**故意不同**：DSH 允许用户文件里的同名项整体 override 内置项；我们不允许。
+内置是权限兜底，同名静默换语义（比如用户写一个叫"最小只读"但带 write_file 的条目）比
+"少一个可编辑项"危险得多。落地在两处：
+
+- `parsePresetRoster` 遇到内置名 → 该条 `broken: '与内置预设「x」重名（内置预设不可覆盖，换个名字）'`；
+- `writePresets` 遇到内置名 → 整表拒绝并抛 `「x」是内置预设名，不能保存；请换个名字`
+  （不能只跳过那一条：用户以为保存成功了，实际写进去的数组少一条）。
+
+名字也刻意避开常见自定义名（不叫"只读"），否则老项目第一次升级就整条变成 `broken`。
+
+### 51.2 三层真相的合并
+
+`readPresetRoster` 现在把三份来源合成一个 `AgentPresetRoster`：
+
+| 层   | 来源                               | 失败形状                                                               |
+| ---- | ---------------------------------- | ---------------------------------------------------------------------- |
+| 内置 | 代码里的 `BUILTIN_PRESETS`         | 不会失败                                                               |
+| 用户 | `.qqbat/agent-presets.json`        | 缺文件 = 空表；坏 JSON/顶层不是数组 = `fileProblem`；坏条目 = `broken` |
+| 默认 | `.qqbat/agent-preset-default.json` | 缺文件 = `null`（跟页面）；坏文件/指向不可用项 = `defaultProblem`      |
+
+合并顺序仍是第 48 批的规矩：可用项按 `order`（没写的排后面，同序保持来源顺序；内置在前），
+坏条目按原序附在最后。默认值指向的那一行会被打上 `isDefault: true` —— 这是**算出来的展示
+字段**，不回写预设文件（DSH 的 `remoteExportList` 也是这么算的）。
+
+一处行为变化要记住：**缺预设文件不再返回空表**，永远至少有两条内置项。第 48 批里
+"没有预设"的空态由"用户项为空"表达，不再由 `presets.length === 0` 表达。
+
+### 51.3 默认值：单独一份文件，坏就读不懂
+
+默认记录是 `.qqbat/agent-preset-default.json`，形状 `{ "default": "名字" }`；
+`null`/缺文件 = 跟页面。写 `null` 时**删文件**，不写 `{"default":null}` —— 两种表示会在
+"文件存在但没值"和"没配过"之间制造第三个状态，而它们语义相同。
+
+`readPresetDefault` 与 `readPresetRoster` 分开读：一份坏文件不该拖死另一份；而且解析默认值
+不需要先解析全部预设（热路径少一次 `JSON.parse`）。默认指向不存在/坏的条目时**不静默退回
+跟页面**，而是记 `defaultProblem`，运行时由 `resolveDefaultPreset` 变成 fail-closed：
+
+`默认预设不可用：<原因>；为避免静默放开权限，这一轮没有开始`
+
+理由与第 48 批的 `resolvePresetForRun` 相同：默认也是权限口径，读不懂时退回页面默认等于
+悄悄放宽边界。`writePresetDefault` 在服务层再校验一次目标可用（IPC 也查，但两次读之间
+文件可能被改）。
+
+### 51.4 运行时的三态：没表态 / 明确跟页面 / 明确选一个
+
+`ai:agentCoreRun` 的 `preset` 从"可选字符串"变成"可选字符串或 null"。三态必须分开：
+
+| 传值   | 含义                 | 行为                                               |
+| ------ | -------------------- | -------------------------------------------------- |
+| 字符串 | 用户明确选了这个预设 | 走第 48/50 批的解析与锁                            |
+| `null` | 用户明确选了"跟页面" | **不读默认**，按跟页面跑                           |
+| 缺省   | 这一轮没表态         | 只有**空白线程**才读默认；跑过的线程按 `null` 处理 |
+
+"跑过的线程不套默认"是这一批的纪律：默认是"新会话从哪开始"，不是"旧会话可以被无声改口径"。
+空白线程套上默认后，仍然要过第 50 批的会话锁：解析成功才 `writePresetSession`。
+
+渲染层的坑在 `aiStore.runAgentCoreTurn`：以前是 `preset ?? undefined`，这会把用户明确选的
+"跟页面"(`null`) 与"从没选过"(没有 key) 混成一件事 —— 空白线程于是永远套不上默认。
+现在判据是 `presetByThread` **有没有当前线程这条键**：有键就原样传（含 `null`），
+没键才传 `undefined`。键是 `projectPath + '::' + activeThreadId`，
+用 `Object.prototype.hasOwnProperty.call` 判（不碰原型链）。
+
+主进程顺序（`src/main/ipc/aiAgentCore.ts`）：
+
+1. `past = await loadHistory(...)`；
+2. `preset === undefined` 且 `past.length === 0` → `resolveDefaultPreset`（坏值直接 return）；
+3. `decideSessionPreset(..., requestedPreset)` —— 会话锁仍在第一位；
+4. `decision.preset` 才 `resolvePresetForRun`；
+5. 解析成功后才 `writePresetSession`。
+
+### 51.5 新 IPC 与能力账
+
+新增 `ai:setPresetDefault`（`projectPath` + `preset: string | null`），handler 调
+`writePresetDefault`，失败把服务层原因原样带回（界面要显示"为什么没设上"）。
+能力清单附录加 `ai.setPresetDefault = X`，合计 273 → 274；两份 `*.generated.ts` 由
+`node scripts/gen-capability-catalog.mjs` 重生成。`getPresets` 不新增通道：返回值多两个
+可选字段 `defaultPreset` / `defaultProblem`，菜单一次读盘拿到"列表 + 锁 + 默认"。
+
+### 51.6 界面：默认与内置是两个维度
+
+`AgentPresetMenu` 顶部加一行"默认"下拉：`跟页面` + 全部可用预设；改选先乐观更新，
+失败回滚原值并显示 `defaultProblem` 那一条文案。下拉的禁用条件是 `disabled || !projectPath`，
+**不受会话锁影响** —— 会话锁管"这一轮还能不能换"，默认管"下个新会话从哪开始"，两件事。
+
+行上的徽标也分开：`内置` 跟随程序来，`默认` 只表示当前项目默认。默认值指向的条目坏了时，
+下拉保留一个 disabled 的占位项（不悄悄跳到第一项）。
+
+`PresetEditor` 保存前预检内置名：主进程 `writePresets` 会整表拒绝，界面先拦是为了把错误
+指到具体那一条；编辑器顶部常驻一句"内置不可编辑/不可同名覆盖"。
+
+### 51.7 测试与闸门
+
+- `tests/main/services/ai/presets.test.ts` 整篇重写：内置项永远存在、内置名不可覆盖
+  （用户行 broken + 内置可用 + `writePresets` 抛）、默认写入/读取/`isDefault`/写 null 删除、
+  默认坏值 fail-closed（不存在的名字 + 坏 JSON）、`writePresetDefault` 拒绝不可用名。
+- `tests/main/ipc/aiAgentCore-ipc.test.ts` **24 → 31**：空白线程没表态套默认、显式 null 不读默认、
+  默认坏了不跑循环、`ai:setPresetDefault` 成功/拒绝；外加第 50 批的锁用例。
+- `tests/renderer/components/ai/AgentPresetMenu.test.tsx` **10 → 15**：默认下拉显示、改选调 IPC
+  并移动"默认"徽标、保存失败回滚并显示原因。
+- `tests/renderer/components/ai/PresetEditor.test.tsx` **11 → 12**：内置名不提交且不调
+  `savePresets`。
+- `tests/renderer/stores/aiStorePresetThread.test.ts` 保持 3 例（切线程恢复预设槽）。
+- 定向 5 文件 = **75 例**绿；tsc node/web 均 0；guards **15 文件 / 107 例**绿。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`（日志 `_recovery/full-gate-batch51b.log`）
+  = **273 passed | 2 skipped（275 文件）**、**3460 passed | 7 skipped（3467 例）**、`FULL_EXIT=0`
+  （第 50 批基线 3449，+11）。
+- 两处闸门收尾：`ipcPayloadContract` 登记 `ai:setPresetDefault`；`projectWritesViaFileOps`
+  把 `presets.ts` 的 `writeFile` 1 → 2、新增 `rm: 1`（默认记录是应用自有数据，理由与预设文件相同）。
+
+### 51.8 明确没做
+
+导入/导出预设、内置项的图形化查看详情、默认值的"跟着当前选择走"、resume/fork 复制默认值
+（默认是项目级，不需要按会话复制）、DSH 的 `selectedDefault` 与 `config.default` 双层回退
+（qqbat 只有项目级默认一份，够用且不会出现"用户设置与部署默认谁优先"的歧义）。

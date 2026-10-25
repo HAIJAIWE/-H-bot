@@ -635,6 +635,16 @@ async function runAgentCoreTurn(
    * 以前这里直接失败 —— 因为那时循环只会读写文件，没有工作目录就无从下手。
    */
   try {
+    /**
+     * 预设的**三态**（第 51 批）：这里不能 `preset ?? undefined` —— 那会把
+     * 用户明确选的"跟页面"(null) 与"从没选过"(缺 key) 混成一件事，
+     * 空白线程于是永远套不上项目默认。判据是 `presetByThread` 有没有这条键。
+     */
+    const store = useAiStore.getState()
+    const presetKey = projectPath + '::' + store.activeThreadId
+    const presetForRun = Object.prototype.hasOwnProperty.call(store.presetByThread, presetKey)
+      ? store.presetByThread[presetKey]
+      : undefined
     // 线程：与助手共用同一个选择器 —— 在这一条对话里继续，两种模式是同一件事
     const res = await window.qqbat.ai.agentCoreRun(
       projectPath,
@@ -650,7 +660,7 @@ async function runAgentCoreTurn(
       useAiStore.getState().fullAccess ? true : undefined,
       // allowedTools 不在这里传：预设由主进程按名字解析（显式白名单会盖过预设）
       undefined,
-      useAiStore.getState().preset ?? undefined,
+      presetForRun,
       agentMode,
       images,
       activeFilePath,

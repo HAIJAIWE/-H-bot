@@ -68,11 +68,16 @@ export function AgentPresetMenu({
   const [rows, setRows] = useState<AgentPresetRow[]>([])
   const [fileProblem, setFileProblem] = useState<string | undefined>(undefined)
   const [session, setSession] = useState<PresetSessionState | undefined>(undefined)
+  /** 项目默认预设（第 51 批）：只影响**空白线程**，当前会话锁定也照样能改 */
+  const [defaultName, setDefaultName] = useState<string | null>(null)
+  const [defaultProblem, setDefaultProblem] = useState<string | undefined>(undefined)
   useEffect(() => {
     if (!projectPath) {
       setRows([])
       setFileProblem(undefined)
       setSession(undefined)
+      setDefaultName(null)
+      setDefaultProblem(undefined)
       return
     }
     let alive = true
@@ -84,16 +89,22 @@ export function AgentPresetMenu({
           setRows(res.data.presets)
           setFileProblem(res.data.fileProblem)
           setSession(res.data.session)
+          setDefaultName(res.data.defaultPreset ?? null)
+          setDefaultProblem(res.data.defaultProblem)
         } else {
           setRows([])
           setFileProblem(res.error)
           setSession(undefined)
+          setDefaultName(null)
+          setDefaultProblem(undefined)
         }
       } catch {
         if (alive) {
           setRows([])
           setFileProblem(undefined)
           setSession(undefined)
+          setDefaultName(null)
+          setDefaultProblem(undefined)
         }
       }
     })()
@@ -111,6 +122,24 @@ export function AgentPresetMenu({
   }, [preset, rows, onResolve])
   const usable = rows.filter(r => !r.broken)
   const broken = rows.filter(r => r.broken)
+  /** 默认值指向的条目还在不在（不在时 select 要能显示"不可用"，而不是悄悄跳到第一项） */
+  const defaultUsable = defaultName ? usable.some(r => r.name === defaultName) : true
+  const pickDefault = async (next: string | null): Promise<void> => {
+    if (!projectPath) return
+    const prev = defaultName
+    setDefaultName(next)
+    setDefaultProblem(undefined)
+    try {
+      const res = await window.qqbat.ai.setPresetDefault(projectPath, next)
+      if (!res.ok) {
+        setDefaultName(prev)
+        setDefaultProblem(res.error)
+      }
+    } catch (e) {
+      setDefaultName(prev)
+      setDefaultProblem(e instanceof Error ? e.message : String(e))
+    }
+  }
   /** 会话锁：开始过一轮就不能再换（第 50 批）。锁定时界面只认锁里的值。 */
   const locked = session?.locked ?? false
   const shownPreset = locked ? (session?.preset ?? null) : preset
@@ -166,6 +195,41 @@ export function AgentPresetMenu({
               {session?.problem
                 ? t('ai.preset.lockedProblem', { reason: session.problem })
                 : t('ai.preset.locked', { preset: shownPreset ?? t('ai.mode.followPage') })}
+            </span>
+          </div>
+        ) : null}
+        {/* 默认预设：只影响新会话；和下面"这一轮选什么"是两件事 */}
+        <div className="flex items-center gap-1 px-1 py-1">
+          <span className="shrink-0 text-[10px] text-zinc-500">{t('ai.preset.defaultLabel')}</span>
+          <select
+            className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-950 px-1 py-0.5 text-[11px] text-zinc-200"
+            value={defaultName ?? ''}
+            disabled={disabled || !projectPath}
+            title={t('ai.preset.defaultHint')}
+            onChange={e => {
+              void pickDefault(e.target.value || null)
+            }}
+          >
+            <option value="">{t('ai.mode.followPage')}</option>
+            {!defaultUsable && defaultName ? (
+              <option value={defaultName} disabled>
+                {defaultName}（{t('ai.preset.brokenTag')}）
+              </option>
+            ) : null}
+            {usable.map(row => (
+              <option key={`default:${row.name}`} value={row.name}>
+                {row.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {defaultProblem ? (
+          <div
+            className="mx-1 my-0.5 rounded border border-amber-900/60 bg-amber-950/40 px-1.5 py-1 text-[10px] leading-4 text-amber-300"
+            title={defaultProblem}
+          >
+            <span className="line-clamp-2">
+              {t('ai.preset.defaultProblem', { reason: defaultProblem })}
             </span>
           </div>
         ) : null}
@@ -243,6 +307,17 @@ export function AgentPresetMenu({
               >
                 {active ? mark : <span className="w-3 shrink-0" />}
                 <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                {/* 内置 / 默认是两件事：内置随程序来，默认只影响空白线程 */}
+                {row.builtin ? (
+                  <span className="shrink-0 rounded bg-zinc-800 px-1 text-[10px] text-zinc-400">
+                    {t('ai.preset.builtinTag')}
+                  </span>
+                ) : null}
+                {defaultName === row.name ? (
+                  <span className="shrink-0 rounded bg-blue-950 px-1 text-[10px] text-blue-300">
+                    {t('ai.preset.defaultTag')}
+                  </span>
+                ) : null}
                 {/* 有字段被忽略：能选，但别让用户以为文件里的值都生效了 */}
                 {row.notes && row.notes.length > 0 ? (
                   <span

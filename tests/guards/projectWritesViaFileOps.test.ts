@@ -561,8 +561,8 @@ const ALLOWED: Record<string, Allowed> = {
     counts: { appendFile: 1, writeFile: 1 },
   },
   'src/main/services/ai/presets.ts': {
-    why: '【应用自有数据】会话预设（.qqbat/agent-presets.json）：预设文件本身就是内容，写入不需要 fileOps 的流程联动/冲刷屏障',
-    counts: { writeFile: 1 },
+    why: '【应用自有数据】会话预设与项目默认预设（.qqbat/agent-presets.json、agent-preset-default.json）：配置本身就是内容，写入/删除不需要 fileOps 的流程联动/冲刷屏障',
+    counts: { writeFile: 2, rm: 1 },
   },
   'src/main/services/plugins/patchFile.ts': {
     why: '【应用自有数据】插件覆盖层（.qqbat/plugins.patch.json）：配置本身就是内容，不需要 fileOps 的流程联动',

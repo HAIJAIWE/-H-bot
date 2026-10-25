@@ -581,6 +581,7 @@ export const CAPABILITIES_BY_DOMAIN: Record<string, string[]> = {
     'ai.setAiFallbacks',
     'ai.setAppConfig',
     'ai.setConfig',
+    'ai.setPresetDefault',
     'ai.setProjectBotConfig',
     'ai.setToolBudget',
     'ai.testConfig',

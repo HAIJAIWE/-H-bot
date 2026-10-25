@@ -25,6 +25,7 @@ import {
   PRESET_ROLES as ROLES,
   PRESETS_FILE,
 } from '@shared/ai/presetRoster'
+import { BUILTIN_PRESET_NAMES } from '@shared/ai/builtinPresets'
 
 /** 表单编辑的就是文件里的对象本身（未知字段跟着一起走） */
 type Draft = Record<string, unknown>
@@ -227,6 +228,15 @@ export function PresetEditor({
       }
       payload = rows.map(row => ({ ...row, name: asText(row.name).trim() }))
     }
+    /**
+     * 内置名不能保存（第 51 批）。主进程 `writePresets` 会再拦一次；
+     * 这里先拦是为了把错误指到具体那一条，而不是等保存回来只有一个红条。
+     */
+    const builtinHit = payload.find(p => BUILTIN_PRESET_NAMES.has(asText(p.name).trim()))
+    if (builtinHit) {
+      setError(t('ai.agentCore.presetBuiltinName', { name: asText(builtinHit.name).trim() }))
+      return
+    }
     setSaving(true)
     try {
       const res = await window.qqbat.ai.savePresets(
@@ -281,6 +291,9 @@ export function PresetEditor({
       }
     >
       <p className="mb-2 text-xs text-zinc-500">{t('ai.agentCore.presetEditHint')}</p>
+      <p className="mb-2 text-[11px] leading-4 text-amber-400/90">
+        {t('ai.agentCore.presetBuiltinHint')}
+      </p>
       {noProject && (
         <p className="mb-2 text-xs text-amber-400">{t('ai.agentCore.presetNoProject')}</p>
       )}
