@@ -37,6 +37,17 @@ export interface ChatTurn {
    */
   images?: readonly string[]
   name?: string
+  /**
+   * **这一轮的 assistant 回合要了哪些工具**（2026-10-25）。
+   *
+   * 以前循环只把工具结果塞回 messages，**从不记录自己发出过调用** —— 第二轮模型看到的
+   * 是一段来历不明的"[工具 read_file] 内容"。真机上它因此认不出那是自己的结果，同一
+   * 调用连发 12 轮、一个字都不收尾（广告工具表=调用表之后立刻暴露）。
+   * 厂商协议本来就要 assistant(tool_calls) → tool(tool_call_id) 成对，这里补上。
+   */
+  toolCalls?: ToolCall[]
+  /** 工具结果以厂商的 tool 回合交回（配合上一条的 toolCalls 配对） */
+  toolResult?: string
 }
 /**
  * 一批工具调用里最多几个同时在跑（默认 10，与 DSH 的 `maxParallelToolCalls` 默认值一致；1 = 全串行）。
@@ -700,6 +711,14 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
       phase = { kind: 'finished', reason: 'completed' }
       break
     }
+    /**
+     * **先记账：这一轮的 assistant 回合要了这些工具**（2026-10-25）。
+     *
+     * 少了这一条，下一轮模型看到的是"用户说了句[工具 read_file] 内容"，认不出那是
+     * 自己刚发起的调用 —— 真机上它会同一调用连发 12 轮、一个字都不收尾。
+     * 厂商协议也是 assistant(tool_calls) + tool(tool_call_id) 成对，顺序不能反。
+     */
+    messages.push({ role: 'assistant', content: reply.text ?? '', toolCalls: calls })
     /**
      * 一批调用怎么跑，交给调度器（`./scheduler.ts`）：
      *   · 独占调用（写盘/跑命令）是**屏障**，它自己跑，前后不许重叠；

@@ -1340,3 +1340,64 @@ retry = planCompaction() ──剪完可能就够了
 node node_modules/vitest/vitest.mjs run tests/guards --maxWorkers=2
 node scripts/vendor-audit.mjs
 ```
+
+## 35. 工具表两处断裂：广告的不一定能调，调完模型还不知道那是它的结果（2026-10-25）
+
+插件工具接上之后在真机上验一次，模型连着两次拒绝：「这个工具没有挂在我这个会话上，我实际能调的只有
+read_file、write_file、run_command、validate_flow、list_dir、search_text」。它把提示里的工具清单**原样抄了 36 个**
+（含插件工具 verify_greet 与 todo_write），然后准确指出只有 6 个发得出去。
+
+### 断裂一：适配器自己写死了 CORE_TOOLS
+
+§31 把 `ai:tools`（界面）与系统提示都改成"只说真话"，但那只是**提示侧**。厂商 function-calling 表由
+`src/main/services/agent-core/modelAdapter.ts` 生成，而它是这一行：
+
+```ts
+const tools = CORE_TOOLS.map(t => toDef(t.name, t.description, t.parameters))
+```
+
+于是同一次请求里：系统提示广告 36 个，`tools` 参数只有 6 个。模型看得见名字、发不出调用，只能回一句"没挂上"。
+
+两处补：
+
+- `modelAdapter` 收 `tools?: readonly Tool[]`（不传仍回退 CORE_TOOLS，脚本/测试的保守默认）；
+- `runTurn` 把 `effectiveTools ?? listTools()` 交进去 —— 与它给循环、给系统提示的那一份**同一个变量**。
+
+### 断裂二：循环从不记录"自己发出过调用"
+
+修完断裂一，真机立刻换了一种病：模型能调 verify_greet 了（说明插件工具确实执行、还读到了热更新的设置值
+——回执是 `来自界面 来自界面 来自界面`），但它**同一调用连发 12 轮、一个字都不收尾**。
+
+原因在 `runAgentLoop`：它只把工具结果 `push` 回 `messages`，从不 push 那条 assistant 回合。第二轮模型看到的是
+
+```
+user: 只调用一次 verify_greet …
+user: [工具 verify_greet] 来自界面 来自界面 来自界面
+```
+
+—— 一段来历不明的结果，认不出是自己刚发起的调用，于是重发。厂商协议本来就要求
+`assistant(tool_calls)` → `tool(tool_call_id)` 成对，这里补成对：
+
+| 位置                         | 改动                                                                                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core.ts` `ChatTurn`         | 新增 `toolCalls?: ToolCall[]`、`toolResult?: string`                                                                                                            |
+| `core.ts` 循环               | 拿到 `calls` 后先 push `{ role:'assistant', content, toolCalls: calls }` 再执行                                                                                 |
+| `scheduler.ts` `commitReady` | 工具结果带 `toolResult`（同时保留 `[工具 X]` 前缀，走回退路径时模型也知道这是数据）                                                                             |
+| `modelAdapter.ts`            | assistant 透传 `toolCalls`；tool 回合带 `toolResult` → provider 的 `mapChatMessages` 会翻成 `role:'tool'` + `tool_call_id`（`src/shared/types/ai-provider.ts`） |
+
+### 测试
+
+- `tests/main/services/agent-core/runTurn.test.ts`：**广告 == 调用表** —— 系统提示里那行工具名与 provider 收到的
+  `defs` 必须完全相同（旧代码固定 6 个，这条会红）。
+- `modelAdapter.test.ts`：① 给了 `tools` 就只发那些（不再出现 read_file）；② assistant 的 `toolCalls`、
+  tool 的 `toolResult` 原样透传（配对靠 id）。
+- `loopCompaction.test.ts`：消息形状从 `[1,2,3]` 变 `[1,3,5]`（每轮 assistant + tool 两条），
+  压缩的判据改成"同一段对话带压缩/不带压缩各跑一遍，峰值必须更低" —— 相邻两轮比大小会被成对追加的净增盖住。
+
+### 真机现状（如实记）
+
+- 断裂一有过硬证据：修前 36 个广告 / 6 个可调；修后模型**真的发出了** `verify_greet`，且回执里带着
+  设置面板里刚改的值。
+- 断裂二的端到端复验被厂商额度挡住了：这轮跑完紧接着返回
+  `403 AllocationQuota.FreeTierOnly`（"Free quota exhausted"）。协议配对由上面三条单测钉住，
+  等额度恢复要再跑一次 `_recovery/ex-pair-verify.js` 看它是否一轮收尾。

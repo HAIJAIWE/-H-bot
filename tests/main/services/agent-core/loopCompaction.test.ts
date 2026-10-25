@@ -79,11 +79,33 @@ describe('★ 循环内压缩', () => {
   })
 
   it('★ 压缩后模型看到的消息确实变少了（不是只报了个结果）', async () => {
-    const { snapshots } = await runWithGrowth(5)
-    const tokenCounts = snapshots.map(s => estimateTurns(s))
-    const peak = Math.max(...tokenCounts)
-    const last = tokenCounts[tokenCounts.length - 1]!
-    expect(last).toBeLessThan(peak)
+    // 同一段对话跑两遍：一遍带压缩、一遍不带。峰值必须更低 —— 这才叫"真的少了"。
+    // （不能拿相邻两轮比：assistant + tool 成对追加，单轮净增可能盖过压缩掉的部分。）
+    const peakOf = async (compaction: boolean): Promise<number> => {
+      const seen: ChatTurn[][] = []
+      let round = 0
+      await runAgentLoop({
+        workspace: ws,
+        tools: [bigTool],
+        initialTurns: [
+          { role: 'system', content: 'SYS-RULES' },
+          { role: 'user', content: 'REQ-TASK' },
+        ],
+        maxRounds: 7,
+        ...(compaction ? { compaction: { budgetTokens: 2000, keepRecentTurns: 2 } } : {}),
+        model: async messages => {
+          seen.push(messages.map(m => ({ ...m })))
+          round += 1
+          return round <= 5
+            ? { text: '', calls: [{ id: 'c' + round, name: 'big', args: {} }] }
+            : { text: 'done' }
+        },
+      })
+      return Math.max(...seen.map(s => estimateTurns(s)))
+    }
+    const withCompaction = await peakOf(true)
+    const without = await peakOf(false)
+    expect(withCompaction).toBeLessThan(without)
   })
 
   it('预算很大时一次都不压（压缩不能变成常态干扰）', async () => {
@@ -125,8 +147,12 @@ describe('★ 循环内压缩', () => {
           : { text: 'done' }
       },
     })
-    // 每次都只多一条工具输出，没有任何 system 注记被插进来
-    expect(seen.map(s => s.length)).toEqual([1, 2, 3])
+    // 每轮多两条：assistant(要了哪些工具) + tool(结果)。没有任何 system 注记被插进来。
+    // 2026-10-25 之前这里是 [1,2,3] —— 只追加结果、不记自己的调用，模型认不出那是它的结果。
+    expect(seen.map(s => s.length)).toEqual([1, 3, 5])
+    expect(seen[1]![1]!.role).toBe('assistant')
+    expect(seen[1]![1]!.toolCalls?.[0]?.name).toBe('big')
+    expect(seen[1]![2]!.toolResult).toBe(OUTPUT)
     expect(seen.every(s => !s.some(t => t.content.startsWith(COMPACTION_NOTE_HEAD)))).toBe(true)
   })
 })
