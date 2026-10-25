@@ -4,6 +4,7 @@
 import type { AiToolCall, AiToolDefinition, ChatMessage, LlmUsage } from './ai'
 import { DOMESTIC_LLM_PRESETS, defaultBaseUrlOf } from './llm-presets'
 import { assembleStream } from '../ai/streamAssembler'
+import { retryDelayMs, withLlmRetry } from '../ai/retryRunner'
 
 /**
  * Provider 实例配置（`providerRegistry.getOrCreate()` 的入参）。
@@ -156,11 +157,31 @@ async function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT_MS, ex
  */
 var ProviderHttpError = class extends Error {
   status
-  constructor(status, message) {
+  /** 厂商在 `Retry-After` 里要求的等待毫秒数；没有就是 undefined（重试器会退回本地退避） */
+  retryAfterMs
+  constructor(status, message, retryAfterMs) {
     super(message)
     this.status = status
+    this.retryAfterMs = retryAfterMs
     this.name = 'ProviderHttpError'
   }
+}
+/**
+ * 从 `Retry-After` 头算等待毫秒数。两种格式都认：秒数（"3"）与 HTTP 日期。
+ * 认不出来返回 undefined —— 不臆造一个等待时间。
+ */
+function retryAfterMsOf(response) {
+  const raw = response?.headers?.get?.('retry-after')
+  if (!raw) return void 0
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1e3)
+  const at = Date.parse(raw)
+  if (!Number.isFinite(at)) return void 0
+  return Math.max(0, at - Date.now())
+}
+/** 统一的 4xx/5xx 抛出点：状态码 + 厂商要求等待多久，一次都带上 */
+function providerHttpError(response, message) {
+  return new ProviderHttpError(response.status, message, retryAfterMsOf(response))
 }
 /**
  * 把各家五花八门的用量字段归一成 `LlmUsage`；认不出来就返回 null（**不臆造数字**）。
@@ -391,7 +412,7 @@ var GLMProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(response.status, `GLM API 请求失败 (${response.status}): ${text}`)
+      throw providerHttpError(response, `GLM API 请求失败 (${response.status}): ${text}`)
     }
     const reader = response.body?.getReader()
     if (!reader) throw new Error('无法读取响应流')
@@ -419,7 +440,7 @@ var GLMProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(response.status, `GLM API 请求失败 (${response.status}): ${text}`)
+      throw providerHttpError(response, `GLM API 请求失败 (${response.status}): ${text}`)
     }
     const reader = response.body?.getReader()
     if (!reader) throw new Error('无法读取响应流')
@@ -463,10 +484,7 @@ var GLMProvider = class {
     )
     if (!response.ok) {
       const errText = await response.text()
-      throw new ProviderHttpError(
-        response.status,
-        `GLM Embedding 请求失败 (${response.status}): ${errText}`,
-      )
+      throw providerHttpError(response, `GLM Embedding 请求失败 (${response.status}): ${errText}`)
     }
     return (await response.json()).data[0]?.embedding ?? []
   }
@@ -571,10 +589,7 @@ var OpenAICompatibleProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(
-        response.status,
-        `OpenAI API 请求失败 (${response.status}): ${text}`,
-      )
+      throw providerHttpError(response, `OpenAI API 请求失败 (${response.status}): ${text}`)
     }
     const reader = response.body?.getReader()
     if (!reader) throw new Error('无法读取响应流')
@@ -602,10 +617,7 @@ var OpenAICompatibleProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(
-        response.status,
-        `OpenAI API 请求失败 (${response.status}): ${text}`,
-      )
+      throw providerHttpError(response, `OpenAI API 请求失败 (${response.status}): ${text}`)
     }
     const reader = response.body?.getReader()
     if (!reader) throw new Error('无法读取响应流')
@@ -647,10 +659,7 @@ var OpenAICompatibleProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(
-        response.status,
-        `Embedding 请求失败 (${response.status}): ${text}`,
-      )
+      throw providerHttpError(response, `Embedding 请求失败 (${response.status}): ${text}`)
     }
     return (await response.json()).data[0]?.embedding ?? []
   }
@@ -687,10 +696,7 @@ var OllamaProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(
-        response.status,
-        `Ollama API 请求失败 (${response.status}): ${text}`,
-      )
+      throw providerHttpError(response, `Ollama API 请求失败 (${response.status}): ${text}`)
     }
     const reader = response.body?.getReader()
     if (!reader) throw new Error('无法读取响应流')
@@ -715,10 +721,7 @@ var OllamaProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(
-        response.status,
-        `Ollama API 请求失败 (${response.status}): ${text}`,
-      )
+      throw providerHttpError(response, `Ollama API 请求失败 (${response.status}): ${text}`)
     }
     const reader = response.body?.getReader()
     if (!reader) throw new Error('无法读取响应流')
@@ -756,10 +759,7 @@ var OllamaProvider = class {
     )
     if (!response.ok) {
       const text = await response.text()
-      throw new ProviderHttpError(
-        response.status,
-        `Ollama Embedding 请求失败 (${response.status}): ${text}`,
-      )
+      throw providerHttpError(response, `Ollama Embedding 请求失败 (${response.status}): ${text}`)
     }
     return (await response.json()).embedding ?? []
   }
@@ -770,79 +770,8 @@ for (const preset of DOMESTIC_LLM_PRESETS) {
 }
 providerRegistry.register('glm', GLMProvider)
 providerRegistry.register('ollama', OllamaProvider)
-/**
- * 这个错误值得再试一次吗？
- *
- * 判据见文件头。注意**不按消息文本猜 HTTP 状态** ——
- * 那需要 `ProviderHttpError` 提供 `status` 字段（见 `ai-provider.ts`）。
- */
-function isRetryableLlmError(e) {
-  if (e instanceof ProviderHttpError) return e.status === 429 || e.status >= 500
-  const msg = e instanceof Error ? e.message : String(e)
-  /**
-   * 网络层：这些没有状态码，只能认字。**只认这一组明确的词**，不做宽泛匹配。
-   *
-   * ⚠️ 不要在这里加 `\b` —— JS 的 `\b` 是 **ASCII 词边界**，中文两侧都算"非词字符"，
-   * 于是 `\b读取响应超时` **永远匹配不上**。这个坑是测试当场抓出来的
-   * （中文错误消息 + `\b` 是经典陷阱：不报错，只是静默地永不命中）。
-   */
-  return /(fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|读取响应超时|network error)/i.test(
-    msg,
-  )
-}
-/** 第 n 次失败后的等待毫秒数（n 从 1 起）：500 / 1000 / 2000 + 抖动 */
-function retryDelayMs(attempt, baseDelayMs = 500) {
-  const base = baseDelayMs * 2 ** Math.max(0, attempt - 1)
-  return base + Math.floor(Math.random() * base * 0.25)
-}
-/** 可被取消的 sleep —— 用户点停止时不该还傻等一秒 */
-function abortableSleep(ms, signal) {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(/* @__PURE__ */ new Error('已取消'))
-      return
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      clearTimeout(timer)
-      reject(/* @__PURE__ */ new Error('已取消'))
-    }
-    signal?.addEventListener('abort', onAbort, { once: true })
-  })
-}
-/**
- * 把一次 LLM 调用包成"失败可重试"。
- *
- * @param run        真正发起调用的函数（**每次重试都会重新调用它**）
- * @param hasOutput  已经吐过内容了吗（吐过就不重试，见文件头第 2 条）
- * @param onRetry    记日志用（每次重试前调一次）
- */
-async function withLlmRetry(run, opts = {}) {
-  const maxAttempts = opts.maxAttempts ?? 3
-  const baseDelayMs = opts.baseDelayMs ?? 500
-  for (let attempt = 1; ; attempt += 1)
-    try {
-      return await run()
-    } catch (e) {
-      if (!(
-        attempt < maxAttempts &&
-        isRetryableLlmError(e) &&
-        !opts.signal?.aborted &&
-        !opts.hasOutput?.()
-      ))
-        throw e
-      const delayMs = retryDelayMs(attempt, baseDelayMs)
-      opts.onRetry?.({
-        attempt,
-        delayMs,
-        error: e,
-      })
-      await abortableSleep(delayMs, opts.signal)
-    }
-}
+// 重试/退避的实现在 `src/shared/ai/retryRunner.ts`（策略与退避公式来自 vendor/dsh/llm-retry），
+// 这里只保留 re-export，历史导入路径不变。
 
 export {
   fetchWithTimeout,
@@ -851,9 +780,7 @@ export {
   mapChatMessages,
   fingerprintConfig,
   resolveCompatBaseUrl,
-  isRetryableLlmError,
   retryDelayMs,
-  abortableSleep,
   withLlmRetry,
   DEFAULT_TIMEOUT_MS,
   CHAT_TIMEOUT_MS,

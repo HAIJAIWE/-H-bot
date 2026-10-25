@@ -2,13 +2,7 @@
 //
 // LLM 重试/退避的**向后兼容入口**。
 //
-// 实现已经在 `@shared/types/ai-provider`：那里有 ProviderHttpError（带 status）与
-// 三家 provider 的实现，判"值不值得重试"必须看得到状态码，所以重试逻辑跟着一起搬了过去
-// （见 ai-provider.ts 的 isRetryableLlmError / retryDelayMs / abortableSleep / withLlmRetry）。
-// 本文件只保留原来的导入路径，行为一行不改。
-export {
-  isRetryableLlmError,
-  retryDelayMs,
-  abortableSleep,
-  withLlmRetry,
-} from '@shared/types/ai-provider';
+// 实现在 `@shared/ai/retryRunner`：策略与退避公式来自 `src/shared/vendor/dsh/llm-retry/`
+// （搬自 DSH），错误分类（429/5xx → 故障码、Retry-After）由 `@shared/types/ai-provider`
+// 的 ProviderHttpError 提供。本文件只保留原来的导入路径。
+export { retryDelayMs, withLlmRetry } from '@shared/types/ai-provider'

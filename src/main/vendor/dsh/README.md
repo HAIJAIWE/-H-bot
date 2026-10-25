@@ -32,7 +32,8 @@
 - `packages/plan/plan-mode/src/index.ts`（452 行，`PlanModeController extends Service` + 会话投影 + 系统提示注册）；
 - `packages/preset/agent-preset-registry/**`（绑死 DSH 那四个预设 id 与 Cordis YAML 插件行，换不到我们的语义上）；
 - `packages/compaction/compaction-image-offload/**`（我们循环里的图只挂在当轮首个 user 回合、且不落盘，历史里没有旧图可搬）；
-- `packages/core/agent-loop/src/agent.ts`（738 行，`ReactLoopAgent` 的每一步都从上游 `Session` 日志派生：47 处 Session、`session.append`、epoch surface、`requestHeader()`；整类搬要连会话重放一起搬，只把其中可分离的调度算法搬成 `tool-batch/`）。
+- `packages/core/agent-loop/src/agent.ts`（738 行，`ReactLoopAgent` 的每一步都从上游 `Session` 日志派生：47 处 Session、`session.append`、epoch surface、`requestHeader()`；整类搬要连会话重放一起搬，只把其中可分离的调度算法搬成 `tool-batch/`）；
+- `packages/llm/llm-retry/src/index.ts` 的插件本体（`apply` + `inject = ['agents','sessionProjections']`、`llm/retry` 会话事件与 `llmRetry` 投影、`RetryId` 品牌、`settleDownstream` 瀑布）；只搬了里面的 `localDelay` / `cancellableDelay` 与那条 Retry-After 判断。
 
 ## 目录
 
@@ -59,10 +60,12 @@
 shared 里 import `@main/*` 会让 web 侧 tsc 直接红。**宿主算法仍在本目录。**
 两处文件登记在同一个 `MANIFEST.json` 里（`targetPath` 是仓库相对路径，不限定目录）。
 
-| 路径（相对仓库根）                                 | 来源                                | 说明                                                                                                 |
-| -------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/shared/vendor/dsh/llm-assembler/assembler.ts` | `packages/llm/llm/src/assembler.ts` | `BlockAssembler` 状态机（首关为准、越界 delta 忽略、max-tokens 丢工具调用、中断只留非空白正文/思考） |
-| `src/shared/vendor/dsh/llm-assembler/types.ts`     | `packages/llm/llm/src/types.ts`     | 只留 text / reasoning / tool-call 与 stop / tool-calls / max-tokens                                  |
+| 路径（相对仓库根）                                 | 来源                                   | 说明                                                                                                                    |
+| -------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/vendor/dsh/llm-assembler/assembler.ts` | `packages/llm/llm/src/assembler.ts`    | `BlockAssembler` 状态机（首关为准、越界 delta 忽略、max-tokens 丢工具调用、中断只留非空白正文/思考）                    |
+| `src/shared/vendor/dsh/llm-assembler/types.ts`     | `packages/llm/llm/src/types.ts`        | 只留 text / reasoning / tool-call 与 stop / tool-calls / max-tokens                                                     |
+| `src/shared/vendor/dsh/llm-retry/retry-policy.ts`  | `packages/llm/llm/src/retry-policy.ts` | `resolveRetryPolicy`：键白名单校验、默认值（5 次重试 / 500ms 起 / 封顶 10s / 抖动 0.1）、冻结；schemastery 已删         |
+| `src/shared/vendor/dsh/llm-retry/delay.ts`         | `packages/llm/llm-retry/src/index.ts`  | `localDelay`（指数封顶 + 对称抖动）与 `cancellableDelay`；新增 `plannedRetryDelay` = 上游 recover 里的 Retry-After 判断 |
 
 ## 怎么用
 
@@ -73,6 +76,7 @@ shared 里 import `@main/*` 会让 web 侧 tsc 直接红。**宿主算法仍在�
 - 流式组装（GLM / OpenAI 兼容 / Ollama 三家共用）：`src/shared/ai/streamAssembler.ts` → `src/shared/vendor/dsh/llm-assembler/`（把厂商帧翻成 chunk，再按上游规则取块）；
 - 工具回执留多少、省了多少：`src/main/services/agent-core/toolRetention.ts` → `output-retention/`（命令输出留开头+结尾并报省略字节；目录列表按条目上限并报省了几条）；
 - 一批工具怎么跑：`src/main/services/agent-core/scheduler.ts` → `tool-batch/`（独占屏障 + 有界池 + 取消时给没派发的调用补合成结果）；
+- LLM 调用失败重试：`src/shared/ai/retryRunner.ts` → `src/shared/vendor/dsh/llm-retry/`（按 HTTP 状态码归类成故障码 → 白名单决定能不能重试；退避有上限、抖动对称、认 `Retry-After`）；
 - 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37；调度见 §38。
 
 **搬算法，不搬文案**：`output-retention` 里的 `describeOmitted` / `formatRetentionNotice` /

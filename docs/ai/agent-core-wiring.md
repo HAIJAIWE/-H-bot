@@ -1927,3 +1927,91 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
 - 定向（三组新测试 + `historyAttempt`）**11 例全绿**。
 - 全量 → **266 passed | 2 skipped（268 文件）、3345 passed | 7 skipped（3352 例）、180.34s、FULL_EXIT=0**
   （上一批 265 文件 / 3344 例；多的是这 3 个新测试文件 8 例）。
+
+## 43. LLM 重试：搬上游的 retry-policy（2026-10-25）
+
+### 43.1 旧实现欠了四笔账
+
+`isRetryableLlmError` / `retryDelayMs` / `withLlmRetry` 一直是手写的，跑得住，但四条边界都是错的：
+
+1. **退避不封顶**：`baseDelayMs * 2 ** (attempt - 1)`，只有 `maxAttempts` 兜着。`retryDelayMs` 是导出函数，
+   谁传个 attempt=20 就会算出 500 秒 —— 没有任何一层拦住它。
+2. **抖动是加性的**（`+ random * 25%`）：只会等得更久，永不更早。多个请求同时撞 429 时，
+   大家的等待都往同一侧偏，退避的意义打折。
+3. **判据写死在函数里**：`status === 429 || status >= 500` 加一串网络词正则。想关掉某一类、
+   想给某个 provider 放宽，只能改代码。
+4. **厂商 `Retry-After` 完全没用**：服务端说"20 秒后再来"，我们 500ms 就再撞一次，
+   于是一个能自愈的限流被撞成硬失败。
+
+### 43.2 搬了什么（`src/shared/vendor/dsh/llm-retry/`）
+
+| 文件              | 上游                                   | 搬了什么                                                                                                                                                                          |
+| ----------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `retry-policy.ts` | `packages/llm/llm/src/retry-policy.ts` | `resolveRetryPolicy` 逐条一致：键白名单校验、默认值（5 次重试 / 500ms 起 / 封顶 10s / 抖动 0.1）、`Object.freeze`、全部错误文案；schemastery 的 `z` 已删                          |
+| `delay.ts`        | `packages/llm/llm-retry/src/index.ts`  | `localDelay`（指数按 `min(retry-1, 1024)` 封顶 → 乘 `1±jitterRatio` → **再封顶一次**）、`cancellableDelay`；**新增** `plannedRetryDelay` = 上游 `recover` 里那段 Retry-After 判断 |
+
+`plannedRetryDelay` 是这批唯一的"新函数"，但它不含任何新判断，只是把上游 `recover` 里的这段提出来：
+
+- 厂商给了 `providerRetryAfterMs` 且 ≤ 上限 → **就用它**（本地退避让位）；
+- 给了但超过上限 → 有界策略**直接放弃**（等不起就别等），无界策略退回本地退避；
+- 没给 → 本地退避。
+
+没搬的（Cordis 面）：`apply` / `inject = ['agents','sessionProjections']`、`llm/retry` 与
+`llm/retry-started` 两条会话事件、`llmRetry` 投影、`RetryId` 品牌、`settleDownstream` 瀑布、
+`always` 模式下"先问下游再决定"的那套委托。
+
+### 43.3 我们这边怎么接（`src/shared/ai/retryRunner.ts`）
+
+- **先归类，再判白名单**：`llmFailureCodeOf` 把错误翻成故障码 —— 429→`RATE_LIMIT`、≥500→`SERVER`、
+  其它有状态码→`UNKNOWN`；**没有状态码才认字**（`TRANSPORT` / `TIMEOUT`）。判据是
+  `policy.retryableCodes.includes(code)`，不是正则猜消息。
+- **默认 3 次尝试**（`DEFAULT_MAX_ATTEMPTS`）：上游默认是 5 次**重试**（共 6 次请求），那是给长跑 agent 的；
+  我们一次聊天超时 180s，6 次会把"卡住"放大成十几分钟。要改就传 `policy`。
+- **不 import `ProviderHttpError`**：只读错误对象上的 `status` / `retryAfterMs` 两个字段。
+  反过来 import 会形成 `ai-provider.ts ↔ retryRunner.ts` 的循环依赖。
+- **`Retry-After` 从头上抓**：`ProviderHttpError` 多了第三个字段 `retryAfterMs`，9 个 4xx/5xx 抛出点
+  统一走 `providerHttpError(response, message)`（原来都是 `new ProviderHttpError(response.status, …)`）。
+  两种格式都认：秒数（`"3"`）与 HTTP 日期；认不出来**返回 undefined**，不臆造一个等待值。
+- 四条"不许重试"保持原样：**已吐过内容**（流式重放会把答案写两遍）、**已取消**、次数用完、
+  以及 `plannedRetryDelay` 返回 `undefined`。
+
+### 43.4 行为对照
+
+| 场景                      | 旧实现                              | 现在                                             |
+| ------------------------- | ----------------------------------- | ------------------------------------------------ |
+| 第 n 次重试等多久         | `500 * 2^(n-1) + 0~25%`，**不封顶** | 指数封顶 10s，再乘 `0.9~1.1`，**乘完再封顶一次** |
+| 退避的抖动方向            | 只会更长                            | 前后对称（±10% 默认）                            |
+| 429 带 `Retry-After: 3`   | 忽略，500ms 后再撞                  | 等 3 秒                                          |
+| 429 带 `Retry-After: 120` | 忽略，500ms 后再撞                  | 超过 10s 上限 → **不重试**，把 429 原样抛给上层  |
+| 哪些错误可重试            | 代码里写死（429/5xx/网络词）        | 默认白名单，可按策略改（`retryableCodes`）       |
+
+### 43.5 测试
+
+`tests/shared/ai/retryRunner.test.ts`（**11 例**）：策略默认值与六条坏配置文案、退避公式（`random()` 注入
+0/0.5/1 三个点）、Retry-After 三种走向、故障码分类、`429` 后重试并回报故障码、`ProviderHttpError` 的第三个
+字段真的变成等待时间、默认 3 次尝试、不可重试/已吐过内容/已取消都不重试、等退避时被取消抛"已取消"、
+兼容入口 `retryDelayMs`。
+
+搬完之后 `deadExports` 闸门又量出一条：`isRetryableLlmError` 与 `abortableSleep` **生产路径零调用**
+（只有测试在用）—— 它们本来是 `@shared/types/ai-provider` 的老出口，我照抄着又导出了一遍。按闸门的规矩
+（"写好了没接线"要接上或写理由）直接删掉这两个出口，不留基线条目：`isRetryableLlmError` 的判断已内联进
+`withLlmRetry`（`policy.retryableCodes.includes(code)`），`abortableSleep` 的角色由 vendor 的
+`cancellableDelay` 承担。顺带 `ai-provider.ts` 从 870 行降到 799 行，`fileGrowth` 的登记也随之删掉。
+
+### 43.6 闸门与真机
+
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **0**。
+- `node node_modules/vitest/vitest.mjs run tests/guards --maxWorkers=2` → **15 文件 / 107 例**绿。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`（日志 `_recovery/full-retry.log`）→
+  **Test Files 267 passed | 2 skipped (269)、Tests 3356 passed | 7 skipped (3363)、176.98s、FULL_EXIT=0**
+  （上一批 268 文件 / 3352 例，差的正是新增的 11 例与那 1 个测试文件）。
+- `node scripts/vendor-audit.mjs` → `vendored 13 个文件，适配层 2 个；上游快照可对账（dsh-v0.2.1-rc.3）… OK`。
+- 真机（CDP 43191，869x861）：`ERRORS=0`、工具表仍 **35 个**（`hasTodo/hasOnboarding` 都在）；
+  用 composer 发真实一轮（只调一次 `list_dir`）→ 正常收尾，过程行 `▸工作了 5 秒1 次工具` ——
+  说明新的 `withLlmRetry` 包在 `llm.chat` 上之后日常调用没有被改坏。
+- 顺手记一条与本批无关的告警（以后查）：dev 日志里偶发
+  `[ipc/aiAgentCore] 待办队列落盘失败: EPERM: operation not permitted, rename …agent-inbox.json.<pid>.tmp -> agent-inbox.json`
+  —— 原子写的 `rename` 在 Windows 上被占用，属既有文件锁问题，不影响这一轮对话。
+
+**一句话**：退避这种事上游写了 195 + 257 行、把「哪些错值得再试」「等多久」「厂商让你等多久」三件事分得干干净净；
+我们原来那 60 行只做对了第一件的一半。搬完之后，多出来的是**可解释性** —— 每次重试都能报出故障码与本次等待。

@@ -74,9 +74,6 @@
   "src/renderer/src/components/launch/TableDesignModal.tsx": {
     "lines": 878
   },
-  "src/shared/types/ai-provider.ts": {
-    "lines": 870
-  },
   "src/main/services/builtinNodes/dataNodes.ts": {
     "lines": 859
   },

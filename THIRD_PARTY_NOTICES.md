@@ -29,6 +29,8 @@
 - `packages/llm/llm/src/types.ts` → `src/shared/vendor/dsh/llm-assembler/types.ts`（内容块 / 结束原因 / 用量类型）
 - `packages/core/tools/src/batch.ts` → `src/main/vendor/dsh/tool-batch/batch.ts`（一批调用的调度结构：独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）
 - `packages/util/output-retention/src/index.ts` → `src/main/vendor/dsh/output-retention/index.ts`（`ItemRetainer` / `TextRetainer`：条目上限与字节流头尾窗口，UTF-8 边界安全；上游的英文省略提示文案未搬）
+- `packages/llm/llm/src/retry-policy.ts` → `src/shared/vendor/dsh/llm-retry/retry-policy.ts`（重试策略解析：键白名单、默认值、冻结；schemastery 的 `z` 已删）
+- `packages/llm/llm-retry/src/index.ts` → `src/shared/vendor/dsh/llm-retry/delay.ts`（指数退避 + 对称抖动、可取消 sleep；新增 `plannedRetryDelay` = 上游 `recover` 里的 Retry-After 判断）
 
 改动原则（详见设计文档 `docs/ai/dsh-source-adaptation-2026-10-24.md` §0 / §2）：
 
