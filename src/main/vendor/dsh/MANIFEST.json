@@ -129,6 +129,19 @@
         "去掉 image / file / tool-addition / tool-removal、abort/error 的 LlmFailure 载荷，以及内存式 ReplayEnvelope（我们没有 chunk 回放）",
         "TokenUsage 字段全改可选（我们原样转交，不消费）"
       ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/core/tools/src/batch.ts",
+      "sourceSha256": "5451e17f844cea8a56b8bf6dfadbf357d3081c4796d0b1046b761a82e4d8e355",
+      "targetPath": "src/main/vendor/dsh/tool-batch/batch.ts",
+      "targetSha256": "ac5b93b6e03769fa81a5a1e6b43f77a85080a1156b65c08f53be5be6b48151d9",
+      "adaptedNotes": [
+        "只取 executeToolBatch / runGroup 的调度结构：独占屏障、有界滚动池、启动前重新分类、结果按模型顺序提交、取消时给没派发的调用补合成结果（文案由宿主在 skip 里拼）",
+        "去掉 Session / SessionSeq / createToolResultMessage / BatchSettlement：会话落盘由宿主在 start / complete / skip 里做（我们写 chat 消息 + session.append）",
+        "去掉 agent / toolSet / log / maxParallelToolCalls 覆写：并发上限由宿主给一个数",
+        "泛型化 Exec / Slot，把「怎么执行一个调用」抽成 BatchPipeline（上游 ToolExecutionPipeline）；ToolBatchExecutionError 只带 partial 计数（上游带完整 result）"
+      ]
     }
   ]
 }

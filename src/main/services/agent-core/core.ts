@@ -39,12 +39,8 @@ export interface ChatTurn {
   images?: readonly string[]
   name?: string
   /**
-   * **这一轮的 assistant 回合要了哪些工具**（2026-10-25）。
-   *
-   * 以前循环只把工具结果塞回 messages，**从不记录自己发出过调用** —— 第二轮模型看到的
-   * 是一段来历不明的"[工具 read_file] 内容"。真机上它因此认不出那是自己的结果，同一
-   * 调用连发 12 轮、一个字都不收尾（广告工具表=调用表之后立刻暴露）。
-   * 厂商协议本来就要 assistant(tool_calls) → tool(tool_call_id) 成对，这里补上。
+   * 这一轮 assistant 要了哪些工具。厂商协议要 assistant(tool_calls) → tool(tool_call_id) 成对；
+   * 少记这一条，模型下一轮认不出工具结果是自己的（真机曾因此同一调用连发 12 轮）。
    */
   toolCalls?: ToolCall[]
   /** 工具结果以厂商的 tool 回合交回（配合上一条的 toolCalls 配对） */
@@ -446,13 +442,10 @@ export const CORE_TOOLS: Tool[] = [
 ]
 
 /**
- * ── 工具注册表（2026-10-18，对齐 DSH 的 `dsh-tools` 缝）──────────────────
+ * ── 工具注册表（对齐 DSH 的 `dsh-tools` 缝）─────────────────────────────
  *
- * 循环**不认具体的工具数组**，只认这张表：内置的 6 个在模块加载时注册，
- * 以后要加工具（插件、业务侧、测试）调 `registerTool()` 就行，不用改循环。
- *
- * 现在只是"缝"，还没拆文件：定义仍在本文件里。等 core.ts 接近 800 行时，
- * 把工具实现搬去 `tools.ts`、这里只留注册表 —— 契约不变，调用方一行不改。
+ * 循环只认这张表，不认具体数组：内置工具在模块加载时注册，新增工具（插件、业务侧、
+ * 测试）调 `registerTool()`。工具实现仍在本文件；再长就搬去 `tools.ts`，契约不变。
  */
 const TOOL_REGISTRY = new Map<string, Tool>()
 
@@ -585,6 +578,8 @@ export interface ToolRunOutcome {
   ok?: boolean
   /** 结构化错误码（工具自己知道原因时给；没给就按文本启发式分类） */
   error?: { code: ToolFailureCode; message?: string }
+  /** 这条结果一落地，本轮就到此为止（上游 `concludesTurn`；如"结束对话"类工具） */
+  concludesTurn?: boolean
 }
 
 /**
@@ -627,7 +622,12 @@ export function normalizeToolOutcome(raw: unknown): ToolRunOutcome {
       const code = normalizeFailureCode(e.code)
       error = { code, ...(typeof e.message === 'string' ? { message: e.message } : {}) }
     }
-    return { text, ...(ok !== undefined ? { ok } : {}), ...(error ? { error } : {}) }
+    return {
+      text,
+      ...(ok !== undefined ? { ok } : {}),
+      ...(error ? { error } : {}),
+      ...(o.concludesTurn === true ? { concludesTurn: true } : {}),
+    }
   }
   return { text: String(raw ?? '') }
 }
@@ -728,19 +728,13 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
      * 厂商协议也是 assistant(tool_calls) + tool(tool_call_id) 成对，顺序不能反。
      */
     messages.push({ role: 'assistant', content: reply.text ?? '', toolCalls: calls })
-    /**
-     * 一批调用怎么跑，交给调度器（`./scheduler.ts`）：
-     *   · 独占调用（写盘/跑命令）是**屏障**，它自己跑，前后不许重叠；
-     *   · 查询类走**有界滚动池**（maxParallelToolCalls），完成一个补一个；
-     *   · 结果**按模型给的顺序**提交 —— 并行只该省时间，不该改变模型看到的世界。
-     *
-     * 以前这里是顺序 for：语义一样但慢，而且「取消后不再起新的」没有共同出口。
-     */
+    // 一批调用怎么跑交给调度器（./scheduler.ts；算法搬自上游 tool-batch）：
+    // 独占是屏障、可并行走有界池、结果按模型顺序落地、取消给没派发的补合成结果。
     let cursor = 0
     while (cursor < calls.length) {
       // 这一组命中的"你在重复"提醒：等整组落完再一次性推回去（别插在结果中间）
       const reminders: string[] = []
-      const { consumed } = await runToolGroup(calls, cursor, rounds, {
+      const { consumed, concluded } = await runToolGroup(calls, cursor, rounds, {
         ctx,
         tools,
         messages,
@@ -767,12 +761,18 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
       })
       if (consumed <= 0) break
       cursor += consumed
+      // 有工具要求"到此为止"（上游 concludesTurn）：本轮直接收尾，别再问模型
+      if (concluded) {
+        phase = { kind: 'finished', reason: 'completed' }
+        break
+      }
       // 用 user 回合推进：先落事实（结果），再说判断（你在空转）
       if (reminders.length > 0) {
         messages.push({ role: 'user', content: reminders.join('\n\n') })
       }
       if (opts.signal?.aborted) break
     }
+    if (phase.kind === 'finished') break
   }
   if (phase.kind !== 'finished') phase = { kind: 'finished', reason: 'max-rounds' }
   return { finalText, rounds, toolResults, phase }

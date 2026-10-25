@@ -31,7 +31,8 @@
 - `packages/compaction/compaction-tool-result-pruner/src/index.ts` 的 `pruneSession()`（要 `Session` 的 shadow-price 协议）；
 - `packages/plan/plan-mode/src/index.ts`（452 行，`PlanModeController extends Service` + 会话投影 + 系统提示注册）；
 - `packages/preset/agent-preset-registry/**`（绑死 DSH 那四个预设 id 与 Cordis YAML 插件行，换不到我们的语义上）；
-- `packages/compaction/compaction-image-offload/**`（我们循环里的图只挂在当轮首个 user 回合、且不落盘，历史里没有旧图可搬）。
+- `packages/compaction/compaction-image-offload/**`（我们循环里的图只挂在当轮首个 user 回合、且不落盘，历史里没有旧图可搬）；
+- `packages/core/agent-loop/src/agent.ts`（738 行，`ReactLoopAgent` 的每一步都从上游 `Session` 日志派生：47 处 Session、`session.append`、epoch surface、`requestHeader()`；整类搬要连会话重放一起搬，只把其中可分离的调度算法搬成 `tool-batch/`）。
 
 ## 目录
 
@@ -46,6 +47,7 @@
 | `todo/types.ts`                    | `packages/todo/tool-todo/src/types.ts`                            | `TodoItem` 与三态生命周期（投影的 declare module 已删）                           |
 | `todo/todo-list.ts`                | 同目录 `src/index.ts` 的纯函数                                    | 工具描述、`toTodoList` 校验（文案未改）、计数与回执文案                           |
 | `repeat-tool-reminder/detector.ts` | `packages/guard/repeat-tool-reminder/src/index.ts`                | 重复调用检测纯算法（规范化参数、通配符、阈值校验、两段提醒文案），Cordis 接线已删 |
+| `tool-batch/batch.ts`              | `packages/core/tools/src/batch.ts`                                | 一批调用的调度结构（独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）    |
 
 标「本仓库适配层」的**不是上游文件**，不参与哈希对账，改它们不需要同步上游。
 
@@ -68,7 +70,8 @@ shared 里 import `@main/*` 会让 web 侧 tsc 直接红。**宿主算法仍在�
 - 模型的多步清单：`src/main/services/agent-core/todoTool.ts` → `todo/`（清单条在 `ChatPanel` 顶部）；
 - 连续重复调用的提醒：`src/main/services/agent-core/repeatGuard.ts` → `repeat-tool-reminder/`（命中阈值插一条 user 提醒，不否决调用）；
 - 流式组装（GLM / OpenAI 兼容 / Ollama 三家共用）：`src/shared/ai/streamAssembler.ts` → `src/shared/vendor/dsh/llm-assembler/`（把厂商帧翻成 chunk，再按上游规则取块）；
-- 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37。
+- 一批工具怎么跑：`src/main/services/agent-core/scheduler.ts` → `tool-batch/`（独占屏障 + 有界池 + 取消时给没派发的调用补合成结果）；
+- 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37；调度见 §38。
 
 ## 更新上游时的做法
 

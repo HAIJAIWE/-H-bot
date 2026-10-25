@@ -27,6 +27,7 @@
 - `packages/guard/repeat-tool-reminder/src/index.ts` → `src/main/vendor/dsh/repeat-tool-reminder/detector.ts`（重复调用检测：规范化参数、通配符、阈值校验、两段提醒文案）
 - `packages/llm/llm/src/assembler.ts` → `src/shared/vendor/dsh/llm-assembler/assembler.ts`（流组装状态机：首关为准、截断丢工具调用、中断只留正文/思考）
 - `packages/llm/llm/src/types.ts` → `src/shared/vendor/dsh/llm-assembler/types.ts`（内容块 / 结束原因 / 用量类型）
+- `packages/core/tools/src/batch.ts` → `src/main/vendor/dsh/tool-batch/batch.ts`（一批调用的调度结构：独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）
 
 改动原则（详见设计文档 `docs/ai/dsh-source-adaptation-2026-10-24.md` §0 / §2）：
 

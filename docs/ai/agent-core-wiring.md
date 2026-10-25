@@ -1526,3 +1526,52 @@ user: [工具 verify_greet] 来自界面 来自界面 来自界面
 ### 37.6 下一步
 
 `core/agent-loop/src/agent.ts` 的 `ReactLoopAgent`（703 行，1 / 1）替 `core.ts` 的 `while`；之后才是旧 27 个工具并表。
+
+## 38. 搬 DSH 的 tool-batch：取消不再留下悬空的工具调用（2026-10-25）
+
+### 38.1 想搬 ReactLoopAgent，量完发现整类搬不动
+
+`packages/core/agent-loop/src/agent.ts` **738 行**，`extends Service = 0`、`static inject = 0`，看起来"能搬"；但细看是
+`ctx. ` **9 处**、`@deepseek-ai/dsh-` **13 个 import**、**`Session` 47 处**。`step()` 里每一次请求都从 **session log** 派生：
+`session.append('assistant/message' | 'tool/call' | 'request/header' | 'turn/end')`、epoch surface、`requestHeader()`、
+`toolSet.dispose()`。去掉 Session 之后剩下的真算法只有 ~40 行。
+
+所以这一批换目标：不搬壳，搬**壳里可分离的调度算法** —— `packages/core/tools/src/batch.ts`（285 行，svc 0 / inj 0 / ctx 0）。
+整类搬运要连会话重放一起搬，那是另一个量级的事；结论写进 vendor README 的"搬不动"清单。
+
+### 38.2 我们旧调度器的真 bug：取消会留下悬空调用
+
+旧 `scheduler.ts` 在取消时"不再起新的、已起的跑完"，但没有给**没派发**的调用任何结果。于是下一轮消息里
+`assistant(tool_calls)` 列了 N 个 id、`tool` 回合只有 M 个（M < N）—— 厂商侧要么直接 400，要么模型开始胡猜。
+上游 `BatchSettlement.skip` 的做法是**给每个没派发的调用补一条合成失败结果**：
+`Error: tool call aborted before dispatch`（code `TOOL_ABORTED_BEFORE_DISPATCH`），这样重放永远成对。
+
+### 38.3 搬了什么、改了什么
+
+- `src/main/vendor/dsh/tool-batch/batch.ts`（230 行）：`executeToolBatch` / `runGroup` 的调度结构原样保留 ——
+  独占调用是屏障、并行组走有界滚动池、**启动前重读 executionMode**（注册表变化能插出屏障）、
+  结果按模型顺序提交（`commitReady` 只推进连续槽位）、调度器内部失败先 `allSettled` 排空再抛。
+  去掉 Session / SessionSeq / `createToolResultMessage` / `BatchSettlement`；泛型化成 `BatchPipeline<Exec, Slot>`。
+- `src/main/services/agent-core/scheduler.ts` 变成适配层：对外仍是 `executionModeOf` 与
+  `runToolGroup(calls, from, round, deps) → {consumed, aborted, concluded}`，内部把"怎么执行一个调用"
+  （`executeToolCall` → `withTimeout` → `normalizeToolOutcome` → 错误分类）填进 `dispatch`，
+  把"结果落地"（results → trace → appendSession → onToolResult → modelFacing → messages）填进 `complete`。
+  缺 id 的调用在 `start` 里补 `call-<round>-<index>`；`skip` 只写结果与消息，**不报 onToolStart/onToolResult**
+  （界面不该给没跑过的工具画"已完成"）。
+- `core.ts`：`ToolRunOutcome` 加 `concludesTurn`（上游语义：这条结果一落地本轮就结束），
+  循环里 `runToolGroup` 拿到 `concluded` 就 `phase = { kind: 'finished', reason: 'completed' }` 并跳出 ——
+  不必再多问模型一轮。
+
+### 38.4 测试
+
+- `tests/main/services/agent-core/toolScheduling.test.ts`：取消用例改断言"两个结果都在"——真跑过的第一个
+  `failure === undefined`，没派发的第二个 `failure.code === 'cancelled'` 且文案含 `aborted before dispatch`；
+  新增两例：直接调 `runToolGroup` 验证 **tool 回合与 assistant 的 toolCalls 一一配对**、`concludesTurn` 让本轮只问一次模型。
+- 闸门顺手修两处：`core.ts` 加完 `concluded` 分支到 803 行 → 精简 `ChatTurn.toolCalls` 与工具注册表两处长注释压回 800 以内；
+  `batch.ts` 头注释 25 行 → 压到 20 行（`styleContract` 上限）。
+- 数字：`tests/main/services/agent-core` **20 文件 / 156 例**；`tests/guards` **15 文件 / 107 例**；
+  `node scripts/vendor-audit.mjs` → vendored **10** + 适配层 2。
+
+### 38.5 下一步
+
+旧 27 个工具并进同一张表（单循环统一双引擎，§32）；`ReactLoopAgent` 只作参考，不再尝试整类搬运。
