@@ -206,6 +206,20 @@
         "只删 mtime 严格早于 cutoff 的普通文件；符号链接与特殊文件永不动、永不跟随；容器内所有失败只警告不抛",
         "保留 pruneWhenEmpty 语义，但我们唯一的调用方传 false（活着的进程还在往这个根里写）"
       ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/core/tools/src/pipeline.ts",
+      "sourceSha256": "07f0a7150b3ef190e0922189628764d1544e0cb2796fc6a6a5deb22b27da13c4",
+      "targetPath": "src/main/vendor/dsh/tool-pipeline/pipeline.ts",
+      "targetSha256": "f33128d69ea5c2c893d818216c6353b8d44e5e02deff44da30a7e090245fdffe",
+      "adaptedNotes": [
+        "只取一次调用的执行语义：failClosedMode（isConcurrencySafe 必须当场返回字面 true 才 parallel）、cancellationText 的两条取消文案、toolErrorMessage / failureMessageFromText 的错误归一、fuseToolSignals、composeWaterfall；上游 prepare/dispatch/complete/finish 四个方法的状态机改由宿主 src/main/services/agent-core/toolPipeline.ts 承载",
+        "删掉 ToolExecutionPipeline 整类外壳与 Cordis 装订（Service / defineTool / Context 注入 / Session 投射）：上游 prepare 里的审批（serviceAsk）、guards、post-result，以及 finish 里的 snapshot + validate + render 都没有搬 —— 本仓审批仍留在工具内的 ctx.gate",
+        "参数只做 structuredClone 值快照，不 deepFreeze：上游怕插件/工具互相篡改实参，本仓工具都是同进程手写函数；设计 §9 明确本批不搬 freezeArgs",
+        "错误归一改鸭子类型：上游用 @deepseek-ai/dsh-util 的错误类型判别，这里 toolErrorMessage 只认 Error、带 string message 的对象和 String()，String() 再抛就兜底 <unprintable thrown value>",
+        "内部状态不往 exec 上挂可变字段：上游用 WeakMap/WeakSet 存快照与阶段标志，这里快照由适配层自己的 WeakMap 持有，exec 只剩 callId/name/call/index/startedAt（对齐 tool-batch 的 BatchExec 合同）"
+      ]
     }
   ]
 }

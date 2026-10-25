@@ -2090,3 +2090,105 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
   历史 JSONL 里这一轮的 `trace[0].name = "read_file"`、`status = "done"`，界面与磁盘两边一致。
   **一句话**：溢出文件是「工具结果的另一份副本」，它就该跟工具结果一样受管 —— 独占创建防覆盖、0700/0600 防泄漏、
   过期就删防膨胀；上游把这三件事各写成一个可读的小函数，我们原来只写了「写下去」半句。
+
+## 45. 第八批 vendor：`tool-pipeline` —— 一次工具调用怎么走完
+
+### 45.1 缺的是「一次调用」的中间段
+
+§38 搬来了 `batch.ts`（「这一批怎么排」：独占屏障、有界池、启动前重分类、结果按模型顺序提交、取消时
+给没派发的调用补合成结果），`scheduler.ts` 的 `runToolGroup` 因此只剩一层内联 pipeline。但「一次调用」
+内部其实只有一句话：`prepare` 恒 `{kind:"dispatch"}`，没有前置钩子、没有审批面、没有 guards，`complete`
+把结果落盘/落界面/回灌之后就结束，取消也只在派发前判一次。对照上游 `pipeline.ts`（772 行）：
+
+| 环节     | 上游 `pipeline.ts`                                                          | 旧 `scheduler.ts`             | 后果                                                                 |
+| -------- | --------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
+| prepare  | 参数快照 → `tools/pre-execute` 钩子 → 审批（allow/deny/ask）→ guards        | 空实现 `async () => dispatch` | 审批只能靠每个工具自己在 `run` 里调 `ctx.gate`：漏写一个就是静默放行 |
+| complete | 结果投影 → `tools/post-execute`（可 block / 换 content / 换 value）→ finish | 有落盘/落界面/回灌，没有钩子  | 结果过滤只能改工具内部，策略无法集中                                 |
+
+§38 的 `batch.ts` 管「这一批怎么排」，`pipeline.ts` 管「这一次怎么活」。本批就是补后一半。
+
+### 45.2 搬了什么、没搬什么
+
+| 上游                                                        | 落点                                                                                              | 取舍                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pipeline.ts` 的纯函数                                      | `src/main/vendor/dsh/tool-pipeline/pipeline.ts`（109 行）                                         | 取 `failClosedMode`、`cancellationText` 与两条 `TOOL_ABORTED*` 文案、`toolErrorMessage`、`failureMessageFromText`、`fuseToolSignals`、`isAborted`、`Waterfall` / `composeWaterfall`。判定与文案逐字保留；`failureMessageFromContent` 收窄成只收字符串的 `failureMessageFromText`；`fuseToolSignals` 收 `AbortController` 作 wrapper 并返回 dispose；`composeWaterfall` 返回值收 `value` |
+| `ToolExecutionPipeline` 的 prepare/dispatch/complete/finish | 不搬类，按本仓 `BatchPipeline` 合同重写：`src/main/services/agent-core/toolPipeline.ts`（219 行） | 上游类依赖 `Session` / 工具集 / 审批服务 / `render`；我们只保留 prepare → dispatch 两段 + complete 里的钩子位，落盘/界面/回灌仍由 scheduler 的 `commitSlot` 做                                                                                                                                                                                                                          |
+| 参数快照 + `deepFreeze`                                     | 只 `structuredClone` 值快照（失败落回原值），不 freeze                                            | 本仓工具都是同进程手写函数，设计 §9 明确不做 `freezeArgs`                                                                                                                                                                                                                                                                                                                               |
+| 审批 `serviceAsk` / `checkGuards` / `post-result`           | 不搬                                                                                              | 本仓审批仍留在工具内的 `ctx.gate`；`beforeExecute` 留了钩子面，等审批上移时再用                                                                                                                                                                                                                                                                                                         |
+| `validateJsonSchemaValue` / `render` / `ContentBlock`       | 不搬                                                                                              | 我们的工具回执本来就是字符串，没有 JSON schema 渲染层                                                                                                                                                                                                                                                                                                                                   |
+| 内部状态 `WeakMap` / `WeakSet`                              | 适配层自己的 `WeakMap` 持 `exec → args` 快照                                                      | `exec` 只留 `callId` / `name` / `call` / `index` / `startedAt`（对齐 `tool-batch` 的 `BatchExec` 合同）                                                                                                                                                                                                                                                                                 |
+
+### 45.3 接线三处
+
+1. **`scheduler.ts`（209 → 197 行）**：`executionModeOf` 与 `executeToolCall` 留在原地（`executeToolCall` 的
+   catch 改用 `toolErrorMessage`，不再手写 `e instanceof Error ? e.message : String(e)`）；原来内联的 `complete`
+   抽成 `commitSlot(exec, slot, deps)`（`results` / `trace` / `appendSession` / `onToolResult` / 回灌 `messages` 一处
+   不少）；`runToolGroup` 变成 `createToolPipeline({ …, complete: commitSlot })` → `executeToolBatch(…)`，
+   `ToolGroupDeps` 加可选的 `hooks?: ToolPipelineHooks`（不传 = 无钩子，行为与旧版完全一致，测试钉住）。
+2. **`agent-core/toolPipeline.ts`**：`prepare`（未知工具 / `beforeExecute` deny → `settled` 失败槽；`ask` → 拒绝，
+   理由与上游逐字一致「requires approval (not yet supported)」）、`dispatch`（取消两条，见 45.4）、`complete`
+   （`afterExecute` 的 block / accept 换 content 之后再交给 `commitSlot`）、`start` / `skip`（从 scheduler 原样搬，
+   `skip` 文案一个字没动）。
+3. **`core.ts`（798 行，离 800 红线还有 2 行）**：`Tool` 加可选 `isConcurrencySafe?: (args: Record<string, unknown>) => boolean`。
+   不声明 → 按原规则（显式 `executionMode` → `category === "query"` → 独占）推断；声明了 → 必须当场返回**字面 `true`**
+   才并行（`failClosedMode`，抛错也独占）。
+
+**钩子为什么只做宿主自己用的**：只留一条 `beforeExecute`、一条 `afterExecute`，顺序执行、可短路，不做插件注册表。
+理由有两条：① 本批真正要挂的是宿主自己的策略（审批 / 回执 / 记忆），不是第三方插件；② 插件注册表得先有
+`plugins/kernel` 的钩子协议，那要引第二套运行时 —— 上游这条链是 Cordis 插件的入口，我们只留形状。
+
+### 45.4 取消语义两条（本批唯一的行为变化）
+
+| 时机                                                  | 模型看到的结果                                                         | 与旧实现的关系                                   |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------ |
+| `dispatch` 前 caller 已 abort                         | `[工具失败] Error: tool call aborted before dispatch`                  | 一致（`skip` 也用它，文案没动）                  |
+| body 已开跑、跑完时 caller 已 abort，且结果本来 ok    | 改判 `[工具失败] Error: tool call aborted`（`failure.code=cancelled`） | **新增**：旧实现把这次调用当成功提交，取消被吞掉 |
+| body 已开跑、跑完时 caller 已 abort，但结果本来就失败 | 保留工具自己的失败文案                                                 | 一致                                             |
+
+共同规则（与上游一致）：**已经开始跑的 body 绝不中途放弃** —— 先跑完，再把结果改判为取消；
+`additionalContexts` 等附加信息在改判时保留。`skip` 那条路（还没派发的调用）文案完全没变，
+旧测试的逐字断言也原样保留。
+
+### 45.5 闸门与测试
+
+- 新增 `tests/main/vendor/tool-pipeline.test.ts`（**10 例**）：`failClosedMode` 未声明 / 返回 `1` / 返回 `"true"` /
+  抛错全独占，返回字面 `true` 才 parallel；`toolErrorMessage` 的 `Error` / `{message}` / 数字 / `null` / `Object.create(null)`；
+  `failureMessageFromText` 空串与非空；`composeWaterfall` 顺序与短路（第二个不调 `next` 第三个不执行）；
+  `fuseToolSignals` 任一 abort 生效、dispose 后不再传播；`cancellationText` 两态；四条文案常量逐字。
+- 新增 `tests/main/services/agent-core/toolPipeline.test.ts`（**9 例**）：未知工具 → settled；`beforeExecute` deny 且不调
+  `tool.run`；deny 时 `onToolResult` 收 `ok:false`；派发前 abort 用 before-dispatch 文案且不调 `tool.run`；body 中 abort
+  且 ok → 改判 aborted 且 `startedAt` 保留；body 中 abort 但本来失败 → 不改写；`afterExecute` block → 模型收到
+  `[工具失败] <feedback>`；`isConcurrencySafe` 只认字面 `true`；`isConcurrencySafe` 抛错 → exclusive。
+- `toolScheduling.test.ts`：更新「取消」用例（slow 跑完才取消的调用从「无 failure」变成 `failure.code=cancelled` 且文案逐字
+  `[工具失败] Error: tool call aborted`）；新增 3 例 —— 不传 hooks 时 `runAgentLoop` 结果 / args / output / failure / phase
+  与旧版一致、hooks 经 `runToolGroup` 生效、初始 abort 时 skip 文案逐字 before-dispatch。
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **0**（两个 tsc 分开跑，`NODE_OPTIONS=--max-old-space-size=4096`）。
+- `node node_modules/vitest/vitest.mjs run tests/guards --maxWorkers=2` → **15 文件 / 107 例**绿。
+- 定向 `tests/main/vendor tests/main/services/agent-core` → **26 文件 / 207 例**绿。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`（日志 `_recovery/full-tool-pipeline.log`）→
+  **Test Files 271 passed | 2 skipped (273)、Tests 3393 passed | 7 skipped (3400)、157.55s、FULL_EXIT=0**
+  （基线 269 / 3371 / 7；多的两个文件、22 例正是上面两个新测试文件 + `toolScheduling` 新增的 3 例）。
+- 提交后在整仓（HEAD `3daa355`）复跑最后一遍闸门：`NODE=0`、`WEB=0`、guards **15 文件 / 107 例**、全量
+  **271 passed | 2 skipped (273)、3393 passed | 7 skipped (3400)、181.29s、FULL=0**、vendor-audit OK —— 与上面阶段内的数字一致（耗时差是机器负载）。
+- `node scripts/vendor-audit.mjs`：**vendored 16 个文件，适配层 2 个；上游快照可对账（dsh-v0.2.1-rc.3）；OK**。
+- 闸门侧的代价：core.ts 798 行（红线 800，本批只加 5 行）；两个新文件都有 `@upstream` 头；`deadExports` 的临时登记全部撤掉，
+  只剩 `fuseToolSignals` 一条（生产侧直接用 caller 的 signal，不另建 wrapper，保留给以后接内部取消源用）。
+
+### 45.6 真机（CDP 43191，1365x1009）
+
+真机（CDP 43191，视口 1365x1009）。dev 启动照 §8：先确认 43191 空闲、无 electron 残留，`Remove-Item Env:ELECTRON_RUN_AS_NODE`，
+`$env:QQBAT_CDP_PORT='1'`，后台 `node node_modules/electron-vite/bin/electron-vite.js dev *> _recovery/dev-tool-pipeline.log`；
+日志里出现 `CDP 已开启：127.0.0.1:43191`。探针按 §8 原样跑，没有改脚本，也没有直调 `window.qqbat.ai.agentCoreRun`：
+
+| 探针                                                                                  | 结果                                                                                   |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `node _recovery/cdp-smoke-role.mjs`                                                   | `ERRORS=0`、`chatMount=true`（重载后页面正常挂载）                                     |
+| `node _recovery/cdp-eval.mjs _recovery/ex-tools-number.js`                            | `{ok:true, count:35, hasTodo:true, hasOnboarding:true}`                                |
+| `node _recovery/cdp-eval.mjs _recovery/ex-ui-compose3.js`                             | `"sent"`（真实入口：textarea 原生 setter + 发送按钮；指令「只调用一次 list_dir」）     |
+| 30s 后 `node _recovery/cdp-eval.mjs _recovery/ex-ui-check.js`                         | `turnProcess=4`（含历史行），最新一行 `{"state":"done","text":"▸工作了 3 秒1 次工具"}` |
+| `QQBAT_VIEWPORT=1365x1009 node _recovery/cdp-shot.mjs _recovery/ui-tool-pipeline.png` | 截图 1365x1009（100 068 字节）                                                         |
+
+结论：**真机通过** —— 35 个工具在册、真实回合有过程行（「工作了 3 秒1 次工具」）、渲染层 `ERRORS=0`。
+日志里另有一条主进程 warn：`[ipc/aiAgentCore] 待办队列落盘失败: Error: EPERM … agent-inbox.json`；
+同样的 warn 在本批之前的 `_recovery/dev-agent-ui.log` / `dev-spill.log` / `dev-retry.log` 里都有（开发态文件占用的一过性问题），
+与本批的工具链路无关。

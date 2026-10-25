@@ -33,6 +33,7 @@
 - `packages/preset/agent-preset-registry/**`（绑死 DSH 那四个预设 id 与 Cordis YAML 插件行，换不到我们的语义上）；
 - `packages/compaction/compaction-image-offload/**`（我们循环里的图只挂在当轮首个 user 回合、且不落盘，历史里没有旧图可搬）；
 - `packages/core/agent-loop/src/agent.ts`（738 行，`ReactLoopAgent` 的每一步都从上游 `Session` 日志派生：47 处 Session、`session.append`、epoch surface、`requestHeader()`；整类搬要连会话重放一起搬，只把其中可分离的调度算法搬成 `tool-batch/`）；
+- `packages/core/tools/src/pipeline.ts` 的 `ToolExecutionPipeline` 类外壳（772 行里绑 `Session` / 审批服务 / 工具集 / `render` 的那一层）：只把纯执行语义搬成 `tool-pipeline/`，四个方法的状态机按本仓 `tool-batch` 合同重写在 `src/main/services/agent-core/toolPipeline.ts`；
 - `packages/llm/llm-retry/src/index.ts` 的插件本体（`apply` + `inject = ['agents','sessionProjections']`、`llm/retry` 会话事件与 `llmRetry` 投影、`RetryId` 品牌、`settleDownstream` 瀑布）；只搬了里面的 `localDelay` / `cancellableDelay` 与那条 Retry-After 判断。
 
 ## 目录
@@ -49,6 +50,7 @@
 | `todo/todo-list.ts`                | 同目录 `src/index.ts` 的纯函数                                    | 工具描述、`toTodoList` 校验（文案未改）、计数与回执文案                                                                                                           |
 | `repeat-tool-reminder/detector.ts` | `packages/guard/repeat-tool-reminder/src/index.ts`                | 重复调用检测纯算法（规范化参数、通配符、阈值校验、两段提醒文案），Cordis 接线已删                                                                                 |
 | `tool-batch/batch.ts`              | `packages/core/tools/src/batch.ts`                                | 一批调用的调度结构（独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）                                                                                    |
+| `tool-pipeline/pipeline.ts`        | `packages/core/tools/src/pipeline.ts`                             | 一次调用的执行语义：fail-closed 并行判定（只有返回字面 true 才并行）、两条取消文案、错误归一、waterfall 组合；prepare/dispatch/complete 状态机在宿主适配层        |
 | `output-retention/index.ts`        | `packages/util/output-retention/src/index.ts`                     | 两个 retainer：条目留前 N（`ItemRetainer`）、字节流留头/尾/两头（`TextRetainer`，UTF-8 边界安全）。**文案层三个导出没搬**（英文提示写死在库里，我们的回执是中文） |
 | `spill-local/store.ts`             | `packages/spill/spill-local/src/store.ts`                         | 溢出文件的落盘机制：目录 0700 / 文件 0600、`wx` 独占创建、`encodeSegment` 单射编码、`session-<sha256 前缀>` 子目录；tmpdir 默认根那一层已删                       |
 | `spill-local/cleanup.ts`           | 同目录 `src/cleanup.ts`                                           | 过期清扫：只删 mtime 严格超期的**普通文件**、不跟随链接、逐级校验目录属主/权限、任何失败只警告不抛；默认根发现那套已删                                            |
@@ -78,6 +80,7 @@ shared 里 import `@main/*` 会让 web 侧 tsc 直接红。**宿主算法仍在�
 - 流式组装（GLM / OpenAI 兼容 / Ollama 三家共用）：`src/shared/ai/streamAssembler.ts` → `src/shared/vendor/dsh/llm-assembler/`（把厂商帧翻成 chunk，再按上游规则取块）；
 - 工具回执留多少、省了多少：`src/main/services/agent-core/toolRetention.ts` → `output-retention/`（命令输出留开头+结尾并报省略字节；目录列表按条目上限并报省了几条）；
 - 一批工具怎么跑：`src/main/services/agent-core/scheduler.ts` → `tool-batch/`（独占屏障 + 有界池 + 取消时给没派发的调用补合成结果）；
+- 一次工具调用怎么走完（准备 / 拒绝 / 取消 / 前后钩子）：`src/main/services/agent-core/toolPipeline.ts` → `tool-pipeline/`（scheduler 把一批调用交给它；宿主可在 `beforeExecute` / `afterExecute` 挂策略，跑完才取消的调用改判为 `Error: tool call aborted`）；
 - 工具结果溢出到磁盘与过期清扫：`src/main/services/ai/spillStore.ts` → `spill-local/`（`<项目>/.qqbat/ai-spill/session-<hash>/`，保留 7 天，写盘后节流清扫）；
 - LLM 调用失败重试：`src/shared/ai/retryRunner.ts` → `src/shared/vendor/dsh/llm-retry/`（按 HTTP 状态码归类成故障码 → 白名单决定能不能重试；退避有上限、抖动对称、认 `Retry-After`）；
 - 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37；调度见 §38；溢出存储见 §44。

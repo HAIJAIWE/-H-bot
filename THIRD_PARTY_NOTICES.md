@@ -28,6 +28,7 @@
 - `packages/llm/llm/src/assembler.ts` → `src/shared/vendor/dsh/llm-assembler/assembler.ts`（流组装状态机：首关为准、截断丢工具调用、中断只留正文/思考）
 - `packages/llm/llm/src/types.ts` → `src/shared/vendor/dsh/llm-assembler/types.ts`（内容块 / 结束原因 / 用量类型）
 - `packages/core/tools/src/batch.ts` → `src/main/vendor/dsh/tool-batch/batch.ts`（一批调用的调度结构：独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）
+- `packages/core/tools/src/pipeline.ts` → `src/main/vendor/dsh/tool-pipeline/pipeline.ts`（一次调用的执行语义：fail-closed 并行判定、两条取消文案、错误归一、waterfall 组合；`ToolExecutionPipeline` 类外壳与 prepare/dispatch 状态机留在适配层）
 - `packages/util/output-retention/src/index.ts` → `src/main/vendor/dsh/output-retention/index.ts`（`ItemRetainer` / `TextRetainer`：条目上限与字节流头尾窗口，UTF-8 边界安全；上游的英文省略提示文案未搬）
 - `packages/llm/llm/src/retry-policy.ts` → `src/shared/vendor/dsh/llm-retry/retry-policy.ts`（重试策略解析：键白名单、默认值、冻结；schemastery 的 `z` 已删）
 - `packages/llm/llm-retry/src/index.ts` → `src/shared/vendor/dsh/llm-retry/delay.ts`（指数退避 + 对称抖动、可取消 sleep；新增 `plannedRetryDelay` = 上游 `recover` 里的 Retry-After 判断）
