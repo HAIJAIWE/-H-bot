@@ -25,6 +25,8 @@
 - `packages/todo/tool-todo/src/types.ts` → `src/main/vendor/dsh/todo/types.ts`（清单条目与三态类型）
 - `packages/todo/tool-todo/src/index.ts` → `src/main/vendor/dsh/todo/todo-list.ts`（工具描述、`toTodoList` 校验、计数与回执文案）
 - `packages/guard/repeat-tool-reminder/src/index.ts` → `src/main/vendor/dsh/repeat-tool-reminder/detector.ts`（重复调用检测：规范化参数、通配符、阈值校验、两段提醒文案）
+- `packages/llm/llm/src/assembler.ts` → `src/shared/vendor/dsh/llm-assembler/assembler.ts`（流组装状态机：首关为准、截断丢工具调用、中断只留正文/思考）
+- `packages/llm/llm/src/types.ts` → `src/shared/vendor/dsh/llm-assembler/types.ts`（内容块 / 结束原因 / 用量类型）
 
 改动原则（详见设计文档 `docs/ai/dsh-source-adaptation-2026-10-24.md` §0 / §2）：
 

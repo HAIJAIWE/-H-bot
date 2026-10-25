@@ -49,13 +49,26 @@
 
 标「本仓库适配层」的**不是上游文件**，不参与哈希对账，改它们不需要同步上游。
 
+### 另一个 vendor 根：`src/shared/vendor/dsh/`
+
+协议层的算法放在 `src/shared`，不放在本目录：唯一消费方 `src/shared/types/ai-provider.ts` 属于 shared，
+而 `tsconfig.web.json` 的 paths 只有 `@shared/*` / `@renderer/*`（**没有 `@main`**），
+shared 里 import `@main/*` 会让 web 侧 tsc 直接红。**宿主算法仍在本目录。**
+两处文件登记在同一个 `MANIFEST.json` 里（`targetPath` 是仓库相对路径，不限定目录）。
+
+| 路径（相对仓库根）                                 | 来源                                | 说明                                                                                                 |
+| -------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/shared/vendor/dsh/llm-assembler/assembler.ts` | `packages/llm/llm/src/assembler.ts` | `BlockAssembler` 状态机（首关为准、越界 delta 忽略、max-tokens 丢工具调用、中断只留非空白正文/思考） |
+| `src/shared/vendor/dsh/llm-assembler/types.ts`     | `packages/llm/llm/src/types.ts`     | 只留 text / reasoning / tool-call 与 stop / tool-calls / max-tokens                                  |
+
 ## 怎么用
 
 - 循环内 token 估算：`src/main/services/agent-core/tokenEstimate.ts` → `token-meter/`；
 - 工具结果掐头留尾：`src/main/services/agent-core/toolResultPrune.ts` → `tool-result-pruner/`；
 - 模型的多步清单：`src/main/services/agent-core/todoTool.ts` → `todo/`（清单条在 `ChatPanel` 顶部）；
 - 连续重复调用的提醒：`src/main/services/agent-core/repeatGuard.ts` → `repeat-tool-reminder/`（命中阈值插一条 user 提醒，不否决调用）；
-- 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33。
+- 流式组装（GLM / OpenAI 兼容 / Ollama 三家共用）：`src/shared/ai/streamAssembler.ts` → `src/shared/vendor/dsh/llm-assembler/`（把厂商帧翻成 chunk，再按上游规则取块）；
+- 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37。
 
 ## 更新上游时的做法
 

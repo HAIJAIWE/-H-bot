@@ -1461,3 +1461,68 @@ user: [工具 verify_greet] 来自界面 来自界面 来自界面
 2. `core/agent-loop/src/agent.ts` 的循环状态机：把 `core.ts` 的 `while` 换成它的阶段流转
    （准备步 → 工具批 → 收尾），我们只留「工具注册表 = 我们的工具 / 模型 = 我们的 provider」这层适配；
 3. 之后才是 §32 记的那笔账：旧 27 个工具并进同一张表（统一双引擎）。
+
+## 37. 搬 DSH 的流组装器：三家 provider 不再各写一遍（2026-10-25）
+
+§36.4 列的第一项落下来了：`llm/llm/src/assembler.ts`（194 行，0 处 `extends Service` / 0 处 `static inject`）替掉了三家 `chat()` 里手写的 SSE 循环。
+
+### 37.1 为什么先搬它（手写那版有真 bug）
+
+旧的 `GLMProvider.chat` / `OpenAICompatibleProvider.chat` / `OllamaProvider.chat` 各自手写同一件事：按行切帧、拼正文、按 `index` 攒 `tool_calls`、最后回调。三份实现三份细节，而且**都不知道自己被截断了**：
+
+- `finish_reason === 'length'`（max-tokens）时，攒到一半的工具调用**照样被当成可执行调用交出去** —— half JSON 交给执行器等于乱执行；
+- 思考内容（`reasoning_content` / `thinking`）三个实现**全部丢弃**，界面的「思考过程」对这三家等于没有；
+- 「`index` 长什么样」三家不一样，每份实现各自猜一遍。
+
+这些问题上游的组装器都已经处理过，所以这一批不是"重写"，是**换实现**。
+
+### 37.2 文件放哪：shared 也有一个 vendor 根
+
+`src/shared/vendor/dsh/llm-assembler/{assembler,types}.ts`，而不是 `src/main/vendor/dsh/`。理由是编译边界，不是口味：
+
+- 唯一消费方是 `src/shared/types/ai-provider.ts`（全仓 main 侧 6 处 import 它；renderer 不 import）；
+- `tsconfig.web.json` 的 paths 只有 `@shared/*` / `@renderer/*`，**没有 `@main`** —— shared 里一旦 import `@main/*`，web 侧 tsc 立刻红。
+
+两处文件登记在同一个 `src/main/vendor/dsh/MANIFEST.json`（`targetPath` 是仓库相对路径，不限目录），`vendor:audit` 一起对账。
+
+### 37.3 搬了什么、改了什么
+
+`src/shared/vendor/dsh/llm-assembler/assembler.ts`（167 行）逐条照搬上游 `BlockAssembler` 的状态机，语义一条没改：
+
+| 上游判断                                                   | 为什么不能简化                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| `block-end` **首次关闭为准**，关闭后同 index 的 delta 忽略 | 坏流不能撑爆内存，也不能改写已完成的块；否则流式输出与最终块不一致 |
+| 首见 index 建块（delta-only 协议也要能拼）                 | Ollama / 部分兼容端点没有 block-start/end                          |
+| `finish === 'max-tokens'` 时 **丢掉所有 tool-call 块**     | 被截断的调用不能交给执行器                                         |
+| `interruptedBlocks()` 只留**非空白**的正文/思考            | 中断时工具调用不保留 —— 保留就得编造结果                           |
+| 缺 id 退回 `call-<index>`                                  | 没有 id 的执行结果无法配对回消息                                   |
+
+改动四处（都写进了 MANIFEST 的 `adaptedNotes`）：去掉 `brandString` / `assertNever`（未知 chunk 忽略，不让一帧坏数据打断整条流）、去掉 replay 信封、去掉 `message()`，以及 **id 只在非空时覆盖**：OpenAI 协议只在首个 delta 给 id，我们的适配层把缺失的 id 传成空串，照搬"无条件覆盖"会把已拿到的 id 擦掉（测试抓到过）。
+
+`src/shared/ai/streamAssembler.ts`（231 行）是**协议翻译**，不是算法：把厂商帧翻成上游的 `StreamChunk`，再按上游规则取块。
+
+- 固定块 index：正文 `0`、思考 `1`、工具调用从 `2` 起（$ 正文流到一半来工具调用不能串块）；
+- 推理字段只在这一处分叉：`delta.reasoning_content ?? delta.reasoning`、Ollama 的 `message.thinking ?? thinking`；
+- `finish_reason`：`length` → `max-tokens`、`tool_calls`/`function_call` → `tool-calls`、其它 → `stop`；
+- 用量**不在这里归一**：各家字段名不同，`AssembleOptions.mapUsage` 注入 provider 原有的 `normalizeUsage`；
+- 回调形状保持旧样：`onToolCalls` 交的仍是原始 OpenAI 形状 `{index,id,type,function:{name,arguments}}`，因为 `src/main/services/ai/toolMessages.ts` 的 `normalizeToolCalls` 只认 `function.name` / `function.arguments`。
+
+### 37.4 测试抓到的两件事
+
+1. **厂商不发 `index` 时不能按"本帧数组下标"顶替** —— 每个分片都从 0 开始，两个调用分两帧到达会被并成同一个块。旧实现用"已见调用数"兜住了，新适配层必须照旧（带 id/name 的帧算新调用，只有参数片的算上一个调用的续片）。已有的 `tests/shared/types/ai-provider-toolcalls.test.ts` 当场红，补上分配规则后绿。
+2. **prettier 之后哈希会漂**：vendor 文件一旦被格式化，`vendor:audit` 就报"目标文件被手改过"。这是流程性事实，处理办法只有一个：`node scripts/vendor-audit.mjs --update`，不是去改校验。
+
+测试：`tests/shared/vendor/llm-assembler.test.ts`（7 例，首关为准 / delta-only / 参数累加与缺 id / 截断丢调用 / 中断只留非空白 / 默认 stop 与 usage）+ `tests/shared/ai/streamAssembler.test.ts`（6 例，思考+正文+两个调用交错 / `length` 丢调用 / 帧被切断仍能拼回 / 坏帧跳过 / 用量注入 / Ollama NDJSON 与尾巴冲刷）。
+「厂商不发 `index` 时两个调用不能合并」由既有 `tests/shared/types/ai-provider-toolcalls.test.ts`（6 例）守住 —— 它当场抓到过适配层的新 bug。
+
+### 37.5 闸门
+
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 0（adapter 在 shared，web 侧也能过 —— 反过来证明没有 `@main` 依赖）；
+- `tests/guards` 15 文件 / 107 例：新 vendor 头注释压回 20 行；`ai-provider.ts` 换掉三份循环后 892 → 870，
+  prettier 重排后会回涨一截，仍超 800 行，所以 `file-size-baseline.json` 留着并按 870 登记（这个文件同时放着
+  四家 provider 与消息映射，拆分留到后续）；
+- `node scripts/vendor-audit.mjs` → vendored **9** + 适配层 2，OK。
+
+### 37.6 下一步
+
+`core/agent-loop/src/agent.ts` 的 `ReactLoopAgent`（703 行，1 / 1）替 `core.ts` 的 `while`；之后才是旧 27 个工具并表。

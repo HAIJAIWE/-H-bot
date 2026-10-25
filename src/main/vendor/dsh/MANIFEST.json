@@ -104,6 +104,31 @@
         "新增导出的默认常量：DEFAULT_REPEAT_THRESHOLDS、DEFAULT_ARGUMENTS_PREVIEW_CHARS（值取上游 Config 的 default）",
         "计数链改由调用方（src/main/services/agent-core/repeatGuard.ts）持有：上游是 WeakMap<Agent, Chain>，我们一次 runAgentLoop 一条链"
       ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/llm/llm/src/assembler.ts",
+      "sourceSha256": "a2d065645058a70195a504b101e9eed23df3eaced3def868d602f3a863b03887",
+      "targetPath": "src/shared/vendor/dsh/llm-assembler/assembler.ts",
+      "targetSha256": "636cd2759bda0320eda08c75bd0472a29ba594da4d110563dcde4415de64295e",
+      "adaptedNotes": [
+        "只取 BlockAssembler 的纯状态机（push/assemble/blocks/interruptedBlocks/usage/finish）：block-end 首次关闭为准、越界 delta 忽略、max-tokens 丢工具调用、中断收尾只留非空白正文/思考",
+        "去掉 brandString / assertNever（未知 chunk 直接忽略，不让一帧坏数据打断整条流）、去掉 replay 信封与 message()（消息由调用方拼）",
+        "工具调用 id 只在非空时覆盖，最终为空退回 call-<index>：OpenAI 只在首个 delta 给 id，我们的适配层把缺失的 id 传空串，照搬无条件覆盖会擦掉已拿到的 id（测试抓到过）",
+        "放在 src/shared 而不是 src/main：唯一消费方 src/shared/types/ai-provider.ts 属于 shared，web 侧 tsconfig 没有 @main 别名"
+      ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/llm/llm/src/types.ts",
+      "sourceSha256": "3ced1a7f722bdf2d8391fc660b0c19dd809d9c0f3f7eb74e8a128d0216b37585",
+      "targetPath": "src/shared/vendor/dsh/llm-assembler/types.ts",
+      "targetSha256": "3f876c894373bfed265c636a1ce2826283e88093d3cc93f2bfa57e236286d4bd",
+      "adaptedNotes": [
+        "只取组装器真正用到的四种块（text / reasoning / tool-call）与三种结束原因（stop / tool-calls / max-tokens）",
+        "去掉 image / file / tool-addition / tool-removal、abort/error 的 LlmFailure 载荷，以及内存式 ReplayEnvelope（我们没有 chunk 回放）",
+        "TokenUsage 字段全改可选（我们原样转交，不消费）"
+      ]
     }
   ]
 }
