@@ -15,8 +15,8 @@ import { normalizeToolOutcome, withTimeout } from './core'
 import type { BatchCommit, BatchPipeline } from '../../vendor/dsh/tool-batch/batch'
 import { executeToolBatch } from '../../vendor/dsh/tool-batch/batch'
 
-/** 一个工具调用的落地结果（调度器内部用） */
-interface ToolSlot {
+/** 一个工具调用的落地结果（调度器内部用；适配层 toolPipeline.ts 也要读） */
+export interface ToolSlot {
   output: string
   ok: boolean
   failure?: ToolFailure
@@ -56,10 +56,10 @@ export function executionModeOf(tool: Tool | undefined): 'parallel' | 'exclusive
  * 抽出来是因为并行池里每个调用各跑一份：错误处理只要还在调用点里写一遍，
  * 并行路径迟早出现"某条分支忘了 catch"的漏网（而漏网的那条会让整轮挂掉）。
  */
-async function executeToolCall(
+export async function executeToolCall(
   call: ToolCall,
   ctx: ToolContext,
-  tools: Tool[],
+  tools: readonly Tool[],
 ): Promise<{ output: string; ok: boolean; failure?: ToolFailure; concludesTurn?: boolean }> {
   const tool = tools.find(t => t.name === call.name)
   let output: string
@@ -96,7 +96,8 @@ async function executeToolCall(
 /** 取消时补的那条结果：与上游 executor 的 TOOL_ABORTED_BEFORE_DISPATCH 同一句 */
 const ABORTED_TEXT = '[工具失败] Error: tool call aborted before dispatch'
 
-interface PlannedExec {
+/** 调度器眼里的一个调用（含原始 ToolCall；适配层 prepare/dispatch 要用） */
+export interface PlannedExec {
   callId: string
   name: string
   call: ToolCall

@@ -311,6 +311,8 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
     '仅测试引用，生产路径未接（首次登记；接上或删除时从基线移除）',
   'src\\main\\services\\runner\\runtimeLogStore.ts:clearRuntimeLogs':
     '测试夹具用；生产侧不需要主动清空 —— 缓冲有 300 条上限，自己会收敛（接上或删除时从基线移除）',
+  'src\\main\\services\\agent-core\\toolPipeline.ts:createToolPipeline':
+    '⚠️ 进行中：第 45 批阶段 3 由 scheduler.runToolGroup 接线；接线后删掉本条。',
   // 2026-10-26 第 45 批（tool-pipeline）：阶段 1/2 先把纯函数与适配层落地，
   // 阶段 3 由 src/main/services/agent-core/toolPipeline.ts + scheduler.ts 真正接线；接线后删掉这 6 条。
   'src\\main\\vendor\\dsh\\tool-pipeline\\pipeline.ts:failClosedMode':

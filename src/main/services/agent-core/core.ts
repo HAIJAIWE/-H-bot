@@ -112,6 +112,11 @@ export interface Tool {
    * `exclusive` 是屏障（它前后的调用不与它重叠）。不写就按 category 保守推断。
    */
   executionMode?: 'parallel' | 'exclusive'
+  /**
+   * 这次调用的实参能不能和同批其它调用并跑（上游 isConcurrencySafe）。
+   * 不声明 = 按 category 推断；声明了必须**返回字面 true** 才并行（fail-closed）。
+   */
+  isConcurrencySafe?: (args: Record<string, unknown>) => boolean
   /** 单次执行超时（毫秒）；不写就用调用方默认值 */
   timeoutMs?: number
   /**
