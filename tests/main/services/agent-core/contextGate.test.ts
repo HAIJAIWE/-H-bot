@@ -2,8 +2,8 @@
 //
 // # 循环内的上下文闸门
 //
-// 六件事：预算内不动、头与任务句不被压、只压中段、注记说清条数、语义摘要失败要退回、
-// 估算器对中文不能低估三倍。
+// 八件事：预算内不动、头与任务句不被压、只压中段、注记说清条数、语义摘要失败要退回、
+// 估算器对中文不能低估三倍、尾部按 token 保留且**不许劈开工具调用配对**、压了不比注记大就不压。
 import { describe, it, expect } from 'vitest'
 import {
   COMPACTION_NOTE_HEAD,
@@ -39,6 +39,17 @@ describe('★ token 估算', () => {
     // 40 个 ASCII = 10 token 密度 + 4 块结构开销 + 4 角色框
     // 旧实现只加 4（角色框），换成上游算法后每条多 4 —— 保守方向，不是回归
     expect(estimateTurns([turn('user', ascii(40))])).toBe(18)
+  })
+
+  it('★ assistant 的工具调用参数也要计价（write_file 的 content 可能上万字符）', () => {
+    const plain: ChatTurn = { role: 'assistant', content: '' }
+    const withCall: ChatTurn = {
+      role: 'assistant',
+      content: '',
+      toolCalls: [{ id: '1', name: 'write_file', args: { path: 'a.txt', content: ascii(4000) } }],
+    }
+    // 4000 字符参数 ≈ 1000 token；以前只算 content，压力被低估到只剩角色框那 4
+    expect(estimateTurns([withCall])).toBeGreaterThan(estimateTurns([plain]) + 900)
   })
 
   it('★ 贴图按张计 1000 token（不算的话贴图的人以为还有余量）', () => {
@@ -85,6 +96,103 @@ describe('★ 压哪一段', () => {
   it('只有系统提示 + 一条工具输出时也不会压出空注记', () => {
     const turns = [turn('system', 'SYS'), turn('tool', ascii(400))]
     expect(planCompaction(turns, { budgetTokens: 10, keepRecentTurns: 2 })).toBeNull()
+  })
+})
+
+describe('★ 尾部保留：条数下限 + token 保留区（对齐上游 retainTokens）', () => {
+  const call = (content: string): ChatTurn => ({
+    role: 'assistant',
+    content,
+    toolCalls: [{ id: content, name: 'read_file', args: { path: 'a.txt' } }],
+  })
+  const result = (content: string): ChatTurn => ({ role: 'tool', content, toolResult: content })
+
+  it('★ 按 token 多留（只数条数会留得太少：一条工具输出能顶掉几十条短消息）', () => {
+    const turns = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      ...Array.from({ length: 20 }, () => turn('user', ascii(40))),
+    ]
+    // 每条 user 回合 18 token（10 文本 + 4 块开销 + 4 角色框）；100 token ≈ 6 条
+    const plan = planCompaction(turns, {
+      budgetTokens: 100,
+      keepRecentTurns: 2,
+      retainTokens: 100,
+    })
+    expect(plan).not.toBeNull()
+    expect(plan!.end).toBe(turns.length - 6)
+    expect(plan!.dropped).toHaveLength(14)
+  })
+
+  it('条数下限仍然生效（token 保留区很小也不许把现场压掉）', () => {
+    const turns = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      ...Array.from({ length: 10 }, (_, i) => turn('tool', ascii(400), 'read_file' + i)),
+    ]
+    const plan = planCompaction(turns, {
+      budgetTokens: 100,
+      keepRecentTurns: 4,
+      retainTokens: 0,
+    })
+    expect(plan).not.toBeNull()
+    expect(plan!.end).toBe(turns.length - 4)
+  })
+
+  it('★ 切口会劈开「调用 / 结果」时往回想（多留一条，也不让厂商 400）', () => {
+    const turns: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      call('call-a'),
+      result(ascii(400)),
+      call('call-b'),
+      result(ascii(400)),
+      turn('assistant', 'ok'),
+    ]
+    const plan = planCompaction(turns, {
+      budgetTokens: 100,
+      keepRecentTurns: 2,
+      retainTokens: 0,
+    })!
+    // 朴素切口 end=5 会丢掉 call-b、留下它的结果 → 退到 4（call-a 与它的结果一起丢）
+    expect(plan.end).toBe(4)
+    expect(plan.dropped.map(t => t.content)).toEqual(['call-a', ascii(400)])
+  })
+
+  it('退到起点已经压不动（不足两条）→ null，而不是切出坏数据', () => {
+    const turns: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      call('call-a'),
+      result(ascii(400)),
+      turn('assistant', 'ok'),
+    ]
+    expect(
+      planCompaction(turns, { budgetTokens: 10, keepRecentTurns: 2, retainTokens: 0 }),
+    ).toBeNull()
+  })
+})
+
+describe('★ 最小收益：压了不比注记大就不压', () => {
+  it('★ 只压掉两条空回复（8 token）却贴一条 1200 字备忘录 → 保持原样', async () => {
+    const messages: ChatTurn[] = [
+      turn('system', 'SYS'),
+      turn('user', 'REQ'),
+      turn('assistant', ''),
+      turn('assistant', ''),
+      turn('tool', ascii(400), 'read_file'),
+      turn('tool', ascii(400), 'read_file'),
+    ]
+    const before = messages.map(m => m.content)
+    const outcome = await applyCompaction(messages, {
+      budgetTokens: 100,
+      keepRecentTurns: 2,
+      retainTokens: 0,
+      pruneToolResults: false,
+    })
+    expect(outcome).not.toBeNull()
+    expect(outcome!.dropped).toBe(0)
+    expect(messages.map(m => m.content)).toEqual(before)
   })
 })
 

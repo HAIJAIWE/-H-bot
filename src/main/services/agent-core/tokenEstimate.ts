@@ -45,5 +45,29 @@ export function estimateTurnTokens(turn: ChatTurn): number {
   const text = turn.content ?? ''
   const content: ContentBlock[] = text ? [{ type: 'text', text }] : []
   const images = (turn.images?.length ?? 0) * IMAGE_TOKENS
-  return estimateMessage({ role: turn.role, content }) + images
+  return estimateMessage({ role: turn.role, content }) + images + estimateToolCallTokens(turn)
+}
+
+/**
+ * assistant 回合里「要了哪些工具」的计价（2026-10-26 补）。
+ *
+ * 为什么必须算：`write_file` 的 content 参数可以上万字符，一次写文件就可能把窗口撑满；
+ * 以前只算 `content`，上下文压力被**低估**，闸门等到厂商 400 才反应过来。
+ * 口径：工具名 + 参数 JSON，走同一个 {@link estimateTextTokens}（不另立算法）。
+ * @param turn - 一条回合（通常只有 assistant 会带 toolCalls）
+ * @returns 工具调用带来的 token 数；没有调用为 0
+ */
+function estimateToolCallTokens(turn: ChatTurn): number {
+  if (!turn.toolCalls?.length) return 0
+  let total = 0
+  for (const call of turn.toolCalls) {
+    total += estimateTextTokens(call.name)
+    try {
+      total += estimateTextTokens(JSON.stringify(call.args ?? {}))
+    } catch {
+      // 参数里有循环引用 / BigInt：给一个保守小常数，别让估算自己抛错把循环打死
+      total += 16
+    }
+  }
+  return total
 }

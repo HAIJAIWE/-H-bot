@@ -2193,17 +2193,16 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
 同样的 warn 在本批之前的 `_recovery/dev-agent-ui.log` / `dev-spill.log` / `dev-retry.log` 里都有（开发态文件占用的一过性问题），
 与本批的工具链路无关。
 
-
 ## 46. 第九批：审批的单一入口（2026-10-26）
 
 ### 46.1 在这之前，闸门有三处，各问各的
 
-| 动作 | 谁问 | 问成什么 |
-| --- | --- | --- |
-| 写文件 | <code>write_file</code> 的 run 里内联 <code>ctx.gate</code> | <code>{kind:"write",path}</code> |
-| 跑命令 | <code>run_command</code> 的 run 里内联 <code>ctx.gate</code> | <code>{kind:"command",command}</code> |
-| **插件 / 宿主注册的工具** | **没有人问** | —— |
-| 旧 27 个工具（适配器） | 不问（提案制） | 但审批那边把它当 <code>command</code>：拿**工具名**冒充命令行 |
+| 动作                      | 谁问                                                         | 问成什么                                                      |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
+| 写文件                    | <code>write_file</code> 的 run 里内联 <code>ctx.gate</code>  | <code>{kind:"write",path}</code>                              |
+| 跑命令                    | <code>run_command</code> 的 run 里内联 <code>ctx.gate</code> | <code>{kind:"command",command}</code>                         |
+| **插件 / 宿主注册的工具** | **没有人问**                                                 | ——                                                            |
+| 旧 27 个工具（适配器）    | 不问（提案制）                                               | 但审批那边把它当 <code>command</code>：拿**工具名**冒充命令行 |
 
 前两行的文案逐字留着（模型和历史测试都对得上），问题在后两行：
 
@@ -2219,12 +2218,12 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
 第 45 批搭好的 prepare 正好是那个位置 —— 它已经知道"这次调用是哪个工具、参数是什么、有没有被钩子拦"。
 现在它多两段：
 
-| 顺序 | 动作 | 说明 |
-| --- | --- | --- |
-| ① | 未知工具 → <code>settled</code> 失败 | 没变 |
-| ② | <code>beforeExecute</code> 钩子 | <code>deny</code> → 失败；<code>ask</code> → 走 <code>askGate({kind:"tool"})</code> |
-| ③ | <code>approvalRequestOf(tool, args, ctx)</code> | 显式声明优先；没声明按 <code>category</code> 推断（mutation 一律要问） |
-| ④ | <code>if (approval &amp;&amp; ctx.gate) askGate(...)</code> | 拒绝 → <code>settled</code> 失败，**不派发** |
+| 顺序 | 动作                                                        | 说明                                                                                |
+| ---- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| ①    | 未知工具 → <code>settled</code> 失败                        | 没变                                                                                |
+| ②    | <code>beforeExecute</code> 钩子                             | <code>deny</code> → 失败；<code>ask</code> → 走 <code>askGate({kind:"tool"})</code> |
+| ③    | <code>approvalRequestOf(tool, args, ctx)</code>             | 显式声明优先；没声明按 <code>category</code> 推断（mutation 一律要问）              |
+| ④    | <code>if (approval &amp;&amp; ctx.gate) askGate(...)</code> | 拒绝 → <code>settled</code> 失败，**不派发**                                        |
 
 **没有闸门 = 不改变旧行为**（脚本、单测、宿主没接审批的形态：不问人，直接跑）。
 一旦调用方接了闸门，声明要审批的调用就**必须**过 —— 这是本批唯一的语义变化，也是插件工具被补上的那道口子。
@@ -2243,11 +2242,11 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
 
 <code>GateRequest</code> 加了第三类 <code>tool</code>：
 
-| kind | 谁产生 | 审批标题 / summary | "以后别再问"的匹配键 |
-| --- | --- | --- | --- |
-| <code>write</code> | <code>write_file.approval</code>（路径先过 <code>resolveInWorkspace</code>） | 路径 | 路径规则（<code>writeRuleMatch</code>） |
-| <code>command</code> | <code>run_command.approval</code>（trim 后的命令） | 命令 | 命令规则（<code>commandRuleMatch</code>） |
-| <code>tool</code> | 没声明的 mutation（默认推断）/ 钩子 <code>ask</code> | 工具名 + 参数 JSON（&gt;160 字截断） | 工具名 + 参数（<code>toolRuleMatch</code>） |
+| kind                 | 谁产生                                                                       | 审批标题 / summary                   | "以后别再问"的匹配键                        |
+| -------------------- | ---------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------- |
+| <code>write</code>   | <code>write_file.approval</code>（路径先过 <code>resolveInWorkspace</code>） | 路径                                 | 路径规则（<code>writeRuleMatch</code>）     |
+| <code>command</code> | <code>run_command.approval</code>（trim 后的命令）                           | 命令                                 | 命令规则（<code>commandRuleMatch</code>）   |
+| <code>tool</code>    | 没声明的 mutation（默认推断）/ 钩子 <code>ask</code>                         | 工具名 + 参数 JSON（&gt;160 字截断） | 工具名 + 参数（<code>toolRuleMatch</code>） |
 
 工具这边只加一个可选声明（<code>Tool extends ApprovalTool</code>）：
 
@@ -2314,3 +2313,93 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
   （基线 3393 → +9：toolPipeline 8 + adapter 1）。
 - prettier 过了 10 个改动文件。
 
+## 47. 第十批：安全压缩（compaction-basic 本体，2026-10-26）
+
+### 47.1 之前的三个窟窿
+
+| 窟窿                 | 现状（本批之前）                                                                 | 后果                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 保留区只数条数       | <code>planCompaction</code> 的 <code>end = turns.length - keep</code>，默认 8 条 | 一条 24k 字符的工具输出能顶掉几十条短消息；"至少留几条"跟"还剩多少预算"无关          |
+| **工具配对完全没管** | 切口随手落在任意两条之间                                                         | 调用被丢进中段、结果留在尾部 → 厂商下一次请求 400，报错只有一个孤零零的 tool_call_id |
+| 估算不计调用参数     | <code>estimateTurnTokens</code> 只算 <code>content</code> + 图片                 | <code>write_file</code> 的 content 上万字符不计价，压力被低估、闸门触发太晚          |
+
+第二条尤其要说明：<code>contextGate.ts</code> 的头注释一直写着"循环不把带 tool_calls 的 assistant 回合放进 messages"，
+所以"没有配不上的调用"。**这句从 2026-10-25 起就过时了** —— <code>core.ts:708</code> 推
+<code>{ role: "assistant", content, toolCalls: calls }</code>、<code>scheduler.ts:147</code> 推
+<code>{ role: "tool", content: facing, toolResult: facing }</code>。注释与现实分叉了两天才被发现。
+
+### 47.2 对齐上游（<code>packages/compaction/compaction-basic</code>）的四条
+
+| 上游                                                                                    | 本仓库                                                                                       |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| <code>surface[0]</code>（system）不参与压缩                                             | 头注释与逻辑都没动：<code>headEnd</code> + 紧随其后的任务句保住                              |
+| 从尾部累加 token 到 <code>retainTokens</code>（<code>retainRatio</code> 默认 **0.16**） | 新增 <code>retainTokens</code>，默认 <code>budget × RETAIN_RATIO_DEFAULT</code>（16%）       |
+| <code>while (!toolPairingBalancedBefore(surface[keepFromIdx])) keepFromIdx -= 1</code>  | <code>retreatToBalancedCut</code>：切口不配平就往回想（退 = 多留），退不到起点就放弃这次压缩 |
+| 压完必须真的变小（最小收益）                                                            | 注记成本先算：<code>estimateTurns(dropped) &lt;= estimateTokens(note)</code> 就不落地        |
+
+条数下限不是上游的东西，是这边的"现场"概念：<code>keepRecentTurns</code> 降级为**下限**，
+与 token 保留区取**更宽**的那个（<code>max(条数下限, token 累计)</code>）。
+上游没有下限、只有比例；只按比例的话，一小段预算可能把"刚刚发生了什么"整段抽走。
+
+### 47.3 新文件 <code>toolPairing.ts</code>：配对是硬约束，坏数据不抛错
+
+四个导出：
+
+- <code>toolCallDelta(turn)</code>：assistant 每带一个调用 +N、tool 结果 −1、其余 0；
+- <code>toolPairingCuts(turns)</code>：每个切口（0..length）配平的布尔表；
+- <code>toolPairingBalancedBefore(turns, index)</code>：单个切口查询；
+- <code>retreatToBalancedCut(turns, from, floor)</code>：从想切的位置往回退到配平点，退不到返回 −1。
+
+**与上游的唯一差异**：余额为负（结果没有调用 = 数据已经坏了）时，上游直接抛
+<code>tool-pairing balance: tool/result at surface seq N has no matching tool-call</code>；
+这边把该切口及其之后一律判为不可切。理由写在文件头：**压缩是每轮都跑的路，
+不该被一条坏数据整轮打死**。不切在坏数据旁边，比"切完再猜哪里坏了"可控。
+
+顺带一条约束：<code>retreatToBalancedCut</code> 内部走 <code>toolPairingBalancedBefore</code>，
+三个导出都有生产调用点 —— 否则 <code>deadExports</code> 的"只有测试引用"那一条会红（本批真红过一次）。
+
+### 47.4 <code>planCompaction</code> 的五步
+
+1. 预算内直接 <code>null</code>；
+2. <code>start</code>：系统提示 + 紧随其后的任务句之后；
+3. 保留量 = <code>max(keepRecentTurns 下限, 从尾部累加到 retainTokens 的条数)</code>；
+4. <code>end = retreatToBalancedCut(turns, length - retained, start)</code>，返回 −1 则放弃；
+5. 可压的不足 2 条 → <code>null</code>。
+
+返回形状没变（<code>start/end/dropped/tokensBefore/tokensAfter</code>），调度器与 IPC 不用改。
+
+### 47.5 最小收益为什么在 <code>applyCompaction</code> 而不是 plan
+
+注记要 <code>buildCompactionNote(dropped)</code> 才量得准（确定性注记最多 1200 字符，
+语义摘要最多 1200 字符），而 plan 是纯函数、预算阶段还没决定用哪种摘要。
+更关键的是：**这条判断不能挡掉剪枝**。<code>applyCompaction</code> 的顺序仍是
+"plan → 先剪工具结果 → 剪完重试 plan → 要贴注记前才判收益"；
+收益不够时返回 <code>{ dropped: 0, pruned: n }</code>，东西留在原地，
+<code>ai:compact</code> 也不会发（调用方按 <code>dropped &gt; 0</code> 判断）。
+
+另外 <code>CompactionOutcome.tokensBefore</code> 统一成"这一轮进来时的数"，
+不再因为剪枝重试而变成"剪完之后的数"。
+
+### 47.6 计价补上工具调用
+
+<code>estimateToolCallTokens</code>：工具名 + <code>JSON.stringify(args)</code>，走同一个
+<code>estimateTextTokens</code>；JSON 序列化抛错（循环引用 / BigInt）给保守常数 16，不让估算自己把循环打死。
+一条 <code>write_file</code> 带 4000 字符 content 从"只值 4"变成约 1013。
+
+### 47.7 测试
+
+- 新建 <code>tests/main/services/agent-core/toolPairing.test.ts</code> **8 例**：
+  增减口径；配平切口；调用在中段/结果在尾部的坏切口；并发调用要等齐；孤儿结果整段不可切；越界判不安全；往回退与下限 −1。
+- <code>tests/main/services/agent-core/contextGate.test.ts</code> **20 → 26 例**（+6）：
+  按 token 多留（20 条 user 回合、retainTokens 100 → 尾部留 6 条而不是 2 条）；
+  条数下限仍生效；配对坏切口往回退到 4（<code>dropped</code> 恰是 <code>call-a</code> + 它的结果）；
+  退到起点压不动返回 null；最小收益（两条空回复 vs 注记 → 保持原样）；工具调用参数计价。
+- 定向 <code>tests/main/services/agent-core</code> + <code>tests/guards</code> → **39 文件 / 307 例**绿。
+
+### 47.8 闸门
+
+- <code>tsc -p tsconfig.node.json</code> = **0**、<code>tsc -p tsconfig.web.json</code> = **0**。
+- 全量 <code>node node_modules/vitest/vitest.mjs run --maxWorkers=2</code>（日志 <code>_recovery/full-gate-batch47.log</code>）→
+  **Test Files 272 passed | 2 skipped (274)、Tests 3416 passed | 7 skipped (3423)、FULL_EXIT=0**
+  （基线 3402 → +14：toolPairing 8 + contextGate 6）。
+- prettier 过了 5 个改动文件。

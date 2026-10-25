@@ -6,16 +6,20 @@
 // 要么悄悄截掉最前面的系统提示。
 //
 // 四条边界：保住 index 0 的系统提示；保住紧随其后的那句 user（任务原文，90 字摘要顶不上）；
-// 保住尾部 keepRecentTurns 条（推理链不能半剪）；中间那段换成一条 system 注记，
-// 并明说"摘要非原文、要细节就重读文件"。
+// 保住尾部（条数下限 keepRecentTurns + 按 token 的保留区 retainTokens，推理链不能半剪）；
+// 中间那段换成一条 system 注记，并明说"摘要非原文、要细节就重读文件"。
 //
-// 不管"工具结果有没有主人"：循环不把带 tool_calls 的 assistant 回合放进 messages，
-// 结果就是一条纯内容，没有配不上的调用 —— 真正会丢的是上面那句任务。
+// **工具配对是硬约束**（2026-10-26，对齐 DSH `compaction/tool-pairing`）：循环从
+// 2026-10-25 起把 assistant(toolCalls) 与 tool(toolResult) 真的放进 messages
+// （core.ts:708 / scheduler.ts:147），切口落在"调用被丢进中段、结果留在尾部"之间，
+// 厂商下一次请求就是 400，而报错只有一个孤零零的 tool_call_id，看不出是压缩切坏的。
+// 所以切口要往回想，退到最近的配平位置（宁可多留一段，也不让协议断链）。
 //
 // 摘要两档（与 ai/contextDigest 同一纪律）：有模型先用模型，失败/空退回确定性摘要。
 import type { DigestLlm } from '../ai/contextDigest'
 import type { ToolResultPruneConfig } from '../../vendor/dsh/tool-result-pruner/types'
 import { estimateTextTokens, estimateTurnTokens } from './tokenEstimate'
+import { retreatToBalancedCut } from './toolPairing'
 import { pruneToolTurns, TOOL_PRUNE_DEFAULTS } from './toolResultPrune'
 import type { ChatTurn } from './core'
 
@@ -23,6 +27,12 @@ import type { ChatTurn } from './core'
 export const LOOP_TOKEN_BUDGET_DEFAULT = 80_000
 /** 尾部至少留几条：一轮里通常 4 条（assistant + tool×N），8 条 ≈ 两轮 */
 export const KEEP_RECENT_TURNS_DEFAULT = 8
+/**
+ * 尾部按 token 保留的比例（上游 `retainRatio` 默认 0.16）。
+ * 与条数下限取**更宽**的那个：条数是地板（现场不许只剩摘要），比例是天花板之外的安全垫
+ * （一条工具输出就能顶掉几十条短消息，只数条数会留得太少）。
+ */
+export const RETAIN_RATIO_DEFAULT = 0.16
 
 const MAX_NOTE_LINE_CHARS = 90
 const MAX_NOTE_TOTAL_CHARS = 1200
@@ -55,8 +65,10 @@ export function estimateTurns(turns: readonly ChatTurn[]): number {
 export interface CompactionOptions {
   /** 预算（token）。超了才压；默认 LOOP_TOKEN_BUDGET_DEFAULT */
   budgetTokens?: number
-  /** 尾部保留条数。默认 KEEP_RECENT_TURNS_DEFAULT */
+  /** 尾部保留条数的**下限**。默认 KEEP_RECENT_TURNS_DEFAULT；与 retainTokens 取更宽的那个 */
   keepRecentTurns?: number
+  /** 尾部按 token 至少保留多少。默认取预算的 {@link RETAIN_RATIO_DEFAULT}（16%） */
+  retainTokens?: number
   /** 语义摘要（可选）：给了就先试它，抛错/空串退回确定性摘要 */
   summarize?: (dropped: readonly ChatTurn[]) => Promise<string | undefined>
   /**
@@ -104,19 +116,36 @@ function oneLine(text: string, max: number): string {
  *
  * **纯函数**：只读 turns，不改任何东西 —— 循环里怎么落地由 `applyCompaction` 决定，
  * 这样"压哪一段"可以单独测，不用假装跑一个循环。
+ *
+ * "压了也不省"不在这里判（这条注记的成本要落地时才算得准，见 `applyCompaction`）；
+ * 这里只保证切口合法：头尾不被压、工具调用不劈开。
  */
 export function planCompaction(
   turns: readonly ChatTurn[],
   opts: CompactionOptions = {},
 ): CompactionPlan | null {
   const budget = opts.budgetTokens ?? LOOP_TOKEN_BUDGET_DEFAULT
-  const keep = Math.max(2, opts.keepRecentTurns ?? KEEP_RECENT_TURNS_DEFAULT)
+  const keepFloor = Math.max(2, opts.keepRecentTurns ?? KEEP_RECENT_TURNS_DEFAULT)
+  const retainTokens = Math.max(0, opts.retainTokens ?? Math.round(budget * RETAIN_RATIO_DEFAULT))
   const tokensBefore = estimateTurns(turns)
   if (tokensBefore <= budget) return null
   const headEnd = turns.length > 0 && turns[0]?.role === 'system' ? 1 : 0
   // 头部紧随系统提示的那条 user 是**这一轮要做什么**，不许压（摘要只剩一行 90 字，够不上需求原文）
   const start = turns[headEnd]?.role === 'user' ? headEnd + 1 : headEnd
-  const end = Math.max(start, turns.length - keep)
+
+  // ① 条数下限：现场至少留几条，不能压到只剩一句摘要
+  const available = Math.max(0, turns.length - start)
+  let retained = Math.min(keepFloor, available)
+  // ② token 保留区：从尾部往前累加，直到够 retainTokens（与上游 retainTokens 同口径）
+  let retainedTokens = estimateTurns(turns.slice(turns.length - retained))
+  while (retained < available && retainedTokens < retainTokens) {
+    retained += 1
+    retainedTokens += estimateTurnTokens(turns[turns.length - retained]!)
+  }
+
+  // ③ 工具配对是硬约束：切口不配平就往前退（退 = 多留），退不到配平点就放弃这次压缩
+  const end = retreatToBalancedCut(turns, Math.max(start, turns.length - retained), start)
+  if (end < 0) return null
   const dropped = turns.slice(start, end)
   if (dropped.length < 2) return null
   return {
@@ -208,6 +237,10 @@ export function makeTurnSummarizer(
  * 返回 null = 没压（预算内 / 没得压），调用方据此决定要不要报事件。
  * 注意它是 `splice` 同一个数组：调度器与调用方都拿着这个引用，
  * 换成新数组会让它们看到两份不同的对话。
+ *
+ * **最小收益**（2026-10-26）：注记本身也占 token（确定性注记最多 1200 字符）。
+ * 若被丢的段落还不比这条注记大，压完反而更长 —— 这时只落剪枝、不落摘要，
+ * 免得"每轮都压一次、每次都多调一次模型、上下文却更胖"。
  */
 export async function applyCompaction(
   messages: ChatTurn[],
@@ -217,6 +250,7 @@ export async function applyCompaction(
   const pruneConfig = opts.pruneToolResults ?? TOOL_PRUNE_DEFAULTS
   let plan = planCompaction(messages, opts)
   if (!plan) return null
+  const tokensBefore = plan.tokensBefore
 
   /**
    * **先剪，再压**（2026-10-25）：把中段里超长的工具结果掐成「保头 + 标记 + 保尾」，
@@ -234,7 +268,7 @@ export async function applyCompaction(
       return {
         dropped: 0,
         pruned: pruned.pruned,
-        tokensBefore: plan.tokensBefore,
+        tokensBefore,
         tokensAfter: estimateTurns(messages),
       }
     }
@@ -243,11 +277,20 @@ export async function applyCompaction(
 
   const summary = opts.summarize ? await opts.summarize(plan.dropped) : undefined
   const note = buildCompactionNote(plan.dropped, summary)
+  // 压完（含注记）必须真的变小；只压掉几句寒暄就贴一条 1200 字的备忘录是净亏
+  if (estimateTurns(plan.dropped) <= estimateTextTokens(note)) {
+    return {
+      dropped: 0,
+      pruned: pruned.pruned,
+      tokensBefore,
+      tokensAfter: estimateTurns(messages),
+    }
+  }
   messages.splice(plan.start, plan.end - plan.start, { role: 'system', content: note })
   return {
     dropped: plan.dropped.length,
     pruned: pruned.pruned,
-    tokensBefore: plan.tokensBefore,
+    tokensBefore,
     tokensAfter: estimateTurns(messages),
   }
 }
