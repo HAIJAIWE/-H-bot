@@ -28,6 +28,7 @@
 - `packages/llm/llm/src/assembler.ts` → `src/shared/vendor/dsh/llm-assembler/assembler.ts`（流组装状态机：首关为准、截断丢工具调用、中断只留正文/思考）
 - `packages/llm/llm/src/types.ts` → `src/shared/vendor/dsh/llm-assembler/types.ts`（内容块 / 结束原因 / 用量类型）
 - `packages/core/tools/src/batch.ts` → `src/main/vendor/dsh/tool-batch/batch.ts`（一批调用的调度结构：独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）
+- `packages/util/output-retention/src/index.ts` → `src/main/vendor/dsh/output-retention/index.ts`（`ItemRetainer` / `TextRetainer`：条目上限与字节流头尾窗口，UTF-8 边界安全；上游的英文省略提示文案未搬）
 
 改动原则（详见设计文档 `docs/ai/dsh-source-adaptation-2026-10-24.md` §0 / §2）：
 

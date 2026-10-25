@@ -36,18 +36,19 @@
 
 ## 目录
 
-| 路径                               | 来源                                                              | 说明                                                                              |
-| ---------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `token-meter/estimate.ts`          | `packages/llm/token-meter/src/estimate.ts`                        | 固定密度启发式定价（块结构开销、角色框开销）                                      |
-| `token-meter/measure.ts`           | **本仓库适配层**                                                  | 字符计量：ASCII 记 1、宽字符记 4（上游直接 `text.length / 4`，对中文低估约 4 倍） |
-| `token-meter/types.ts`             | **本仓库适配层**                                                  | 上游 `@deepseek-ai/dsh-llm` / `dsh-session` 类型的最小垫片                        |
-| `tool-result-pruner/config.ts`     | `packages/compaction/compaction-tool-result-pruner/src/config.ts` | `PRUNE_MARKER` / `DEFAULTS` / `resolveConfig`                                     |
-| `tool-result-pruner/prune.ts`      | 同上 `src/index.ts` 的两个方法                                    | `measureContent` / `pruneContent` 提成纯函数，剪枝逻辑没改                        |
-| `tool-result-pruner/types.ts`      | 同上 `src/types.ts`                                               | 只留配置类型（`PrunedEntry` / `PruneResult` 绑 `SessionSeq`，已删）               |
-| `todo/types.ts`                    | `packages/todo/tool-todo/src/types.ts`                            | `TodoItem` 与三态生命周期（投影的 declare module 已删）                           |
-| `todo/todo-list.ts`                | 同目录 `src/index.ts` 的纯函数                                    | 工具描述、`toTodoList` 校验（文案未改）、计数与回执文案                           |
-| `repeat-tool-reminder/detector.ts` | `packages/guard/repeat-tool-reminder/src/index.ts`                | 重复调用检测纯算法（规范化参数、通配符、阈值校验、两段提醒文案），Cordis 接线已删 |
-| `tool-batch/batch.ts`              | `packages/core/tools/src/batch.ts`                                | 一批调用的调度结构（独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）    |
+| 路径                               | 来源                                                              | 说明                                                                                                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `token-meter/estimate.ts`          | `packages/llm/token-meter/src/estimate.ts`                        | 固定密度启发式定价（块结构开销、角色框开销）                                                                                                                      |
+| `token-meter/measure.ts`           | **本仓库适配层**                                                  | 字符计量：ASCII 记 1、宽字符记 4（上游直接 `text.length / 4`，对中文低估约 4 倍）                                                                                 |
+| `token-meter/types.ts`             | **本仓库适配层**                                                  | 上游 `@deepseek-ai/dsh-llm` / `dsh-session` 类型的最小垫片                                                                                                        |
+| `tool-result-pruner/config.ts`     | `packages/compaction/compaction-tool-result-pruner/src/config.ts` | `PRUNE_MARKER` / `DEFAULTS` / `resolveConfig`                                                                                                                     |
+| `tool-result-pruner/prune.ts`      | 同上 `src/index.ts` 的两个方法                                    | `measureContent` / `pruneContent` 提成纯函数，剪枝逻辑没改                                                                                                        |
+| `tool-result-pruner/types.ts`      | 同上 `src/types.ts`                                               | 只留配置类型（`PrunedEntry` / `PruneResult` 绑 `SessionSeq`，已删）                                                                                               |
+| `todo/types.ts`                    | `packages/todo/tool-todo/src/types.ts`                            | `TodoItem` 与三态生命周期（投影的 declare module 已删）                                                                                                           |
+| `todo/todo-list.ts`                | 同目录 `src/index.ts` 的纯函数                                    | 工具描述、`toTodoList` 校验（文案未改）、计数与回执文案                                                                                                           |
+| `repeat-tool-reminder/detector.ts` | `packages/guard/repeat-tool-reminder/src/index.ts`                | 重复调用检测纯算法（规范化参数、通配符、阈值校验、两段提醒文案），Cordis 接线已删                                                                                 |
+| `tool-batch/batch.ts`              | `packages/core/tools/src/batch.ts`                                | 一批调用的调度结构（独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）                                                                                    |
+| `output-retention/index.ts`        | `packages/util/output-retention/src/index.ts`                     | 两个 retainer：条目留前 N（`ItemRetainer`）、字节流留头/尾/两头（`TextRetainer`，UTF-8 边界安全）。**文案层三个导出没搬**（英文提示写死在库里，我们的回执是中文） |
 
 标「本仓库适配层」的**不是上游文件**，不参与哈希对账，改它们不需要同步上游。
 
@@ -70,8 +71,13 @@ shared 里 import `@main/*` 会让 web 侧 tsc 直接红。**宿主算法仍在�
 - 模型的多步清单：`src/main/services/agent-core/todoTool.ts` → `todo/`（清单条在 `ChatPanel` 顶部）；
 - 连续重复调用的提醒：`src/main/services/agent-core/repeatGuard.ts` → `repeat-tool-reminder/`（命中阈值插一条 user 提醒，不否决调用）；
 - 流式组装（GLM / OpenAI 兼容 / Ollama 三家共用）：`src/shared/ai/streamAssembler.ts` → `src/shared/vendor/dsh/llm-assembler/`（把厂商帧翻成 chunk，再按上游规则取块）；
+- 工具回执留多少、省了多少：`src/main/services/agent-core/toolRetention.ts` → `output-retention/`（命令输出留开头+结尾并报省略字节；目录列表按条目上限并报省了几条）；
 - 一批工具怎么跑：`src/main/services/agent-core/scheduler.ts` → `tool-batch/`（独占屏障 + 有界池 + 取消时给没派发的调用补合成结果）；
 - 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37；调度见 §38。
+
+**搬算法，不搬文案**：`output-retention` 里的 `describeOmitted` / `formatRetentionNotice` /
+`truncateWithoutSplittingSurrogatePair` 没有搬 —— 它们把 "Omitted N items" 这类英文写死在库里，
+而本项目工具回执是中文。省略提示由调用方按中文写，算法（窗口、计数、UTF-8 裁剪）逐字保留。
 
 ## 更新上游时的做法
 

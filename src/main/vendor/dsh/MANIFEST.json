@@ -142,6 +142,19 @@
         "去掉 agent / toolSet / log / maxParallelToolCalls 覆写：并发上限由宿主给一个数",
         "泛型化 Exec / Slot，把「怎么执行一个调用」抽成 BatchPipeline（上游 ToolExecutionPipeline）；ToolBatchExecutionError 只带 partial 计数（上游带完整 result）"
       ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/util/output-retention/src/index.ts",
+      "sourceSha256": "fbe1c6ff8c6fc09e62c5b90fb98bcaba2ccddfd4cfe1c8e717a97a085ed405d4",
+      "targetPath": "src/main/vendor/dsh/output-retention/index.ts",
+      "targetSha256": "55975ea7fe5c69b13b57bb910691077063dc86056aead1dc5f488ab4ce7c02a1",
+      "adaptedNotes": [
+        "只取机械算法：ItemRetainer / TextRetainer 与它们的类型（Omitted / PushDecision / RetainedItems / RetainedText / ItemRetentionStrategy / TextRetentionStrategy）",
+        "删掉文案层三个导出（describeOmitted / formatRetentionNotice / truncateWithoutSplittingSurrogatePair）与只有它们使用的 RetentionNotice 类型 —— 上游把英文省略提示写死在库里，本项目工具回执是中文，提示由 src/main/services/agent-core/toolRetention.ts 拼",
+        "UTF-8 边界裁剪、suffix 滑动窗口、finish() 按实际返回字节报告省略量：逐字保留",
+        "无 Cordis 依赖（上游原本就是纯库），未改动任何一行算法"
+      ]
     }
   ]
 }

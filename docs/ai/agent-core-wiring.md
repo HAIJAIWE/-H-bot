@@ -1766,3 +1766,78 @@ user: [工具 verify_greet] 来自界面 来自界面 来自界面
   —— **通道真的没了**，不是"没人调"；`onStats` 仍在（40.2 的搬家生效）。
 - 真实模型回合仍被额度挡着（403 `AllocationQuota.FreeTierOnly`，自 §36 起未变），所以
   `ai:stats` 的数值链路由 `runTurn.test.ts` 的两条单测钉住，端到端等额度恢复后补。
+
+---
+
+## 41. 工具回执留多少：搬上游 output-retention（2026-10-25）
+
+### 41.1 为什么这批不是"再写一个截断函数"
+
+旧实现里有两处**手写的截断**，都带着同一个毛病 —— 截断是**静默**的，而且切错了方向：
+
+- `sandbox.ts`：`stdout.slice(0, 8000)` / `stderr.slice(0, 8000)`
+  - **只留开头**。命令失败的原因几乎都在结尾（最后几行报错 / 堆栈 / 汇总行），模型拿到"开头 8k"常常正好看不到那一句；
+  - 而且是**收集完整个输出之后**才切（`stdout += String(d)` 一路累加），一条刷屏命令能把这 8k 之外的所有字节先塞进内存；
+  - 切了也**不说**。模型以为命令就输出这么多，接着按"输出很短所以没问题"往下推。
+- `core.ts` 的 `list_dir`：`.slice(0, 200)` 之后那句"还有 N 个没列"，N 是拿**未过滤**的 `entries.length` 减保留数算的 —— 噪音目录（`node_modules` 等）也算进了"还有"。
+
+这三件事（留哪一头、内存、有没有说）都是**机械问题**，上游 `output-retention` 已经写好了，
+而且它的模块注释第一句就是这个库的边界：_"The library owns ONLY the mechanical question 'what did we keep, what did we omit?'"_。
+
+### 41.2 搬了什么（`src/main/vendor/dsh/output-retention/index.ts`）
+
+| 上游                                                      | 搬了吗  | 说明                                                                                           |
+| --------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `ItemRetainer<T>`                                         | ✅ 逐字 | 有序条目留前 N；`push()` 回报 `kept`/`truncated`；`finish()` 给 `seen/kept/omitted`            |
+| `TextRetainer`                                            | ✅ 逐字 | `head` / `tail` / `headTail` 三种策略；按**字节**计；suffix 只留窗口（旧块滑动丢弃，内存有界） |
+| `trimTrailingPartialUtf8` / `trimLeadingContinuationUtf8` | ✅ 逐字 | 切点落在多字节字符中间时把半个字符裁掉，结果里不会出现替换符                                   |
+| `finish()` 的省略量口径                                   | ✅ 逐字 | 按**实际返回的字节**报告省略（边界裁掉的半个字符也算省略），不是按预算算                       |
+| `describeOmitted` / `formatRetentionNotice`               | ❌      | 把 "Omitted N items" 这类英文写死在库里；本项目工具回执是中文                                  |
+| `truncateWithoutSplittingSurrogatePair`                   | ❌      | 面向 UTF-16 字符截断（会话日志场景），我们用不到                                               |
+| `RetentionNotice`                                         | ❌      | 只有被删的 `formatRetentionNotice` 用                                                          |
+
+> 原则仍是 §36 那句：**能搬上游就别手写**。但"文案"不是算法 —— 文案按本项目语言写，
+> 算法一行不改。这个区分写进了 `src/main/vendor/dsh/README.md` 的「搬算法，不搬文案」一节。
+
+### 41.3 落地两处
+
+1. **`sandbox.ts`（命令输出）**：`stdout` / `stderr` 各一个 `TextRetainer({kind:'headTail', headBytes:4000, tailBytes:4000})`，
+   `data` 事件里直接 `push`（**不再累加字符串**），`close`/`error` 时 `finish()`。
+   `CommandResult` 新增可选 `stdoutOmitted` / `stderrOmitted`（`Omitted`），
+   由 `toolRetention.streamOmittedNote()` 在 `run_command` 回执末尾拼一句中文：
+   _"stdout 省了 N 字节：只保留开头与结尾。要看中间那段就把命令收窄 —— 加筛选条件，或让命令自己 head/tail"_。
+   顺带删掉 `core.ts` 里**第二份** `CommandResult` 定义（2026-10-23 合并沙箱时漏的），改为从 `sandbox.ts` 导入。
+2. **`core.ts` 的 `list_dir` / `search_text`**：
+   - `list_dir`：先过滤/排序出 `rows`，再 `retainEntries(rows, MAX_LIST_ENTRIES)` —— "还有 N 个没列"变成**真数**；
+   - `search_text`：仍是**扫到上限就停**（扫全仓太贵），所以它给不出"省了多少"这个数；
+     措辞改成"命中数达到上限 80；后面还有没扫到的，把 pattern 或 glob 收窄" —— 不知道的数就**不说**，
+     这比编一个 N 好。
+
+### 41.4 测试
+
+- `tests/main/vendor/output-retention.test.ts`（10 例）：条目上限的精确计数、`push` 决策、
+  非法预算抛错；`head` / `tail` / `headTail` 三种策略；**切点落在"中"字中间时结果里不许有 `\uFFFD`**
+  且省略数按实际返回字节算（3）；没超预算时**不许凭空造出省略**；一帧被切成两半仍能拼回。
+- `tests/main/services/agent-core/toolRetention.test.ts`（6 例）：`retainEntries` 的真数提示、
+  空表/未超限不许多一句、`streamOmittedNote` 两条路都报；
+  以及**真跑一条刷屏命令**（临时目录写 `big.js`，`node big.js` 往 stdout/stderr 各写 16k）：
+  断言开头与结尾都在（旧实现只有开头）、中间确实被省、提示接在回执后面、总长度远小于 32k。
+  用脚本文件而不是 `node -e`，因为沙箱禁引号元字符 —— 这条测试同时证明了那个限制仍然生效。
+
+### 41.5 测试与闸门
+
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **EXIT=0**。
+- guards **15 文件 / 107 例全绿**（首轮红在 `styleContract` 的「文件头注释不许超预算」：
+  vendored 文件头 21 行 > 20 —— 压缩后 19 行；`fileGrowth` 超限 32 个已登记 32 个）。
+- 定向 `tests/main/services/agent-core tests/main/vendor tests/shared` → **39 文件 / 346 例全绿**。
+- 全量 → **261 passed | 2 skipped（263 文件）、3329 passed | 7 skipped（3336 例）、153.16s**，
+  比上一批（261/3320）多 2 个文件 16 例，全来自这批的两个新测试。
+- `node scripts/vendor-audit.mjs` → **vendored 11 个文件 + 适配层 2 个**，上游 `dsh-v0.2.1-rc.3` 可对账。
+  这一批的哈希被 prettier 改了两轮（`--update` 后 guards 又修了一次文件头），
+  所以台账要**在 prettier 之后**才 `--update`，顺序反了就必然 "目标文件被手改过"。
+
+### 41.6 一句话总结这批的教训
+
+上游把"什么留、什么省、省了多少"当成**可观测的机械量**（每个 retainer 的 `finish()` 都回报 `seen/kept/omitted`），
+我们过去把同一件事写成一句 `slice` —— 丢了两头信息、丢了内存上限、也丢了"我丢了多少"这个事实。
+搬这两百行比再写一遍 `slice` 便宜，也比让模型猜"输出是不是就这么点"稳。

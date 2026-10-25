@@ -16,7 +16,7 @@ import {
   toolFailureForCode,
   type ToolFailureCode,
 } from '@shared/ai/toolFailure'
-import { runInSandbox } from './sandbox'
+import { runInSandbox, type CommandResult } from './sandbox'
 import { runToolGroup } from './scheduler'
 import { parseFlow } from '../ai/flowIndex'
 import { normalizeFlow, validateFlow } from '@shared/nodes/flowNormalize'
@@ -24,6 +24,7 @@ import { applyCompaction, type CompactionOptions, type CompactionOutcome } from 
 import { MAX_TOOL_OUTPUT_CHARS, modelFacingOutput } from './toolOutput'
 import { TODO_TOOL } from './todoTool'
 import { RepeatGuard, type RepeatGuardOptions } from './repeatGuard'
+import { retainEntries, streamOmittedNote } from './toolRetention'
 
 export { MAX_TOOL_OUTPUT_CHARS, clampToolOutput } from './toolOutput'
 
@@ -131,13 +132,6 @@ export function resolveInWorkspace(workspace: string, rel: unknown): string {
   const relBack = relative(workspace, abs)
   if (relBack.startsWith('..') || isAbsolute(relBack)) throw new Error('路径越界: ' + raw)
   return abs
-}
-
-export interface CommandResult {
-  ok: boolean
-  code: number | null
-  stdout: string
-  stderr: string
 }
 
 /**
@@ -325,7 +319,8 @@ export const CORE_TOOLS: Tool[] = [
       return (
         (r.ok ? '' : '[退出码 ' + String(r.code) + ']\n') +
         r.stdout +
-        (r.stderr ? '\n[stderr]\n' + r.stderr : '')
+        (r.stderr ? '\n[stderr]\n' + r.stderr : '') +
+        streamOmittedNote(r)
       )
     },
   },
@@ -384,12 +379,9 @@ export const CORE_TOOLS: Tool[] = [
           (a, b) =>
             Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name),
         )
-        .slice(0, MAX_LIST_ENTRIES)
         .map(e => (e.isDirectory() ? e.name + '/' : e.name))
-      if (rows.length === 0) return '（空目录）'
-      const more =
-        entries.length > rows.length ? `\n…（还有 ${entries.length - rows.length} 个没列）` : ''
-      return rows.join('\n') + more
+      const listed = retainEntries(rows, MAX_LIST_ENTRIES)
+      return listed || '（空目录）'
     },
   },
   {
@@ -436,7 +428,12 @@ export const CORE_TOOLS: Tool[] = [
         }
       })
       if (hits.length === 0) return '没有匹配'
-      return hits.join('\n') + (hits.length >= limit ? '\n…（命中数达到上限 ' + limit + '）' : '')
+      return (
+        hits.join('\n') +
+        (hits.length >= limit
+          ? '\n…（命中数达到上限 ' + limit + '；后面还有没扫到的，把 pattern 或 glob 收窄）'
+          : '')
+      )
     },
   },
 ]
