@@ -70,7 +70,18 @@ DSH 的结算文案分叉（`TurnProcessNodeView`）：`aborted|interrupted → 
 | 输入卡底部控制行 + `ContextMeter` 环形  | 不做     | 现有单行 composer 已含模型/角色/附件；上下文百分比已在统计条  |
 | 44px steering 批间距、轮距 4/12/16 分级 | 部分     | 现按 `mb-5`（20px）分轮；分级间距等有真实的"steering"概念再说 |
 
-## 6. 测试
+## 6. 痕迹要能重启后回看（2026-10-25 补）
+
+第一版只把过程行做在**内存态**：重启之后旧轮只剩正文。补法是"痕迹落盘、但只给界面"——
+`ai-history.jsonl` 的 assistant 记录多了 `reasoning` / `trace` / `turnMs`（上界 2000 / 12×600 字），
+读侧 `includeUi` 默认关闭，所以模型上下文里没有它们。细节见
+[agent-core-wiring.md](agent-core-wiring.md) 第 42 节。
+
+**约束**：过程行必须能在"历史消息"和"正在跑的这轮"上同款渲染 —— 所以痕迹的形状
+（`ToolTraceEntry`）两边共用；读回时只换 id（`hist-<消息序号>-<条目序号>`），**没有字段就不挂**，
+别让老历史长出一条空过程行。
+
+## 7. 测试
 
 - `tests/renderer/components/ai/turnProcess.test.tsx`：结算文案与计数、折叠/展开、运行中默认展开、
   停止/失败不带时长、无内容不渲染、`formatDuration` 分秒口径；`RunningLine` 两态。

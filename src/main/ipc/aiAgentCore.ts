@@ -36,6 +36,7 @@ import type { RunTurnResult } from '../services/agent-core/runTurn'
 import { isAbsolute, relative } from 'path'
 import { runAgentTurn } from '../services/agent-core/runTurn'
 import { runOnboardingTurn } from './aiAgentCoreOnboarding'
+import { assistantHistoryEntry } from '../services/agent-core/uiTrace'
 import { listTools } from '../services/agent-core/core'
 import { clearTodos, getTodos } from '../services/agent-core/todoStore'
 import { readPreset, resolvePresetTools, writePresets } from '../services/ai/presets'
@@ -290,6 +291,7 @@ export function registerAiAgentCoreIpc(): void {
        */
       let streamed = false
       let boundary = false
+      let reasoningForUi = '' // 本轮思考（RunTurnResult 不带它，想在重启后还看得到只能自己攒）
       const chunk = (text: string): void => {
         const sep = boundary && streamed ? '\n\n' : ''
         boundary = false
@@ -298,6 +300,7 @@ export function registerAiAgentCoreIpc(): void {
       }
       /** 思考过程单独一条：不参与轮间分隔符，也不进正文累积 */
       const reasoningChunk = (text: string): void => {
+        reasoningForUi += text
         emit('ai:chunk', { projectPath, text, kind: 'reasoning' })
       }
       /**
@@ -441,6 +444,8 @@ export function registerAiAgentCoreIpc(): void {
         )
         streamed = false
         boundary = false
+        reasoningForUi = ''
+        const turnStartedAt = Date.now() // 「工作了 N 秒」的来源，落盘后重启也还在
         /**
          * 任务清单是**这一轮**的脚手架：新要求进来时先清空，否则界面会挂着
          * 一份"早就做完的旧计划"，模型也可能把它当成这一轮的进度。
@@ -650,7 +655,14 @@ export function registerAiAgentCoreIpc(): void {
         if (result.finalText.trim()) {
           await appendHistoryEntries(
             projectPath,
-            [{ ts: new Date().toISOString(), role: 'assistant', content: result.finalText }],
+            [
+              assistantHistoryEntry({
+                content: result.finalText,
+                reasoning: reasoningForUi,
+                toolResults: result.toolResults,
+                startedAt: turnStartedAt,
+              }),
+            ],
             memoryFile,
           )
         }

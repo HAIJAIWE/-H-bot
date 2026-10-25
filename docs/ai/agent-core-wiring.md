@@ -1841,3 +1841,89 @@ user: [工具 verify_greet] 来自界面 来自界面 来自界面
 上游把"什么留、什么省、省了多少"当成**可观测的机械量**（每个 retainer 的 `finish()` 都回报 `seen/kept/omitted`），
 我们过去把同一件事写成一句 `slice` —— 丢了两头信息、丢了内存上限、也丢了"我丢了多少"这个事实。
 搬这两百行比再写一遍 `slice` 便宜，也比让模型猜"输出是不是就这么点"稳。
+
+## 42. 过程痕迹落盘：重启之后旧轮也要有「过程行」（2026-10-25）
+
+### 42.1 缺口在哪儿
+
+第 37 节把对话窗口按 DSH 重排之后，**新跑的一轮**有过程行（思考 / 工具行 / 结算行），
+但**重启后再看同一轮就只剩正文**。原因不在界面：`<项目>/.qqbat/ai-history.jsonl` 里每条
+assistant 只写了 `{ts, role, content}`（attempt 多 `reason/ok`），思考、工具痕迹、耗时**从来没落过盘**。
+界面上那些东西只活在内存里，进程一退就没了。
+
+DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（text / reasoning / tool-call / usage），
+而渲染层另有自己的投影（过程行、结算行）。我们的口径这次按它对齐：
+**痕迹落盘，但只给界面看** —— 模型历史读侧默认不取。
+
+### 42.2 落盘的形状与三条上界
+
+`src/main/services/ai/historyStore.ts`（10/18 编译产物风格，`@ts-nocheck`）加了三个字段：
+
+```jsonc
+{
+  "ts": "…",
+  "role": "assistant",
+  "content": "看完了",
+  "reasoning": "先 list_dir 看一眼根目录",
+  "trace": [{ "name": "list_dir", "args": { "path": "." }, "status": "done", "result": "data/" }],
+  "turnMs": 4200,
+}
+```
+
+上界是**写侧**的（读侧不再二次裁剪）：`MAX_UI_TRACE_ENTRIES = 12`、
+`MAX_UI_TRACE_RESULT_CHARS = 600`、`MAX_UI_REASONING_CHARS = 2000`。
+记忆文件不是日志仓库 —— 一轮跑十几次工具、思考几千字，全量落盘会让"读历史"变成读日志。
+空值不写字段（空串思考写进去，读侧会以为"有思考"）。
+
+读侧一个开关：`loadHistory(projectPath, file, { includeUi })`，**默认 false**；
+`readHistoryForUi()` 就是 `{ includeUi: true }` 那条路。于是
+`historyToMessages()`（模型上下文）永远看不到这三样 —— 否则模型下一轮会读到上一轮的工具回执，
+等于把日志当记忆，还要付几千 token 的预算。
+
+### 42.3 写入侧：思考得自己攒（`RunTurnResult` 不带它）
+
+`src/main/ipc/aiAgentCore.ts` 的轮循环里：
+
+- `let reasoningForUi = ''`，`onReasoningChunk` 里 `reasoningForUi += text`（每轮开始清空）；
+  `RunTurnResult` 只回 `finalText/rounds/phase/toolResults/stats`，**没有 reasoning** ——
+  想让它落盘只能在接线层攒着。
+- `const turnStartedAt = Date.now()` 放在每轮开头；`turnMs = Date.now() - turnStartedAt`。
+  界面那侧本来也会从 `runStartedAt` 自己算，但**重启后就没了**，所以这个数必须落盘。
+- 折成记录的那一步抽到 `src/main/services/agent-core/uiTrace.ts`（`assistantHistoryEntry()`）：
+  工具失败在循环里是**返回值**（`"[工具失败] …"`）而不是异常，所以 `status` 只能按前缀判。
+  抽出去还有个硬理由：`aiAgentCore.ts` 贴着 800 行闸门（见 42.5）。
+
+### 42.4 读回侧：老历史不许长空过程行
+
+`src/renderer/src/stores/aiStore.ts` 的 `loadHistoryFromDisk()` 把三条字段映射回
+`ChatMessageWithTrace`：`reasoning` 原样、`turnMs` 原样、`trace` 补一个**读回时新造**的 id
+（`hist-<消息序号>-<条目序号>`，历史文件里没有 id）。**有值才挂字段** ——
+老历史没有这三样，塞空数组会让每条旧消息都长出一条内容为空的过程行。
+
+### 42.5 闸门：越过 800 行的处理
+
+这一批把 `src/main/ipc/aiAgentCore.ts` 从 779 行推到 **810 行**（split 计数，含空行），两条闸门同时红：
+
+- `fileGrowth`「新文件 ≥ 800 行且没登记」→ 跑 `node scripts/update-file-size-baseline.mjs` 写快照（33 个）；
+- `fileSize`「又长又热的优先队列必须已登记」→ 在 `tests/guards/fileSize.test.ts` 的 `BASELINE` 里写清理由。
+
+理由（也写进了那条登记）：这是循环的 IPC 接线中枢 —— 轮循环、16 条 `ai:*` 事件、审批/记忆/提案。
+拆的路径是把事件发射抽成 `agentCoreEvents.ts`，但 `agentCoreEventContract` 闸门**逐条盯着本文件里的 emit 列表**，
+所以要拆得连闸门一起改。**不为这 10 行硬拆**，下次动它时再拆。
+
+另外 `uiTrace.ts` 里 `traceOfToolResults` 保持**不导出**（只有同文件的 `assistantHistoryEntry` 用），
+否则 `deadExports` 会要求登记一条"零引用导出"。
+
+### 42.6 测试与闸门
+
+- 新增 `tests/main/services/ai/historyUiTrace.test.ts`（4 例）：`includeUi` 能读回三样；
+  **默认读不到**且 `historyToMessages` 只有 role/content；三条上界（12 / 600 / 2000）；
+  空思考与空痕迹不写字段。
+- 新增 `tests/main/services/agent-core/uiTrace.test.ts`（2 例）：失败按前缀记 `error`；
+  没思考没工具不留字段。
+- 新增 `tests/renderer/stores/aiStoreHistoryTrace.test.ts`（2 例）：历史 → 消息映射（含 `hist-1-0` 这个 id 形状）；
+  老历史不挂空字段。
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **EXIT=0**；guards **15 文件 / 107 例全绿**。
+- 定向（三组新测试 + `historyAttempt`）**11 例全绿**。
+- 全量 → **266 passed | 2 skipped（268 文件）、3345 passed | 7 skipped（3352 例）、180.34s、FULL_EXIT=0**
+  （上一批 265 文件 / 3344 例；多的是这 3 个新测试文件 8 例）。

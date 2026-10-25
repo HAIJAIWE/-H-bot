@@ -126,10 +126,14 @@ function readHistoryFormatVersion(raw) {
 }
 /** 给界面回看：读回最近若干条（顺序保持时间序） */
 async function readHistoryForUi(projectPath, file) {
-	return (await loadHistory(projectPath, file)).slice(-200);
+	return (await loadHistory(projectPath, file, { includeUi: true })).slice(-200);
 }
 /** 单条记录的长度上限（历史只用于衔接，不需要原文全量） */
 var MAX_ENTRY_CHARS = 4e3;
+/** 界面回看用的过程痕迹：条数与每条结果都要有上界（记忆文件不是日志仓库） */
+var MAX_UI_TRACE_ENTRIES = 12;
+var MAX_UI_TRACE_RESULT_CHARS = 6e2;
+var MAX_UI_REASONING_CHARS = 2e3;
 /** 文件体积上限：超过就重写成"最近若干条"（追加式日志需要一个上界） */
 var MAX_FILE_BYTES = 1e6;
 /** 收敛的目标体积（留出余量，避免下一次追加就立刻再触发一次收敛） */
@@ -145,7 +149,11 @@ function historyFilePath(projectPath) {
 * 逐行容错：任何一行解析失败**只跳过那一行**。整个文件作废会让用户
 * 因为一次异常退出丢掉全部记忆，而追加式日志的全部意义就是"坏也只坏最后一条"。
 */
-async function loadHistory(projectPath, file = historyFilePath(projectPath)) {
+/**
+* @param opts.includeUi 连**界面回看用的过程痕迹**（思考 / 工具行 / 耗时）一起交回来。
+*   默认 false：模型历史只要 role/content（痕迹进上下文等于把日志当记忆）。
+*/
+async function loadHistory(projectPath, file = historyFilePath(projectPath), opts = {}) {
 	if (!(0, fs.existsSync)(file)) return [];
 	let raw;
 	try {
@@ -171,6 +179,21 @@ async function loadHistory(projectPath, file = historyFilePath(projectPath)) {
 				if (isAttempt) {
 					if (typeof parsed.reason === "string") entry.reason = parsed.reason;
 					if (typeof parsed.ok === "boolean") entry.ok = parsed.ok;
+				}
+				if (opts.includeUi) {
+					if (typeof parsed.reasoning === "string" && parsed.reasoning)
+						entry.reasoning = parsed.reasoning;
+					if (Array.isArray(parsed.trace))
+						entry.trace = parsed.trace
+							.filter((t) => t && typeof t.name === "string")
+							.map((t) => ({
+								name: t.name,
+								args: t.args && typeof t.args === "object" ? t.args : {},
+								status: t.status === "error" ? "error" : "done",
+								...(typeof t.result === "string" ? { result: t.result } : {}),
+							}));
+					if (typeof parsed.turnMs === "number" && parsed.turnMs > 0)
+						entry.turnMs = parsed.turnMs;
 				}
 				out.push(entry);
 			}
@@ -215,6 +238,18 @@ async function appendHistoryEntries(projectPath, entries, file = historyFilePath
 		// 失败尝试（role=attempt）的 reason/ok 必须落盘：它们就是"上次为什么没做完"的答案。
 		if (typeof e.reason === "string") line.reason = e.reason;
 		if (typeof e.ok === "boolean") line.ok = e.ok;
+		// 界面回看用的**过程痕迹**（思考 / 工具行 / 耗时）：只落给界面，模型历史读侧不收 ——
+		// 否则模型会在下一轮看到上一轮的工具回执，等于把"记忆"变成"日志"。
+		if (typeof e.reasoning === "string" && e.reasoning.trim())
+			line.reasoning = e.reasoning.slice(0, MAX_UI_REASONING_CHARS);
+		if (Array.isArray(e.trace) && e.trace.length > 0)
+			line.trace = e.trace.slice(0, MAX_UI_TRACE_ENTRIES).map((t) => ({
+				name: String(t.name),
+				args: t.args && typeof t.args === "object" ? t.args : {},
+				status: t.status === "error" ? "error" : "done",
+				...(typeof t.result === "string" ? { result: t.result.slice(0, MAX_UI_TRACE_RESULT_CHARS) } : {})
+			}));
+		if (typeof e.turnMs === "number" && e.turnMs > 0) line.turnMs = e.turnMs;
 		return JSON.stringify(line);
 	});
 	if (lines.length === 0) return;

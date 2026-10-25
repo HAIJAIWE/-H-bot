@@ -1,6 +1,6 @@
 {
   "src/shared/nodes/i18n/catalog.en-US.ts": {
-    "lines": 5910
+    "lines": 6074
   },
   "src/main/services/builtinNodes/builtinNodes.ts": {
     "lines": 3000
@@ -9,25 +9,25 @@
     "lines": 2515
   },
   "src/main/services/ai/capabilityCatalog.generated.ts": {
-    "lines": 2481
+    "lines": 2499
+  },
+  "src/renderer/src/stores/aiStore.ts": {
+    "lines": 2135
   },
   "src/renderer/src/components/launch/dataBrowserData.ts": {
     "lines": 2083
   },
-  "src/renderer/src/stores/aiStore.ts": {
-    "lines": 2057
-  },
   "src/renderer/src/components/launch/DataBrowserPanel.tsx": {
-    "lines": 1762
+    "lines": 1763
   },
   "src/main/runtime/FlowInterpreter.ts": {
     "lines": 1609
   },
   "src/renderer/src/components/ai/ChatPanel.tsx": {
-    "lines": 1587
+    "lines": 1599
   },
   "src/renderer/src/types/ipc.ts": {
-    "lines": 1561
+    "lines": 1574
   },
   "src/renderer/src/lib/mockRunner.ts": {
     "lines": 1405
@@ -36,7 +36,7 @@
     "lines": 1244
   },
   "src/main/services/runner/eventBus.ts": {
-    "lines": 1211
+    "lines": 1235
   },
   "src/shared/nodes/groups/message.ts": {
     "lines": 1140
@@ -45,7 +45,7 @@
     "lines": 1112
   },
   "src/main/services/builtinNodes/persistentStore.ts": {
-    "lines": 1075
+    "lines": 1090
   },
   "src/renderer/src/components/launch/TableEditorPopup.tsx": {
     "lines": 1074
@@ -54,13 +54,13 @@
     "lines": 1073
   },
   "src/preload/index.ts": {
-    "lines": 1036
+    "lines": 1044
+  },
+  "src/renderer/src/components/canvas/CanvasNode.tsx": {
+    "lines": 1023
   },
   "src/main/codegen/nodeRegistry.ts": {
     "lines": 1022
-  },
-  "src/renderer/src/components/canvas/CanvasNode.tsx": {
-    "lines": 1005
   },
   "src/shared/message/compose.ts": {
     "lines": 993
@@ -71,17 +71,17 @@
   "src/shared/nodes/groups/storagePlayer.ts": {
     "lines": 965
   },
-  "src/shared/types/ai-provider.ts": {
-    "lines": 870
-  },
   "src/renderer/src/components/launch/TableDesignModal.tsx": {
     "lines": 878
   },
-  "src/shared/nodes/groups/calc.ts": {
-    "lines": 857
+  "src/shared/types/ai-provider.ts": {
+    "lines": 870
   },
   "src/main/services/builtinNodes/dataNodes.ts": {
-    "lines": 854
+    "lines": 859
+  },
+  "src/shared/nodes/groups/calc.ts": {
+    "lines": 857
   },
   "src/main/services/ops/git.ts": {
     "lines": 840
@@ -91,6 +91,9 @@
   },
   "src/main/services/configService.ts": {
     "lines": 822
+  },
+  "src/main/ipc/aiAgentCore.ts": {
+    "lines": 810
   },
   "src/main/services/builtinNodes/messageDomain.ts": {
     "lines": 810

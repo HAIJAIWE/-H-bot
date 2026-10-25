@@ -892,6 +892,15 @@ export const useAiStore = create<AiState>((set, get) => {
           content: string
           ts: string
           reason?: 'error' | 'cancelled'
+          /** 下面三样是**界面回看用的过程痕迹**（模型历史读侧不含，见 historyStore 的 includeUi） */
+          reasoning?: string
+          trace?: Array<{
+            name: string
+            args: Record<string, unknown>
+            status?: 'done' | 'error'
+            result?: string
+          }>
+          turnMs?: number
         }> = res.data.entries
         /**
          * **失败尝试**（attempt）不当对话气泡显示：它进日志是为了可追溯。
@@ -920,11 +929,25 @@ export const useAiStore = create<AiState>((set, get) => {
         const loaded: ChatMessage[] = entries
           // `[系统回执] …` 是主进程写进记忆的"计划处置回执"（给模型看的），不该假冒用户说话
           .filter(e => e.role !== 'attempt' && !e.content.startsWith(AI_TURN_NOTE_PREFIX))
-          .map((e): ChatMessage => ({
+          .map((e, i): ChatMessageWithTrace => ({
             role: e.role === 'assistant' ? 'assistant' : 'user',
             // 记忆文件里那条 `[本轮提出的操作] N 个待确认操作` 是**给模型看的元信息**
             // （预算裁剪时它必须活下来）。显示在聊天气泡里像乱码，所以读回界面时去掉。
             content: e.content.replace(/\n*\[本轮提出的操作\][^\n]*/g, '').trim(),
+            // 痕迹只在有值时挂：老历史没有这些字段，别塞空数组让每条消息都长出一条过程行
+            ...(e.reasoning ? { reasoning: e.reasoning } : {}),
+            ...(e.turnMs ? { turnMs: e.turnMs } : {}),
+            ...(e.trace && e.trace.length > 0
+              ? {
+                  trace: e.trace.map((tr, k): ToolTraceEntry => ({
+                    id: `hist-${i}-${k}`,
+                    name: tr.name,
+                    args: tr.args ?? {},
+                    status: tr.status === 'error' ? 'error' : 'done',
+                    result: tr.result,
+                  })),
+                }
+              : {}),
           }))
           .filter(m => m.content.length > 0)
         if (loaded.length === 0) return
