@@ -12,8 +12,10 @@ import { describe, it, expect } from 'vitest'
 import {
   executionModeOf,
   runAgentLoop,
+  type ChatTurn,
   type Tool,
   type ToolCall,
+  type ToolResultEntry,
 } from '@main/services/agent-core/core'
 import { runToolGroup } from '@main/services/agent-core/scheduler'
 
@@ -183,9 +185,12 @@ describe('★ 取消：不再起新的，已经起的照常提交', () => {
     expect(probes.map(p => p.name)).toEqual(['slow'])
     // 但结果里两个都在：第二个是调度器补的合成失败（上游 abort 语义），不是执行出来的
     expect(result.toolResults.map(r => r.name)).toEqual(['slow', 'never'])
-    expect(result.toolResults[0].failure).toBeUndefined()
+    // 第 45 批新语义：第一个 body 跑完时 caller 已经 abort，成功结果改判为 aborted
+    expect(result.toolResults[0].failure?.code).toBe('cancelled')
+    expect(result.toolResults[0].output).toBe('[工具失败] Error: tool call aborted')
+    // 没派发的那个仍是 before dispatch（文案不许变）
     expect(result.toolResults[1].failure?.code).toBe('cancelled')
-    expect(result.toolResults[1].output).toContain('aborted before dispatch')
+    expect(result.toolResults[1].output).toBe('[工具失败] Error: tool call aborted before dispatch')
     expect(result.phase).toEqual({ kind: 'finished', reason: 'cancelled' })
   })
 
@@ -246,5 +251,74 @@ describe('★ 取消：不再起新的，已经起的照常提交', () => {
     })
     expect(asked).toBe(1)
     expect(result.phase).toEqual({ kind: 'finished', reason: 'completed' })
+  })
+})
+
+describe('★ 接线后：hooks 可选、取消文案不变（第 45 批）', () => {
+  it('★ 不传 hooks 时行为与旧版一致：结果/失败标记/回合都照旧', async () => {
+    const tools = [probeTool('a', 10, [])]
+    const result = await runAgentLoop({
+      workspace: process.cwd(),
+      tools,
+      model: modelOnce([{ id: 'a', name: 'a', args: { q: 1 } }]),
+      maxRounds: 2,
+    })
+    expect(result.toolResults).toHaveLength(1)
+    expect(result.toolResults[0].name).toBe('a')
+    expect(result.toolResults[0].args).toEqual({ q: 1 })
+    expect(result.toolResults[0].output).toBe('done:a')
+    expect(result.toolResults[0].failure).toBeUndefined()
+    expect(result.phase).toEqual({ kind: 'finished', reason: 'completed' })
+  })
+
+  it('★ 传了 hooks 才会生效：beforeExecute deny → 一条失败结果，工具不跑', async () => {
+    let runs = 0
+    const tool: Tool = {
+      name: 'write_file',
+      description: 'write_file',
+      category: 'mutation',
+      async run() {
+        runs += 1
+        return 'done'
+      },
+    }
+    const messages: ChatTurn[] = []
+    const results: ToolResultEntry[] = []
+    await runToolGroup([{ id: 'w', name: 'write_file', args: {} }], 0, 1, {
+      ctx: { workspace: process.cwd() },
+      tools: [tool],
+      messages,
+      results,
+      maxParallel: 1,
+      isAborted: () => false,
+      modelFacing: async (_n, out) => out,
+      hooks: { beforeExecute: [async () => ({ kind: 'deny', reason: '不该写' })] },
+    })
+    expect(runs).toBe(0)
+    expect(results[0]?.output).toBe('[工具失败] 不该写')
+    expect(results[0]?.ok).toBe(false)
+    const toolTurns = messages.filter(m => m.role === 'tool')
+    expect(toolTurns[0]?.content).toBe('[工具失败] 不该写')
+  })
+
+  it('★ 一个都没派发时 skip 文案仍是逐字 before-dispatch', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const messages: ChatTurn[] = []
+    const results: ToolResultEntry[] = []
+    await runToolGroup([{ id: 'x', name: 'never', args: {} }], 0, 1, {
+      ctx: { workspace: process.cwd(), signal: controller.signal },
+      tools: [probeTool('never', 1, [])],
+      messages,
+      results,
+      maxParallel: 1,
+      isAborted: () => true,
+      modelFacing: async (_n, out) => out,
+    })
+    const toolTurns = messages.filter(m => m.role === 'tool')
+    expect(toolTurns).toHaveLength(1)
+    expect(toolTurns[0]?.content).toBe('[工具失败] Error: tool call aborted before dispatch')
+    expect(toolTurns[0]?.toolResult).toBe('[工具失败] Error: tool call aborted before dispatch')
+    expect(results[0]?.failure?.code).toBe('cancelled')
   })
 })

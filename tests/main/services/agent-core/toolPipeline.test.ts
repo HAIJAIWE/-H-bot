@@ -72,6 +72,34 @@ function makeHarness(options: HarnessOptions) {
   return { pipeline: createToolPipeline(deps), messages, results, started, completed, ctx }
 }
 
+describe('toolPipeline：executionMode（isConcurrencySafe fail-closed）', () => {
+  it('声明了 isConcurrencySafe 就只认字面 true；没声明退回 category 推断', () => {
+    const safe = (args: Record<string, unknown>) => args.ok === true
+    const strict = makeTool('strict', async () => 'ok', {
+      category: 'mutation',
+      isConcurrencySafe: safe,
+    })
+    const inferred = makeTool('inferred', async () => 'ok', { category: 'query' })
+    const harness = makeHarness({ tools: [strict, inferred] })
+    const modeOf = (name: string, args: Record<string, unknown> = {}) =>
+      harness.pipeline.executionMode(makeExec({ name, args }))
+    expect(modeOf('strict', { ok: true })).toBe('parallel')
+    expect(modeOf('strict', { ok: 'true' })).toBe('exclusive')
+    expect(modeOf('inferred')).toBe('parallel')
+  })
+
+  it('isConcurrencySafe 抛错时 fail-closed（不并行）', () => {
+    const tool = makeTool('boom', async () => 'ok', {
+      category: 'query',
+      isConcurrencySafe: () => {
+        throw new Error('判定坏了')
+      },
+    })
+    const harness = makeHarness({ tools: [tool] })
+    expect(harness.pipeline.executionMode(makeExec({ name: 'boom' }))).toBe('exclusive')
+  })
+})
+
 describe('toolPipeline：prepare', () => {
   it('未知工具 → settled 失败结果（不 throw），模型拿到"[工具失败] 未知工具: x"', async () => {
     const harness = makeHarness({ tools: [] })
@@ -93,9 +121,7 @@ describe('toolPipeline：prepare', () => {
     const harness = makeHarness({
       tools: [tool],
       hooks: {
-        beforeExecute: [
-          async () => ({ kind: 'deny', reason: '不允许写盘' }),
-        ],
+        beforeExecute: [async () => ({ kind: 'deny', reason: '不允许写盘' })],
       },
     })
     const outcome = await executeToolBatch(

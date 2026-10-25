@@ -23,7 +23,7 @@ import {
   type Waterfall,
 } from '../../vendor/dsh/tool-pipeline/pipeline'
 import type { PlannedExec, ToolSlot } from './scheduler'
-import { executeToolCall } from './scheduler'
+import { executeToolCall, executionModeOf } from './scheduler'
 
 /** prepare 钩子拿到的调用摘要（args 是**快照**：钩子改它不影响真正传给工具的参数） */
 export interface PreExecuteInput {
@@ -109,9 +109,9 @@ function executionModeFor(
   tool: Tool | undefined,
   args: Record<string, unknown>,
 ): ToolExecutionMode {
-  if (!tool) return 'exclusive'
-  if (tool.isConcurrencySafe) return failClosedMode(tool.isConcurrencySafe, args)
-  return tool.executionMode ?? (tool.category === 'query' ? 'parallel' : 'exclusive')
+  // 声明了 isConcurrencySafe 走 fail-closed；没声明才沿用 scheduler 的保守推断（不重复实现）
+  if (tool?.isConcurrencySafe) return failClosedMode(tool.isConcurrencySafe, args)
+  return executionModeOf(tool)
 }
 
 /** 把 scheduler 的依赖翻成 vendor 的 BatchPipeline（prepare / dispatch / complete 三段） */
@@ -129,7 +129,10 @@ export function createToolPipeline(deps: ToolPipelineDeps): BatchPipeline<Planne
     async prepare(exec): Promise<BatchPrepared<ToolSlot>> {
       // 未知工具是"一条失败结果"，不是整轮崩溃：模型拼错名字时要能在界面上看见
       if (!deps.tools.some(t => t.name === exec.name)) {
-        return { kind: 'settled', slot: failedSlot(FAILURE_PREFIX + '未知工具: ' + exec.name, 0) }
+        return {
+          kind: 'settled',
+          slot: failedSlot(FAILURE_PREFIX + '未知工具: ' + exec.name, exec.startedAt),
+        }
       }
       if (before.length === 0) return { kind: 'dispatch' }
       const decide = composeWaterfall<PreExecuteInput, PreExecuteDecision>(before, async () => ({
@@ -147,11 +150,11 @@ export function createToolPipeline(deps: ToolPipelineDeps): BatchPipeline<Planne
           kind: 'settled',
           slot: failedSlot(
             FAILURE_PREFIX + `tool "${exec.name}" requires approval (not yet supported)`,
-            0,
+            exec.startedAt,
           ),
         }
       }
-      return { kind: 'settled', slot: failedSlot(FAILURE_PREFIX + decision.reason, 0) }
+      return { kind: 'settled', slot: failedSlot(FAILURE_PREFIX + decision.reason, exec.startedAt) }
     },
 
     async dispatch(exec) {
