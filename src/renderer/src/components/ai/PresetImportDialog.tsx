@@ -78,7 +78,12 @@ export function PresetImportDialog({
     setImporting(true)
     setError(null)
     try {
-      const res = await window.qqbat.ai.importPresets(projectPath, pick.text, overwrite)
+      const res = await window.qqbat.ai.importPresets(
+        projectPath,
+        pick.text,
+        overwrite,
+        pick.fileName,
+      )
       if (res.ok) {
         onImported(res.data)
         onCloseRef.current()

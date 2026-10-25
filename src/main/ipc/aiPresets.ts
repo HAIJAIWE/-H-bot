@@ -5,10 +5,12 @@
 // 为什么单独一个文件：aiAgentCore.ts 已经贴着行数红线；这三条通道只做"文件选择 +
 // 读写"，和跑循环的 handler 没有共享状态，分开更容易看清边界。
 //
-// 三条通道的分工：
+// 四条通道的分工：
 //   · ai:exportPresets   —— 选保存位置，把当前项目自定义预设写成分享文件；
 //   · ai:pickPresetShare —— 选一个分享文件，只读并回预览（不写项目）；
-//   · ai:importPresets   —— 用户在界面上确认后，把原文交给服务层合并。
+//   · ai:importPresets   —— 用户在界面上确认后，把原文交给服务层合并；
+//   · ai:undoPresetImport —— 撤销最近一次导入（第 54 批）：服务层校验当前文件没被
+//     改过才动，界面上的一键撤销只是"发起"，真正的判断全在服务层。
 // 关键：选完文件不等于导入。写盘只发生在第三条，且服务层会重新解析一次原文
 // （界面上的预览只是给人看的，不能当授权凭证）。
 import { ipcMain, dialog, BrowserWindow } from 'electron'
@@ -21,6 +23,7 @@ import {
   importPresetShare,
   previewPresetImport,
 } from '../services/ai/presetShare'
+import { undoPresetImport } from '../services/ai/presetUndo'
 import { tryIpcAsync } from './_shared'
 
 function parentWindow(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
@@ -88,7 +91,18 @@ export function registerAiPresetsIpc(): void {
     const parsed = aiPresetImportSchema.safeParse(args)
     if (!parsed.success) return { ok: false, error: '参数校验失败: ' + parsed.error.message }
     return tryIpcAsync(() =>
-      importPresetShare(parsed.data.projectPath, parsed.data.text, parsed.data.overwrite),
+      importPresetShare(
+        parsed.data.projectPath,
+        parsed.data.text,
+        parsed.data.overwrite,
+        parsed.data.sourceName,
+      ),
     )
+  })
+
+  ipcMain.handle('ai:undoPresetImport', async (_event, args: unknown) => {
+    const parsed = aiProjectPathSchema.safeParse(args)
+    if (!parsed.success) return { ok: false, error: '参数校验失败: ' + parsed.error.message }
+    return tryIpcAsync(() => undoPresetImport(parsed.data.projectPath))
   })
 }

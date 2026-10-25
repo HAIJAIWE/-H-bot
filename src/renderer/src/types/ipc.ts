@@ -6,6 +6,7 @@ import type { BotLogEntry, ExecuteNodeEvent } from '@shared/types/runtime'
 import type { AiAllowRule, AiConfig, AiRunStats, AiToolDefinition } from '@shared/types/ai'
 import type { AgentPresetRoster, PresetSessionState } from '@shared/ai/presetRoster'
 import type { PresetImportResult, PresetSharePick } from '@shared/ai/presetShare'
+import type { PresetUndoResult, PresetUndoState } from '@shared/ai/presetUndo'
 import type { Proposal } from '@shared/types/proposal'
 import type { MetricSnapshot } from '../stores/metricsStore'
 import type { PluginInfo, PluginPackage } from '@shared/types/plugin-sdk'
@@ -568,18 +569,26 @@ export interface QqbatApi {
     pickPresetShare: (
       projectPath: string,
     ) => Promise<{ ok: true; data: PresetSharePick } | { ok: false; error: string }>
-    /** 确认导入（写盘只在这里发生） */
+    /** 确认导入（写盘只在这里发生；sourceName 只用于撤销点展示） */
     importPresets: (
       projectPath: string,
       text: string,
       overwrite: boolean,
+      sourceName?: string,
     ) => Promise<{ ok: true; data: PresetImportResult } | { ok: false; error: string }>
+    /** 撤销最近一次导入（第 54 批）：恢复导入前的原始字节，导入后改过则拒绝 */
+    undoPresetImport: (
+      projectPath: string,
+    ) => Promise<{ ok: true; data: PresetUndoResult } | { ok: false; error: string }>
     /** 读预设注册表（坏条目带 broken、字段被忽略带 notes；宿主侧唯一裁决） */
     getPresets: (
       projectPath: string,
       threadId?: string,
     ) => Promise<
-      | { ok: true; data: AgentPresetRoster & { session?: PresetSessionState } }
+      | {
+          ok: true
+          data: AgentPresetRoster & { session?: PresetSessionState; undo?: PresetUndoState }
+        }
       | { ok: false; error: string }
     >
     /** 保存会话预设（整表覆盖；未知工具/插件以 warnings 返回，不拒绝） */

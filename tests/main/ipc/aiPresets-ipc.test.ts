@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   buildPresetShare: vi.fn(),
   previewPresetImport: vi.fn(),
   importPresetShare: vi.fn(),
+  undoPresetImport: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
@@ -31,6 +32,9 @@ vi.mock('@main/services/ai/presetShare', () => ({
   buildPresetShare: mocks.buildPresetShare,
   previewPresetImport: mocks.previewPresetImport,
   importPresetShare: mocks.importPresetShare,
+}))
+vi.mock('@main/services/ai/presetUndo', () => ({
+  undoPresetImport: mocks.undoPresetImport,
 }))
 
 import { registerAiPresetsIpc } from '@main/ipc/aiPresets'
@@ -61,6 +65,7 @@ beforeEach(() => {
     mocks.buildPresetShare,
     mocks.previewPresetImport,
     mocks.importPresetShare,
+    mocks.undoPresetImport,
   ]) {
     fn.mockReset()
   }
@@ -149,15 +154,40 @@ describe('ai:pickPresetShare', () => {
 })
 
 describe('ai:importPresets', () => {
-  it('确认导入：把原文与 overwrite 原样交给服务层', async () => {
-    mocks.importPresetShare.mockResolvedValue({ added: 1, replaced: 0, total: 1 })
+  it('确认导入：把原文、overwrite、sourceName 原样交给服务层', async () => {
+    mocks.importPresetShare.mockResolvedValue({
+      added: 1,
+      replaced: 0,
+      total: 1,
+      unchanged: false,
+      undo: { available: true },
+    })
     const res = (await getHandler('ai:importPresets')(event, {
       projectPath: '/p',
       text: '{"type":"x"}',
       overwrite: true,
+      sourceName: '同事的预设.json',
     })) as IpcResult
-    expect(res).toEqual({ ok: true, data: { added: 1, replaced: 0, total: 1 } })
-    expect(mocks.importPresetShare).toHaveBeenCalledWith('/p', '{"type":"x"}', true)
+    expect(res).toEqual({
+      ok: true,
+      data: { added: 1, replaced: 0, total: 1, unchanged: false, undo: { available: true } },
+    })
+    expect(mocks.importPresetShare).toHaveBeenCalledWith(
+      '/p',
+      '{"type":"x"}',
+      true,
+      '同事的预设.json',
+    )
+  })
+
+  it('不带 sourceName 也能导入（第 4 参是 undefined）', async () => {
+    mocks.importPresetShare.mockResolvedValue({ added: 1, replaced: 0, total: 1, unchanged: false })
+    await getHandler('ai:importPresets')(event, {
+      projectPath: '/p',
+      text: 'x',
+      overwrite: false,
+    })
+    expect(mocks.importPresetShare).toHaveBeenCalledWith('/p', 'x', false, undefined)
   })
 
   it('缺 overwrite → 参数校验失败，不调用服务层', async () => {
@@ -168,5 +198,41 @@ describe('ai:importPresets', () => {
     expect(res.ok).toBe(false)
     expect(res.error).toContain('参数校验失败')
     expect(mocks.importPresetShare).not.toHaveBeenCalled()
+  })
+})
+
+describe('ai:undoPresetImport', () => {
+  it('按项目撤销：把 projectPath 交给服务层，原样回结果', async () => {
+    mocks.undoPresetImport.mockResolvedValue({
+      restored: true,
+      removed: false,
+      createdAt: '2026-10-26T00:00:00.000Z',
+      added: 1,
+      replaced: 0,
+      total: 2,
+    })
+    const res = (await getHandler('ai:undoPresetImport')(event, {
+      projectPath: '/p',
+    })) as IpcResult
+    expect(res.ok).toBe(true)
+    expect(res.data).toMatchObject({ restored: true, removed: false, total: 2 })
+    expect(mocks.undoPresetImport).toHaveBeenCalledWith('/p')
+  })
+
+  it('服务层拒绝（没有可撤销/被改过/备份坏了）→ 原样回错误', async () => {
+    mocks.undoPresetImport.mockRejectedValue(new Error('导入之后预设文件又被改过'))
+    const res = (await getHandler('ai:undoPresetImport')(event, {
+      projectPath: '/p',
+    })) as IpcResult
+    expect(res).toEqual({ ok: false, error: '导入之后预设文件又被改过' })
+  })
+
+  it('projectPath 为空 → 参数校验失败，不调用服务层', async () => {
+    const res = (await getHandler('ai:undoPresetImport')(event, {
+      projectPath: '',
+    })) as IpcResult
+    expect(res.ok).toBe(false)
+    expect(res.error).toContain('参数校验失败')
+    expect(mocks.undoPresetImport).not.toHaveBeenCalled()
   })
 })

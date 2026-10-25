@@ -119,6 +119,8 @@ var aiPresetImportSchema = z.object({
   projectPath: z.string().min(1),
   text: z.string().max(PRESET_SHARE_MAX_BYTES * 2),
   overwrite: z.boolean(),
+  /** 来源文件名（只是展示用：写进撤销点，让用户知道撤销的是哪次导入） */
+  sourceName: z.string().max(200).optional(),
 })
 /** 读预设注册表；带 threadId 时顺带回这条线程的锁状态（第 50 批） */
 var aiPresetRosterSchema = z.object({

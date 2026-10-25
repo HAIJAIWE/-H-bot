@@ -15,6 +15,7 @@ import { AgentPresetMenu } from '@renderer/components/ai/AgentPresetMenu'
 import { t } from '@renderer/i18n'
 import type { AgentMode } from '@shared/ai/roleDomains'
 import type { AgentPresetRoster, AgentPresetRow } from '@shared/ai/presetRoster'
+import type { PresetUndoState } from '@shared/ai/presetUndo'
 
 const ROSTER: AgentPresetRoster = {
   presets: [
@@ -57,6 +58,7 @@ function setup(
     onSessionPreset: vi.fn<(name: string | null) => void>(),
     onExportPresets: vi.fn<() => void>(),
     onImportPresets: vi.fn<() => void>(),
+    onUndoPresetImport: vi.fn<(undo: PresetUndoState) => void>(),
   }
   render(
     <AgentPresetMenu
@@ -72,6 +74,7 @@ function setup(
       onEditPresets={spies.onEditPresets}
       onExportPresets={spies.onExportPresets}
       onImportPresets={spies.onImportPresets}
+      onUndoPresetImport={spies.onUndoPresetImport}
     />,
   )
   return spies
@@ -294,5 +297,44 @@ describe('角色/预设菜单', () => {
     expect(s.onEditPresets).not.toHaveBeenCalled()
     fireEvent.click(screen.getByText(t('ai.preset.importAction')))
     expect(s.onImportPresets).toHaveBeenCalledTimes(1)
+  })
+
+  it('★ 有可用撤销点：菜单底部显示「撤销上次导入…」，点了把撤销点交给调用方', async () => {
+    const undo: PresetUndoState = {
+      available: true,
+      createdAt: '2026-10-26T02:30:00.000Z',
+      sourceName: 'share.json',
+      added: 1,
+      replaced: 2,
+      total: 5,
+      previousExisted: true,
+    }
+    getPresets.mockResolvedValue({ ok: true, data: { ...ROSTER, undo } })
+    const s = setup()
+    fireEvent.click(await screen.findByText(t('ai.preset.undoAction')))
+    expect(s.onUndoPresetImport).toHaveBeenCalledWith(undo)
+    // 撤销不是导入：不该顺手把导入对话框也打开
+    expect(s.onImportPresets).not.toHaveBeenCalled()
+  })
+
+  it('没有撤销记录：不显示撤销入口（不是留个灰按钮）', async () => {
+    setup()
+    await screen.findByRole('button', { name: '只读巡检' })
+    expect(screen.queryByText(t('ai.preset.undoAction'))).not.toBeInTheDocument()
+  })
+
+  it('撤销点坏了：按钮禁用，title 说明原因（不是装作没有撤销）', async () => {
+    getPresets.mockResolvedValue({
+      ok: true,
+      data: { ...ROSTER, undo: { available: false, problem: '撤销点文件坏了：不是对象' } },
+    })
+    const s = setup()
+    const row = await screen.findByTitle('撤销点文件坏了：不是对象')
+    expect(row.tagName).toBe('BUTTON')
+    expect(row).toBeDisabled()
+    expect(row.textContent).toContain(t('ai.preset.undoAction'))
+    // 禁用时点了也不该把调用方叫起来
+    fireEvent.click(row)
+    expect(s.onUndoPresetImport).not.toHaveBeenCalled()
   })
 })

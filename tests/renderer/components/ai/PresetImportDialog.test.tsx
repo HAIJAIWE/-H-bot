@@ -77,7 +77,7 @@ describe('导入会话预设', () => {
     expect(confirm).toBeEnabled()
     fireEvent.click(confirm)
     await waitFor(() => {
-      expect(importPresets).toHaveBeenCalledWith('/p', PICK.text, true)
+      expect(importPresets).toHaveBeenCalledWith('/p', PICK.text, true, PICK.fileName)
     })
     await waitFor(() => {
       expect(onImported).toHaveBeenCalledWith({ added: 1, replaced: 1, total: 3 })
@@ -113,6 +113,8 @@ describe('导入会话预设', () => {
     const confirm = screen.getByRole('button', { name: t('ai.preset.importConfirm') })
     expect(confirm).toBeEnabled()
     fireEvent.click(confirm)
-    await waitFor(() => expect(importPresets).toHaveBeenCalledWith('/p', PICK.text, false))
+    await waitFor(() =>
+      expect(importPresets).toHaveBeenCalledWith('/p', PICK.text, false, PICK.fileName),
+    )
   })
 })

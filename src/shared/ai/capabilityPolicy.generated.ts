@@ -590,6 +590,7 @@ export const CAPABILITIES_BY_DOMAIN: Record<string, string[]> = {
     'ai.setToolBudget',
     'ai.testConfig',
     'ai.tools',
+    'ai.undoPresetImport',
     'capability.probe',
   ],
 }

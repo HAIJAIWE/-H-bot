@@ -21,7 +21,9 @@ import {
   type PresetSharePreview,
 } from '@shared/ai/presetShare'
 import type { AgentPreset, AgentPresetRow } from '@shared/ai/presetRoster'
-import { parsePresetRoster, readPresetRoster, writePresets } from './presets'
+import type { PresetUndoState } from '@shared/ai/presetUndo'
+import { parsePresetRoster, readPresetRoster, serializePresets, writePresets } from './presets'
+import { capturePresetUndo, clearPresetUndo, writePresetUndoPoint } from './presetUndo'
 
 /** AgentPreset 允许出现在分享文件里的键；顺序只用于错误提示，不参与解析 */
 const PRESET_KEYS = [
@@ -213,15 +215,20 @@ export async function previewPresetImport(
 }
 
 /**
- * 真正导入：解析 → 读现有 → 冲突检查 → 整表重写。
+ * 真正导入：解析 → 读现有 → 冲突检查 → 整表重写 → 留撤销点。
  *
  * overwrite=false 时只要有同名项就整次拒绝（不是"跳过冲突项"）——
  * 半份导入最难解释：用户以为全进来了，实际少了几条。
+ *
+ * 第 54 批起每次"真的有变化"的导入都留一个撤销点（第 4 参 sourceName 只用于界面展示）。
+ * 顺序是 capture → 写 presets → 写撤销点：撤销点写失败不影响导入成功，只是界面会
+ * 收到 undoProblem；没有变化时一个字节都不写，旧撤销点也不动。
  */
 export async function importPresetShare(
   projectPath: string,
   text: string,
   overwrite: boolean,
+  sourceName?: string,
 ): Promise<PresetImportResult> {
   const share = await parsePresetShareText(text)
   const userRows = await readExistingForImport(projectPath)
@@ -245,6 +252,42 @@ export async function importPresetShare(
     else added += 1
     byName.set(preset.name, preset)
   }
+  const total = byName.size
+  if (added === 0 && replaced === 0) {
+    return { added: 0, replaced: 0, total, unchanged: true }
+  }
+  const capture = await capturePresetUndo(projectPath)
+  // 同名但内容完全相同（把同一份分享文件再导一次）也算"没有实际变化"：写盘结果与旧文件
+  // 逐字节一样，若照常换撤销点，用户会失去"回到第一次导入之前"的能力。这里先预测
+  // writePresets 会写出什么，确认真的变了才写。
+  const nextBytes = Buffer.from(serializePresets([...byName.values()]), 'utf-8')
+  const previousBytes = capture.previousBase64
+    ? Buffer.from(capture.previousBase64, 'base64')
+    : null
+  if (previousBytes && previousBytes.equals(nextBytes)) {
+    return { added: 0, replaced: 0, total, unchanged: true }
+  }
   await writePresets(projectPath, [...byName.values()])
-  return { added, replaced, total: byName.size }
+  let undo: PresetUndoState | undefined
+  let undoProblem: string | undefined
+  try {
+    undo = await writePresetUndoPoint(projectPath, capture, {
+      ...(sourceName ? { sourceName } : {}),
+      added,
+      replaced,
+      total,
+    })
+  } catch (e) {
+    undoProblem = e instanceof Error ? e.message : String(e)
+    // 旧撤销点指向的是更早的状态，留着比没有更危险：清掉，让"没有可撤销的导入"成为真相
+    await clearPresetUndo(projectPath).catch(() => {})
+  }
+  return {
+    added,
+    replaced,
+    total,
+    unchanged: false,
+    ...(undo ? { undo } : {}),
+    ...(undoProblem ? { undoProblem } : {}),
+  }
 }

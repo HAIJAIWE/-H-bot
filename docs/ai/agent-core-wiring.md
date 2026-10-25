@@ -2922,3 +2922,120 @@ DSH 也不允许，保持一致）、锁文件的损坏自动修复（坏锁只�
 改动 `src/main/schemas/ai.ts`、`src/main/ipc/register.ts`、`src/preload/index.ts`、
 `src/renderer/src/types/ipc.ts`、`AgentPresetMenu.tsx`、`ChatPanel.tsx`、中英 i18n、
 能力台账与两份 generated、4 个测试文件与 3 个守卫。
+
+---
+
+## §54 第 54 批：预设导入的自动备份与一键撤销（2026-10-26）
+
+### 54.1 为什么备份的是「原始字节」
+
+导入是整表重写：写盘前会把现有条目按标准格式重新序列化（缩进、键序、结尾换行都由程序决定）。
+如果撤销也走这条路 —— 读当前表、倒推出「没有这次导入时的表」、再 `writePresets` ——
+用户手改留下的空行、字段顺序、缩进全会变，等于撤销顺带重排了文件。所以撤销点存的是
+导入前 `.qqbat/agent-presets.json` 的**原始字节**（base64 + sha256），撤销时原样写回；
+导入前文件不存在就记 `previousExisted: false`，撤销等价于删掉这次导入写出的文件。
+只备份预设表，默认预设文件（`agent-preset-default.json`）不备份：默认值是另一个语义
+（§51），导入也不动它。
+
+### 54.2 撤销点的形状
+
+新文件 `src/shared/ai/presetUndo.ts`（纯类型 + 常量）：
+
+| 项                                            | 值                                                     |
+| --------------------------------------------- | ------------------------------------------------------ |
+| 文件                                          | `.qqbat/agent-presets.undo.json`（`PRESET_UNDO_FILE`） |
+| 版本                                          | `1`（`PRESET_UNDO_VERSION`，只认这一个）               |
+| `action`                                      | `import`（将来别的操作要撤销得另开版本）               |
+| `previousExisted`                             | 导入前有没有预设文件                                   |
+| `previousSha256` / `previousBase64`           | 导入前原始字节的 sha256 与 base64；不存在时为 `null`   |
+| `afterSha256`                                 | 导入完成时写出的文件 sha256，撤销前拿它比对            |
+| `added` / `replaced` / `total` / `sourceName` | 只用于界面说明（`sourceName` 是导入对话框里的文件名）  |
+
+读出来给界面的 `PresetUndoState` 只带 `available`、展示字段和 `problem`；磁盘上的
+`previousBase64` 不出主进程。渲染层不自己拼错误文案：所有拒绝原因由主进程给
+（`PresetUndoState.problem` / `error`），界面只负责显示。
+
+### 54.3 一级撤销点：什么时候失效
+
+- 只保留最近一次「有变化」的导入；再导入一次就覆盖旧点。
+- `readPresetUndo` 三种结果：没有文件 → `{ available: false }`（不报 problem，菜单不显示
+  按钮）；记录坏了（JSON 解析失败、版本不认识、字段矛盾）→ `{ available: false, problem }`，
+  坏记录**不自动删**（先别毁证据）；记录合法但当前预设文件 sha256 ≠ `afterSha256` →
+  失效，提示「导入之后预设文件又被改过，撤销已失效」。
+- 撤销写入前再校验一遍：没有撤销点 / 记录坏了 / 当前文件被改过 / 备份自己 sha 对不上，
+  一律拒绝且**一字不写**；写回后再复核一次 sha，对不上报「撤销写入后校验失败…」
+  （多半是文件被占用）。成功后删撤销点。
+
+### 54.4 无变化的导入不换撤销点
+
+`importPresetShare` 解析后先算 `added/replaced`；如果都是 0，再把「按本次合并结果序列化
+出来的字节」与导入前的原始字节逐字节比较，相同就返回 `unchanged: true`：不写盘、不动旧
+撤销点。这样「把同一份分享文件再导一遍」不会把上一次真正改动的撤销点冲掉。文档 §5.2
+只按计数判断；因为 parser 拒绝空 `presets`，计数全 0 的分支原本不可达，这一批补成按字节
+判断，「无变化导入」的验收才真正成立。
+
+### 54.5 导入顺序与失败语义
+
+1. `capturePresetUndo`：读旧字节。`ENOENT` → `previousExisted:false`；其它读错误直接抛，
+   导入中止（读不出旧文件就没法承诺可撤销）。
+2. `writePresets`：整表一次写。
+3. `writePresetUndoPoint`：记录「导入后的 sha256」。这一步失败**不让导入失败**：返回
+   `undoProblem`，并 best-effort 删掉旧撤销点（旧的已经不匹配新表，留着只会骗人）。
+4. 撤销成功后删撤销点。
+
+失败语义因此是「导入成功但这次没有撤销机会」，界面上是 warning 而不是 error。
+
+### 54.6 界面
+
+- `AgentPresetMenu` 在「导入预设…」下面加「撤销上次导入…」：有记录且 `available` 才可点；
+  有 `problem` 就禁用并用 `title` 说明原因；没有记录不渲染。重新加载（换项目/线程/预设更新）
+  开头先清空旧撤销点，避免新数据回来前把上一个项目的撤销按钮点下去。
+- `PresetUndoDialog` 单独确认（撤销动的是磁盘上的整张表，不是这一轮的权限组合）：显示
+  导入时间、来源文件（没有就「（未记录）」）、新增/覆盖/总数、恢复目标（导入前有文件 →
+  恢复原始字节；没有 → 删掉这次写出的文件）+ 琥珀警告；失败红字留在框内可重试；成功由
+  `ChatPanel` 关框、`presetEpoch + 1` 让菜单重读并 toast `undoDone`。
+- 导入完成 toast 分三支：`unchanged` → info；`undoProblem` → warning（导入成功、撤销点
+  没写成）；否则 success。
+- i18n 中英各新增 17 个键（`ai.preset.undo*` / `importUnchanged`），`importResult` 改成单参
+  `{n}` 只报总数；恢复目标拆成 `undoRestoreFile` / `undoRestoreRemove`、来源未记录
+  `undoSourceUnknown`（文档 §7 只列了 `undoRestoreTo`，拆分是为了不在组件里硬编码中文，
+  也过 `noHardcodedCopy` 闸门）。
+
+### 54.7 能力账、闸门与测试
+
+- 能力三层：`ai.undoPresetImport` 是 X（内部）；ai 53→54、X 78→79、合计 278→279、
+  X+⛔ 81→82；`node scripts/gen-capability-catalog.mjs` 重生成两份 **279 条**。
+- `ipcPayloadContract` 登记 `ai:undoPresetImport`（`aiProjectPathSchema.shape`），
+  `ai:importPresets` 载荷补 `sourceName`；`projectWritesViaFileOps` 登记
+  `src/main/services/ai/presetUndo.ts` 的 `rm: 2`（写预设与删撤销点都在该文件里
+  `atomicWrite`/`rm`，不进直写统计）。
+- 测试：`tests/main/services/ai/presetUndo.test.ts` **11 例**（新）；`presetShare.test.ts`
+  11→**13**；`aiPresets-ipc.test.ts` 8→**12**；`aiAgentCore-ipc.test.ts` 31→**32**
+  （`ai:getPresets` 带回撤销点）；`PresetUndoDialog.test.tsx` **4 例**（新）；
+  `AgentPresetMenu.test.tsx` 16→**19**；`PresetImportDialog.test.tsx` **5**（断言 `sourceName`）。
+- tsc node/web 均 0；guards **15 文件 / 107 例**。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`
+  （日志 `_recovery/full-gate-batch54.log`）= **278 passed | 2 skipped（280 文件）**、
+  **3518 passed | 7 skipped（3525 例）**、`FULL_EXIT=0`（第 53 批基线 3493，+25）。
+- 真机（dev + CDP 43191，§9.2 探针）：导入后 `getPresets` 带回 `undo.available:true`
+  （sourceName/计数正确）；撤销后预设文件 sha256 回到导入前的值、撤销点文件自动删除；
+  再导入一次后手改预设文件（追加空白，文件仍可解析），撤销返回 `ok:false`、错误点名
+  「当前 sha256 … 导入完成时 …」、文件一字未动。界面在真实项目上走通「菜单出现撤销按钮
+  → 对话框显示撤销点信息 → 确认后 toast、按钮消失」，撤销后预设表 sha256 与导入前一致。
+
+### 54.8 明确没做
+
+多级撤销 / redo、绕过 sha 校验的强改、编辑器保存与撤销点的合并（在被导入之后保存预设
+就会让撤销点失效，按设计如此）、备份默认预设文件、分享文件签名或来源校验、跨窗口锁
+（两个窗口同时导入/撤销是未定义行为）、把撤销点写进分享文件。
+
+### 54.9 涉及文件
+
+新增 `src/shared/ai/presetUndo.ts`、`src/main/services/ai/presetUndo.ts`、
+`src/renderer/src/components/ai/PresetUndoDialog.tsx`、
+`tests/main/services/ai/presetUndo.test.ts`、`tests/renderer/components/ai/PresetUndoDialog.test.tsx`；
+改动 `src/shared/ai/presetShare.ts`、`src/main/services/ai/presetShare.ts`、
+`src/main/services/ai/presets.ts`（抽出 `serializePresets` 用来预测「这次导入会写出什么字节」）、
+`src/main/schemas/ai.ts`、`src/main/ipc/aiPresets.ts`、`src/main/ipc/aiAgentCore.ts`、
+`src/preload/index.ts`、`src/renderer/src/types/ipc.ts`、`AgentPresetMenu.tsx`、`ChatPanel.tsx`、
+`PresetImportDialog.tsx`、中英 i18n、能力台账与两份 generated、5 个既有测试文件与 2 个守卫。

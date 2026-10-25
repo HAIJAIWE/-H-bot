@@ -57,6 +57,7 @@ import {
   readPresetSession,
   writePresetSession,
 } from '../services/ai/presetLock'
+import { readPresetUndo } from '../services/ai/presetUndo'
 import type { AgentPresetRow } from '@shared/ai/presetRoster'
 import { listMainPlugins, pluginOwnedTools } from '../services/plugins/host'
 import { scopeToolsByPlugins } from '../services/plugins/scoping'
@@ -206,9 +207,11 @@ export function registerAiAgentCoreIpc(): void {
     }
     try {
       const roster = await readPresetRoster(parsed.data.projectPath)
-      if (!parsed.data.threadId) return { ok: true, data: roster }
+      // 第 54 批：菜单要据此显示「撤销上次导入」，所以读注册表时顺带回撤销点状态。
+      const undo = await readPresetUndo(parsed.data.projectPath)
+      if (!parsed.data.threadId) return { ok: true, data: { ...roster, undo } }
       const session = await readPresetSession(parsed.data.projectPath, parsed.data.threadId)
-      return { ok: true, data: { ...roster, session } }
+      return { ok: true, data: { ...roster, session, undo } }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }

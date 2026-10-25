@@ -20,6 +20,7 @@ import { t } from '../../i18n'
 import { useLocaleSubscription } from '../../stores/i18nStore'
 import { MODE_OF_ROLE, type AgentMode, type AgentRole } from '@shared/ai/roleDomains'
 import type { AgentPresetRow, PresetSessionState } from '@shared/ai/presetRoster'
+import type { PresetUndoState } from '@shared/ai/presetUndo'
 import { AI_MODE_BUTTONS } from './agentModes'
 
 export interface AgentPresetMenuProps {
@@ -45,6 +46,8 @@ export interface AgentPresetMenuProps {
   /** 导出/导入（第 53 批）：操作的是磁盘上的预设表，所以不做进编辑器 */
   onExportPresets?: () => void
   onImportPresets?: () => void
+  /** 撤销上次导入（第 54 批）：只把撤销点交出去，确认对话框由调用方挂 */
+  onUndoPresetImport?: (undo: PresetUndoState) => void
 }
 
 /** 收掉 details 菜单（点完一项就关，不靠点第二次） */
@@ -67,6 +70,7 @@ export function AgentPresetMenu({
   onEditPresets,
   onExportPresets,
   onImportPresets,
+  onUndoPresetImport,
 }: AgentPresetMenuProps): React.ReactNode {
   // 用了 t() 的组件必须订阅语言变化（i18n 闸门）
   useLocaleSubscription()
@@ -76,6 +80,8 @@ export function AgentPresetMenu({
   /** 项目默认预设（第 51 批）：只影响**空白线程**，当前会话锁定也照样能改 */
   const [defaultName, setDefaultName] = useState<string | null>(null)
   const [defaultProblem, setDefaultProblem] = useState<string | undefined>(undefined)
+  /** 上次导入留下的撤销点（第 54 批）：没有导入过或没有变化时主进程不给 */
+  const [undo, setUndo] = useState<PresetUndoState | undefined>(undefined)
   useEffect(() => {
     if (!projectPath) {
       setRows([])
@@ -83,8 +89,11 @@ export function AgentPresetMenu({
       setSession(undefined)
       setDefaultName(null)
       setDefaultProblem(undefined)
+      setUndo(undefined)
       return
     }
+    // 重新加载期间先清掉旧的撤销点：别让上一个项目/线程的撤销按钮在新数据回来前可点
+    setUndo(undefined)
     let alive = true
     void (async () => {
       try {
@@ -96,12 +105,14 @@ export function AgentPresetMenu({
           setSession(res.data.session)
           setDefaultName(res.data.defaultPreset ?? null)
           setDefaultProblem(res.data.defaultProblem)
+          setUndo(res.data.undo)
         } else {
           setRows([])
           setFileProblem(res.error)
           setSession(undefined)
           setDefaultName(null)
           setDefaultProblem(undefined)
+          setUndo(undefined)
         }
       } catch {
         if (alive) {
@@ -110,6 +121,7 @@ export function AgentPresetMenu({
           setSession(undefined)
           setDefaultName(null)
           setDefaultProblem(undefined)
+          setUndo(undefined)
         }
       }
     })()
@@ -396,6 +408,22 @@ export function AgentPresetMenu({
           <span className="w-3 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{t('ai.preset.importAction')}</span>
         </button>
+        {/* 撤销点只保留最近一次有变化的导入；有记录但不可用（坏了/已失效）时禁用并用 title 说明 */}
+        {undo && (undo.available || undo.problem) ? (
+          <button
+            type="button"
+            className={rowClass}
+            disabled={disabled || !undo.available || !projectPath || !onUndoPresetImport}
+            title={undo.problem ?? t('ai.preset.undoTitle')}
+            onClick={e => {
+              closeMenu(e.currentTarget)
+              onUndoPresetImport?.(undo)
+            }}
+          >
+            <span className="w-3 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('ai.preset.undoAction')}</span>
+          </button>
+        ) : null}
       </div>
     </details>
   )

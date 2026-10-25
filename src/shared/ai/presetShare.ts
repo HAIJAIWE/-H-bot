@@ -10,6 +10,7 @@
 //
 // 内置预设不导出：它随程序发布，导出再导入只会得到"与内置同名"的错误。
 import type { AgentPreset } from './presetRoster'
+import type { PresetUndoState } from './presetUndo'
 
 export const PRESET_SHARE_TYPE = 'qqbat-agent-presets'
 export const PRESET_SHARE_VERSION = 1
@@ -50,4 +51,10 @@ export interface PresetImportResult {
   added: number
   replaced: number
   total: number
+  /** 没有任何实际变化：没写盘、没换撤销点（下一次导入也不会因此丢掉旧撤销点） */
+  unchanged: boolean
+  /** 这次导入成功后留下的撤销点（正常情况） */
+  undo?: PresetUndoState
+  /** 导入成功但撤销点没写成；界面要提示（导入本身已经生效） */
+  undoProblem?: string
 }

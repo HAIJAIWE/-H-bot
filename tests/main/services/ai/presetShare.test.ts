@@ -13,6 +13,7 @@ import {
   previewPresetImport,
 } from '@main/services/ai/presetShare'
 import { readPresetRoster, writePresets } from '@main/services/ai/presets'
+import { readPresetUndo } from '@main/services/ai/presetUndo'
 import {
   PRESET_SHARE_MAX_BYTES,
   PRESET_SHARE_MAX_PRESETS,
@@ -159,7 +160,7 @@ describe('★ 预设分享：预览与导入', () => {
   it('无冲突 → 追加；勾覆盖 → 只替换同名项，内置永不动', async () => {
     const addedDir = await project([{ name: '甲' }])
     const added = await importPresetShare(addedDir, shareText([{ name: '乙' }]), false)
-    expect(added).toEqual({ added: 1, replaced: 0, total: 2 })
+    expect(added).toMatchObject({ added: 1, replaced: 0, total: 2, unchanged: false })
     expect(
       userRows(await readPresetRoster(addedDir))
         .map(p => p.name)
@@ -172,10 +173,45 @@ describe('★ 预设分享：预览与导入', () => {
       shareText([{ name: '甲', allowedTools: ['list_dir'] }, { name: '乙' }]),
       true,
     )
-    expect(replaced).toEqual({ added: 1, replaced: 1, total: 2 })
+    expect(replaced).toMatchObject({ added: 1, replaced: 1, total: 2, unchanged: false })
     const roster = await readPresetRoster(dir)
     expect(roster.presets.filter(p => p.builtin)).toHaveLength(2)
     expect(userRows(roster).find(p => p.name === '甲')?.allowedTools).toEqual(['list_dir'])
+  })
+
+  it('导入成功后带回撤销点信息（含来源文件名），记录导入后的文件哈希', async () => {
+    const dir = await project([{ name: '甲' }])
+    const result = await importPresetShare(
+      dir,
+      shareText([{ name: '乙' }]),
+      false,
+      '同事的预设.json',
+    )
+    expect(result.unchanged).toBe(false)
+    expect(result.undoProblem).toBeUndefined()
+    expect(result.undo).toMatchObject({
+      available: true,
+      sourceName: '同事的预设.json',
+      previousExisted: true,
+      added: 1,
+      replaced: 0,
+      total: 2,
+    })
+    expect(await readPresetUndo(dir)).toEqual(result.undo)
+  })
+
+  it('把同一份文件再导一次 → unchanged:true，不写盘也不换撤销点', async () => {
+    const dir = await project([{ name: '甲' }])
+    const first = await importPresetShare(dir, shareText([{ name: '乙' }]), false, '同事.json')
+    const bytesAfterFirst = await rawFile(dir)
+    const undoAfterFirst = await readPresetUndo(dir)
+
+    const again = await importPresetShare(dir, shareText([{ name: '乙' }]), true, '同事.json')
+    expect(again).toMatchObject({ added: 0, replaced: 0, unchanged: true })
+    expect(again.undo).toBeUndefined()
+    expect(await rawFile(dir)).toBe(bytesAfterFirst)
+    expect(await readPresetUndo(dir)).toEqual(undoAfterFirst)
+    expect(undoAfterFirst.createdAt).toBe(first.undo?.createdAt)
   })
 
   it('当前文件本身是坏的 → 拒绝导入（避免"导入"顺手清掉坏条目）', async () => {

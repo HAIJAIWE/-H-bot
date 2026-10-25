@@ -386,9 +386,12 @@ const api = {
     /** 选一个预设分享文件并回预览（只读；取消会返回「用户取消」） */
     pickPresetShare: (projectPath: string) =>
       ipcRenderer.invoke('ai:pickPresetShare', { projectPath }),
-    /** 确认导入：写盘只发生在这一条（overwrite 只覆盖同名用户预设） */
-    importPresets: (projectPath: string, text: string, overwrite: boolean) =>
-      ipcRenderer.invoke('ai:importPresets', { projectPath, text, overwrite }),
+    /** 确认导入：写盘只发生在这一条（overwrite 只覆盖同名用户预设；sourceName 写进撤销点） */
+    importPresets: (projectPath: string, text: string, overwrite: boolean, sourceName?: string) =>
+      ipcRenderer.invoke('ai:importPresets', { projectPath, text, overwrite, sourceName }),
+    /** 撤销最近一次导入（第 54 批）：主进程校验当前文件没被改过才恢复原始字节 */
+    undoPresetImport: (projectPath: string) =>
+      ipcRenderer.invoke('ai:undoPresetImport', { projectPath }),
     /**
      * **插话**：把一句话塞进正在跑的那一轮（下一个步边界注入给模型）。
      * 没在跑时主进程会直接拒绝 —— 界面据此提示"先发一条新要求"。

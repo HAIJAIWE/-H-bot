@@ -31,6 +31,8 @@ const h = vi.hoisted(() => ({
   decideSessionPreset: vi.fn(),
   readPresetSession: vi.fn(),
   writePresetSession: vi.fn(),
+  /** 第 54 批：菜单要据此显示「撤销上次导入」 */
+  readPresetUndo: vi.fn(),
   /** 主进程发出去的事件（只在回调里发的那些，比如 ai:compact，要靠它断言） */
   send: vi.fn(),
   /** 旧 27 工具适配器：这里只验接线（真适配器另有 legacyTools 的测试） */
@@ -81,6 +83,7 @@ vi.mock('@main/services/ai/presetLock', () => ({
   readPresetSession: h.readPresetSession,
   writePresetSession: h.writePresetSession,
 }))
+vi.mock('@main/services/ai/presetUndo', () => ({ readPresetUndo: h.readPresetUndo }))
 vi.mock('@main/services/infra/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
@@ -142,6 +145,7 @@ describe('ai:agentCoreRun 接线', () => {
       .mockReset()
       .mockResolvedValue({ started: false, preset: null, locked: false })
     h.writePresetSession.mockReset().mockResolvedValue(undefined)
+    h.readPresetUndo.mockReset().mockResolvedValue({ available: false })
     h.send.mockReset()
     h.runOnboarding.mockReset().mockResolvedValue({ ok: true, finalText: '开荒好了' })
     h.validateProposal.mockReset().mockResolvedValue({ issues: [], introduced: [] })
@@ -641,9 +645,27 @@ describe('ai:agentCoreRun 接线', () => {
     }
     h.readPresetRoster.mockResolvedValue(roster)
     const res = await invokeChannel('ai:getPresets', { projectPath: 'D:/p' })
-    expect(res).toEqual({ ok: true, data: roster })
+    expect(res).toEqual({ ok: true, data: { ...roster, undo: { available: false } } })
     expect(h.readPresetRoster).toHaveBeenCalledWith('D:/p')
     expect(h.readPresetSession).not.toHaveBeenCalled()
+  })
+
+  it('ai:getPresets 顺带回撤销点状态（菜单据此显示「撤销上次导入」）', async () => {
+    const roster = { presets: [{ name: '只读' }] }
+    const undo = {
+      available: true,
+      createdAt: '2026-10-26T00:00:00.000Z',
+      sourceName: '同事.json',
+      added: 1,
+      replaced: 0,
+      total: 2,
+      previousExisted: true,
+    }
+    h.readPresetRoster.mockResolvedValue(roster)
+    h.readPresetUndo.mockResolvedValue(undo)
+    const res = await invokeChannel('ai:getPresets', { projectPath: 'D:/p' })
+    expect(res).toEqual({ ok: true, data: { ...roster, undo } })
+    expect(h.readPresetUndo).toHaveBeenCalledWith('D:/p')
   })
 
   it('★ 空白线程没表态：套项目默认（默认只影响新会话）', async () => {
@@ -713,7 +735,10 @@ describe('ai:agentCoreRun 接线', () => {
     h.readPresetRoster.mockResolvedValue(roster)
     h.readPresetSession.mockResolvedValue(session)
     const res = await invokeChannel('ai:getPresets', { projectPath: 'D:/p', threadId: 't-1' })
-    expect(res).toEqual({ ok: true, data: { ...roster, session } })
+    expect(res).toEqual({
+      ok: true,
+      data: { ...roster, session, undo: { available: false } },
+    })
     expect(h.readPresetSession).toHaveBeenCalledWith('D:/p', 't-1')
   })
 })

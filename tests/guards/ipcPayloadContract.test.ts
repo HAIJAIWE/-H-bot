@@ -63,7 +63,11 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
   },
   'ai:importPresets': {
     shape: aiPresetImportSchema.shape,
-    note: '确认导入预设：projectPath + text + overwrite（写盘只在这里发生）',
+    note: '确认导入预设：projectPath + text + overwrite + sourceName（写盘只在这里发生）',
+  },
+  'ai:undoPresetImport': {
+    shape: aiProjectPathSchema.shape,
+    note: '撤销最近一次预设导入（第 54 批）：只恢复导入前字节，导入后改过则拒绝',
   },
   'ai:getPresets': {
     shape: aiPresetRosterSchema.shape,

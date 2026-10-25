@@ -27,6 +27,8 @@ import { ChatEmptyState } from './ChatEmptyState'
 import type { AgentPresetRow } from '@shared/ai/presetRoster'
 import { PresetEditor } from './PresetEditor'
 import { PresetImportDialog } from './PresetImportDialog'
+import { PresetUndoDialog } from './PresetUndoDialog'
+import type { PresetUndoState } from '@shared/ai/presetUndo'
 import { InlineEditBox } from './InlineEditBox'
 import { StreamingBubble } from './MessageBubble'
 import { MessageActions } from './MessageActions'
@@ -341,6 +343,8 @@ export const ChatPanel = React.memo(function ChatPanel() {
   /** 预设编辑器开关 + 保存后让下拉重读文件的计数 */
   const [presetEditorOpen, setPresetEditorOpen] = useState(false)
   const [presetImportOpen, setPresetImportOpen] = useState(false)
+  /** 待确认撤销的导入（第 54 批）：菜单只负责把撤销点交出来，确认归单独对话框 */
+  const [undoTarget, setUndoTarget] = useState<PresetUndoState | null>(null)
   const [presetEpoch, setPresetEpoch] = useState(0)
   /** 导出预设：写盘在主进程，这里只负责把结果说清楚；用户取消不算错误 */
   const handleExportPresets = useCallback(async (): Promise<void> => {
@@ -1133,6 +1137,7 @@ export const ChatPanel = React.memo(function ChatPanel() {
             onEditPresets={() => setPresetEditorOpen(true)}
             onExportPresets={() => void handleExportPresets()}
             onImportPresets={() => setPresetImportOpen(true)}
+            onUndoPresetImport={setUndoTarget}
           />
         </div>
         {/* 本轮边界：主进程真正生效的那几件事（收窄/审批/先计划）——默认态自己不渲染。
@@ -1181,13 +1186,22 @@ export const ChatPanel = React.memo(function ChatPanel() {
           onClose={() => setPresetImportOpen(false)}
           onImported={result => {
             setPresetEpoch(n => n + 1)
-            toast.success(
-              t('ai.preset.importResult', {
-                added: String(result.added),
-                replaced: String(result.replaced),
-                total: String(result.total),
-              }),
-            )
+            if (result.unchanged) toast.info(t('ai.preset.importUnchanged'))
+            else if (result.undoProblem)
+              toast.warning(t('ai.preset.undoUnavailable', { reason: result.undoProblem }))
+            else toast.success(t('ai.preset.importResult', { n: String(result.total) }))
+          }}
+        />
+        {/* 撤销上次导入：撤销点已经由主进程记下，这里只确认「恢复到导入前」 */}
+        <PresetUndoDialog
+          open={undoTarget !== null}
+          projectPath={projectPath}
+          undo={undoTarget}
+          onClose={() => setUndoTarget(null)}
+          onUndone={() => {
+            setUndoTarget(null)
+            setPresetEpoch(n => n + 1)
+            toast.success(t('ai.preset.undoDone'))
           }}
         />
 

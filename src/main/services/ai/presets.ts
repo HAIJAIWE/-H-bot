@@ -344,8 +344,13 @@ export async function writePresetDefault(projectPath: string, name: string | nul
   )
 }
 
-/** 写预设（整表覆盖；名字去重，后者覆盖前者）。保持不变：编辑器按对象保存，未知字段由界面负责保留。 */
-export async function writePresets(projectPath: string, presets: AgentPreset[]): Promise<void> {
+/**
+ * 把待写的预设规范成盘上的形状（去重、裁剪、丢弃非法字段），但不落盘。
+ *
+ * 抽出来是为了让"写完之后盘上会是什么字节"可以被预测 —— 导入要判断这次是不是
+ * 真的改了文件（第 54 批的 unchanged），不能写一遍再比。
+ */
+function normalizePresets(presets: AgentPreset[]): AgentPreset[] {
   const byName = new Map<string, AgentPreset>()
   for (const p of presets) {
     const name = String(p.name ?? '').trim()
@@ -372,11 +377,17 @@ export async function writePresets(projectPath: string, presets: AgentPreset[]):
       ...(typeof p.order === 'number' && Number.isFinite(p.order) ? { order: p.order } : {}),
     })
   }
+  return [...byName.values()]
+}
+
+/** 盘上预设文件的完整文本（含结尾换行）；writePresets 与导入的"有没有实际变化"共用 */
+export function serializePresets(presets: AgentPreset[]): string {
+  return JSON.stringify(normalizePresets(presets), null, 2) + '\n'
+}
+
+/** 写预设（整表覆盖；名字去重，后者覆盖前者）。保持不变：编辑器按对象保存，未知字段由界面负责保留。 */
+export async function writePresets(projectPath: string, presets: AgentPreset[]): Promise<void> {
   const dir = join(projectPath, '.qqbat')
   await mkdir(dir, { recursive: true })
-  await writeFile(
-    presetsPath(projectPath),
-    JSON.stringify([...byName.values()], null, 2) + '\n',
-    'utf-8',
-  )
+  await writeFile(presetsPath(projectPath), serializePresets(presets), 'utf-8')
 }
