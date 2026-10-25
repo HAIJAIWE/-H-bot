@@ -50,6 +50,8 @@
 | `repeat-tool-reminder/detector.ts` | `packages/guard/repeat-tool-reminder/src/index.ts`                | 重复调用检测纯算法（规范化参数、通配符、阈值校验、两段提醒文案），Cordis 接线已删                                                                                 |
 | `tool-batch/batch.ts`              | `packages/core/tools/src/batch.ts`                                | 一批调用的调度结构（独占屏障、有界池、启动前重分类、有序提交、取消补合成结果）                                                                                    |
 | `output-retention/index.ts`        | `packages/util/output-retention/src/index.ts`                     | 两个 retainer：条目留前 N（`ItemRetainer`）、字节流留头/尾/两头（`TextRetainer`，UTF-8 边界安全）。**文案层三个导出没搬**（英文提示写死在库里，我们的回执是中文） |
+| `spill-local/store.ts`             | `packages/spill/spill-local/src/store.ts`                         | 溢出文件的落盘机制：目录 0700 / 文件 0600、`wx` 独占创建、`encodeSegment` 单射编码、`session-<sha256 前缀>` 子目录；tmpdir 默认根那一层已删                       |
+| `spill-local/cleanup.ts`           | 同目录 `src/cleanup.ts`                                           | 过期清扫：只删 mtime 严格超期的**普通文件**、不跟随链接、逐级校验目录属主/权限、任何失败只警告不抛；默认根发现那套已删                                            |
 
 标「本仓库适配层」的**不是上游文件**，不参与哈希对账，改它们不需要同步上游。
 
@@ -76,8 +78,9 @@ shared 里 import `@main/*` 会让 web 侧 tsc 直接红。**宿主算法仍在�
 - 流式组装（GLM / OpenAI 兼容 / Ollama 三家共用）：`src/shared/ai/streamAssembler.ts` → `src/shared/vendor/dsh/llm-assembler/`（把厂商帧翻成 chunk，再按上游规则取块）；
 - 工具回执留多少、省了多少：`src/main/services/agent-core/toolRetention.ts` → `output-retention/`（命令输出留开头+结尾并报省略字节；目录列表按条目上限并报省了几条）；
 - 一批工具怎么跑：`src/main/services/agent-core/scheduler.ts` → `tool-batch/`（独占屏障 + 有界池 + 取消时给没派发的调用补合成结果）；
+- 工具结果溢出到磁盘与过期清扫：`src/main/services/ai/spillStore.ts` → `spill-local/`（`<项目>/.qqbat/ai-spill/session-<hash>/`，保留 7 天，写盘后节流清扫）；
 - LLM 调用失败重试：`src/shared/ai/retryRunner.ts` → `src/shared/vendor/dsh/llm-retry/`（按 HTTP 状态码归类成故障码 → 白名单决定能不能重试；退避有上限、抖动对称、认 `Retry-After`）；
-- 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37；调度见 §38。
+- 接线点与「为什么先剪再压」见 `docs/ai/agent-core-wiring.md` §33；流组装见 §37；调度见 §38；溢出存储见 §44。
 
 **搬算法，不搬文案**：`output-retention` 里的 `describeOmitted` / `formatRetentionNotice` /
 `truncateWithoutSplittingSurrogatePair` 没有搬 —— 它们把 "Omitted N items" 这类英文写死在库里，

@@ -180,6 +180,32 @@
         "新增 plannedRetryDelay：把上游 recover 里\"厂商给了 Retry-After 该怎么办\"那段判断原样提成纯函数，返回 undefined = 有界策略下这次不该重试",
         "没搬 Cordis 部分：apply/inject、session 投影（llmRetry）、llm/retry 与 llm/retry-started 会话事件、RetryId 品牌、always 模式下对下游的 settleDownstream"
       ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/spill/spill-local/src/store.ts",
+      "sourceSha256": "4c02d76b118bb5b660850500d37a596cb8f6d3887311c21dc609157b6f1c7d50",
+      "targetPath": "src/main/vendor/dsh/spill-local/store.ts",
+      "targetSha256": "70516da87f7e84cfd57b7246442739acf0b26f69dc86b2cffac272ded8967ed3",
+      "adaptedNotes": [
+        "只取落盘机制：saveTextFile 的 0700/0600、wx 独占创建、ENOENT 重建重试；encodeSegment 的单射分段编码；sessionDir 的 sha256 前缀子目录；isErrno",
+        "删掉\"在系统临时目录建默认根\"那一层（privateRoot / DEFAULT_ROOT_PREFIX / mkdtempSync）：我们的根跟着项目走，由调用方传",
+        "encodeSegment / sessionDir 收成模块私有：外部只需要 saveTextFile，避免死导出",
+        "其余逐字保留（含随机前缀 + wx 不覆盖、bytes 按 UTF-8 实际字节报告）"
+      ]
+    },
+    {
+      "kind": "vendored",
+      "sourcePath": "packages/spill/spill-local/src/cleanup.ts",
+      "sourceSha256": "f0f1a1d33318a838608660f464c83ced3ea40a02c0e61960c6fdf459dbf0f234",
+      "targetPath": "src/main/vendor/dsh/spill-local/cleanup.ts",
+      "targetSha256": "500cf66a08464a29c95d275cf17ea13cfacd66e9014dcaa00fa514c407a67ccc",
+      "adaptedNotes": [
+        "只取清扫算法：sweepSpillRoots + resolveRoot / hasProtectedAncestors / isTrustedDirectory / rootIdentity / sweepSessionDir / unlinkIdempotent / warnSafely，以及 SESSION_DIR_RE 的精确形状匹配",
+        "删掉\"发现系统临时目录里过去的默认根\"那一套（DEFAULT_ROOT_RE / discoverDefaultRoots / gatherSweepRoots）：我们没有进程级默认根",
+        "只删 mtime 严格早于 cutoff 的普通文件；符号链接与特殊文件永不动、永不跟随；容器内所有失败只警告不抛",
+        "保留 pruneWhenEmpty 语义，但我们唯一的调用方传 false（活着的进程还在往这个根里写）"
+      ]
     }
   ]
 }

@@ -31,6 +31,8 @@
 - `packages/util/output-retention/src/index.ts` → `src/main/vendor/dsh/output-retention/index.ts`（`ItemRetainer` / `TextRetainer`：条目上限与字节流头尾窗口，UTF-8 边界安全；上游的英文省略提示文案未搬）
 - `packages/llm/llm/src/retry-policy.ts` → `src/shared/vendor/dsh/llm-retry/retry-policy.ts`（重试策略解析：键白名单、默认值、冻结；schemastery 的 `z` 已删）
 - `packages/llm/llm-retry/src/index.ts` → `src/shared/vendor/dsh/llm-retry/delay.ts`（指数退避 + 对称抖动、可取消 sleep；新增 `plannedRetryDelay` = 上游 `recover` 里的 Retry-After 判断）
+- `packages/spill/spill-local/src/store.ts` → `src/main/vendor/dsh/spill-local/store.ts`（目录 0700 / 文件 0600、`wx` 独占创建、文件名分段编码、`session-<sha256 前缀>` 子目录；tmpdir 默认根已删）
+- `packages/spill/spill-local/src/cleanup.ts` → `src/main/vendor/dsh/spill-local/cleanup.ts`（过期清扫：只删超期普通文件、不跟随链接、逐级校验目录属主/权限；默认根发现已删）
 
 改动原则（详见设计文档 `docs/ai/dsh-source-adaptation-2026-10-24.md` §0 / §2）：
 

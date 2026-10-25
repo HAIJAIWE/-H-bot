@@ -548,9 +548,13 @@ const ALLOWED: Record<string, Allowed> = {
     why: '【应用自有数据】长期记忆 .qqbat/memory/vectors.jsonl（路径 = projectPath + 固定目录/文件名，不由用户输入决定）；只追加，写入失败一律静默（记忆是增益，不能影响对话）',
     counts: { appendFile: 1 },
   },
-  'src/main/services/ai/spillStore.ts': {
-    why: '【应用自有数据】工具结果溢出文件 .qqbat/ai-spill/**：同样的固定拼法',
-    counts: { writeFile: 1 },
+  'src/main/vendor/dsh/spill-local/store.ts': {
+    why: '【应用自有数据】工具结果溢出落盘本体（搬自 DSH spill-local）：根 = <项目>/.qqbat/ai-spill，由 services/ai/spillStore.ts 传进来；唯一写点是 open(path, "wx", 0o600) 独占创建 + handle.writeFile，路径全由本文件拼（encodeSegment 中和分隔符），不接受用户输入',
+    counts: { 'open:write': 1 },
+  },
+  'src/main/vendor/dsh/spill-local/cleanup.ts': {
+    why: '【应用自有数据】溢出清扫（搬自 DSH spill-local）：只在本项目自己的 <项目>/.qqbat/ai-spill 里删过期普通文件；删前逐级校验目录属主/权限，lstat 不跟随链接，任何失败只警告',
+    counts: { unlink: 1 },
   },
   'src/main/services/ai/trace.ts': {
     why: '【应用自有数据】结构化 trace .qqbat/ai-trace*：复盘用，固定路径',

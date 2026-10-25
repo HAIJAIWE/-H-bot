@@ -2015,3 +2015,78 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
 
 **一句话**：退避这种事上游写了 195 + 257 行、把「哪些错值得再试」「等多久」「厂商让你等多久」三件事分得干干净净；
 我们原来那 60 行只做对了第一件的一半。搬完之后，多出来的是**可解释性** —— 每次重试都能报出故障码与本次等待。
+
+---
+
+## 44. 第七批 vendor：`spill-local` —— 溢出文件私密落盘、过期自清
+
+### 44.1 我们手写的那 76 行有四个真缺陷
+
+工具结果超长时会被溢出到 `<项目>/.qqbat/ai-spill/`（回执里给模型一条路径，正文只留头尾）。旧实现是一句
+`writeFile(join(spillDir(p), `${stamp()}-${safeName(toolName)}.txt`), text, "utf-8")`，四个问题：
+
+| 缺陷                                         | 后果                                                                        |
+| -------------------------------------------- | --------------------------------------------------------------------------- |
+| 文件名只有「毫秒时间戳 + 工具名」            | 同一毫秒内两次写同一个文件 → **后写覆盖前写**，模型拿到的路径指向别人的内容 |
+| `mkdir` 不带 `mode`，`writeFile` 不带 `mode` | 目录/文件权限继承 umask，溢出内容可能含 `.env`、凭据、私聊正文              |
+| 从不清理                                     | `.qqbat/ai-spill/` 只增不减，项目越用越大                                   |
+| 工具名直接拼进路径                           | 目前工具名来自代码（安全），但「名字即路径」这条口子不该留着                |
+
+### 44.2 搬了什么、没搬什么
+
+| 上游                                                    | 落点                                         | 取舍                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/spill/spill-local/src/store.ts`               | `src/main/vendor/dsh/spill-local/store.ts`   | 取落盘机制：`saveTextFile`（`session-<sha256 前 12 位>` 子目录、`randomBytes(6)` 前缀、`open(path, "wx", 0o600)` 独占创建、目录 `0o700`）、`encodeSegment`、`isErrno`。删 `privateRoot`/`DEFAULT_ROOT_PREFIX`/`mkdtempSync`（我们不建临时根，根由项目路径决定）                         |
+| `packages/spill/spill-local/src/cleanup.ts`             | `src/main/vendor/dsh/spill-local/cleanup.ts` | 取清扫算法：`sweepSpillRoots`、`resolveRoot`（拒绝符号链接、校验目录属主与权限、检查祖先目录不被他人可写）、`isTrustedDirectory`、`rootIdentity`、`sweepSessionDir`、`unlinkIdempotent`、`warnSafely`。删 `DEFAULT_ROOT_RE`/`discoverDefaultRoots`/`gatherSweepRoots`（我们只有一个根） |
+| `packages/spill/spill-policy/src/{retention,notice}.ts` | —                                            | 没搬：`notice` 依赖我们没搬的英文文案层（`describeOmitted`），我们的提示本来就是中文                                                                                                                                                                                                    |
+| `packages/spill/spill/src/index.ts`                     | —                                            | 没搬：52 行 Service 装配层，Cordis 专用                                                                                                                                                                                                                                                 |
+
+### 44.3 接线三处
+
+1. **适配层** `src/main/services/ai/spillStore.ts`（101 行）：`spillDir` + `stamp`/`safeName` 保留（文件名仍可读），
+   写盘走 `saveTextFile({ root, sessionId: projectPath, ... })`；保留 **7 天**（`SPILL_RETENTION_DAYS`），写盘成功后
+   `scheduleSweep` 节流 1 小时做一次后台清扫（fire-and-forget）；任何失败仍 fail-open（返回 `undefined` + warn，
+   调用方保留原结果、不做不可恢复的裁剪）。
+2. **同步版** `src/main/services/ai/tokenBudget.ts` 的 `spillSync`：它必须同步（在同步裁剪路径里），所以只剩
+   「同步」这一件事自己做，其余对齐 —— 加 `randomBytes(3)` 后缀防撞名、`mkdirSync(..., { mode: 0o700 })`、
+   `writeFileSync(..., { mode: 0o600 })`。
+3. **目录形状变了**：`.qqbat/ai-spill/<时间>-<工具名>.txt` →
+   `.qqbat/ai-spill/session-<12 位 hash>/<12 位随机>-<时间>-<工具名>.txt`。读白名单（`core.ts` 里 `.qqbat` 整体跳过、
+   `ai-spill` 例外）是**前缀匹配**，所以模型仍能 `read_file` 到旧路径与新路径；回执里给的路径就是新路径。
+
+### 44.4 闸门三处
+
+- `tests/guards/projectWritesViaFileOps.test.ts`：删掉 `spillStore.ts` 的旧条目（它已经不直接写盘了），新增两条 ——
+  vendor `store.ts` 记 **`open:write`**（`open(path, "wx", 0o600)` 命中 `WRITE_MODES`；`handle.writeFile` 不被识别为
+  fs 的 `writeFile`），vendor `cleanup.ts` 记 `unlink: 1`（`unlinkIdempotent`）。
+- `tests/guards/styleContract.test.ts`：`spillStore.ts` 头注释 31 行 → 12 行，预算表用
+  `node scripts/update-style-baseline.mjs` 重生成（幽灵条目会被「预算表不许有幽灵」反向断言抓住）。
+- `node scripts/vendor-audit.mjs`：MANIFEST 17 条（vendored 15 + 适配层 2）。
+
+### 44.5 测试
+
+- `tests/main/vendor/spill-local.test.ts`（**9 例**）：目录形状与回读、UTF-8 字节数、同名两次不覆盖（`wx`）、不同
+  sessionId 分目录、`../../etc/passwd` 里的分隔符被编码、POSIX 下 0700/0600、清扫只删严格超期的普通文件、
+  `session-backup` 与根下散落文件不动、会话内符号链接既不删也不跟随、根不存在时静默不创建。
+- `tests/main/services/ai/spillStore.test.ts`（**6 例**）：落到 `session-*` 子目录并回读、空项目/空正文不建目录、
+  `.qqbat` 被同名文件占住时 fail-open + 一次中文 warn、清扫删旧留新且保留 `ai-spill` 根、清空后的会话目录被删且
+  下次写盘自动重建、项目不存在时返回 `undefined`。
+
+- 定向：两文件 **15 例**绿；`tsc -p tsconfig.node.json` **0**。
+- `node node_modules/vitest/vitest.mjs run tests/guards --maxWorkers=2` → **15 文件 / 107 例**绿。
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **0**（这台机器上跑时若两个 tsc 连在一条命令里会 OOM，
+  用 `NODE_OPTIONS=--max-old-space-size=4096` 并逐个跑）。
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2`（日志 `_recovery/full-spill2.log`）→
+  **Test Files 269 passed | 2 skipped (271)、Tests 3371 passed | 7 skipped (3378)、172.94s、FULL_EXIT=0**
+  （上一批 267 文件 / 3363 例，多的正是这两个测试文件 15 例）。
+- 首次全量跑时 `tests/main/services/agent-core/terminal.test.ts` 两例红 + 一次 worker
+  `Worker exited unexpectedly`：同一时刻系统只剩 ~7.8GB 空闲（另有 WorkBuddy / python / Trae 在跑），
+  关掉残留的 dev Electron 后单独重跑该文件即绿、整套重跑也绿 —— 记在这里，下次见到同样两例先怀疑内存。
+
+- 真机（CDP 43191，1365x1009）：造一个 136,892 字节的 `big.txt` 让模型「只调用一次 `read_file`」，一轮正常收尾
+  （过程行 `▸工作了 4 秒1 次工具`），落盘结果：
+  `.qqbat/ai-spill/session-34f78b5ba095/a8647ed21f1f-20261025-173705-698-read_file.txt`（136,892 字节，与原文件逐字节相等）。
+  模型原话：「完整内容因超长被截断**存到了溢出文件里**」—— 说明新路径真的写进了裁剪标记、模型读得懂；
+  历史 JSONL 里这一轮的 `trace[0].name = "read_file"`、`status = "done"`，界面与磁盘两边一致。
+  **一句话**：溢出文件是「工具结果的另一份副本」，它就该跟工具结果一样受管 —— 独占创建防覆盖、0700/0600 防泄漏、
+  过期就删防膨胀；上游把这三件事各写成一个可读的小函数，我们原来只写了「写下去」半句。

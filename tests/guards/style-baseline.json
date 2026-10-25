@@ -1,6 +1,5 @@
 {
   "headers": {
-    "src/main/services/ai/autoTx.ts": 48,
     "src/main/services/infra/paths.ts": 37,
     "src/shared/config/ports.ts": 36,
     "src/main/runtime/sandbox.ts": 33,
@@ -8,7 +7,6 @@
     "src/renderer/src/lib/flushFlow.ts": 33,
     "src/shared/persist/value.ts": 32,
     "src/shared/types/llm-presets.ts": 32,
-    "src/main/services/ai/spillStore.ts": 31,
     "src/renderer/src/lib/node/paletteSearch.ts": 31,
     "src/renderer/src/lib/expression/exprSyntax.ts": 30,
     "src/renderer/src/lib/insertChain.ts": 30,
