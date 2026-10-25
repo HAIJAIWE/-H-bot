@@ -362,7 +362,6 @@
       "hint": "Describe the QQ bot feature you want, or use a quick action",
       "placeholder": "Describe what you want to build...",
       "sendAria": "Send message",
-      "thinkingAria": "AI is thinking",
       "threadOption": "{title} ({count} messages)",
       "placeholderOnboarding": "Describe the bot you want (I will create the project for you)...",
       "removeImage": "Remove this image",
@@ -375,7 +374,7 @@
       "sessionMeta": "{n} messages · {t} turns",
       "sessionRunning": "Running",
       "jumpLatest": "Jump to latest",
-      "reasoning": "Reasoning",
+      "reasoning": "Thinking",
       "attachImage": "Attach image",
       "modelUnset": "No model configured",
       "modelTitle": "Switch model (candidates from provider presets)",
@@ -546,7 +545,6 @@
     "tool": {
       "empty": "(empty)",
       "result": "Result:",
-      "trace": "🔧 {count} tool calls: {detail}",
       "failure": {
         "title": "Failure",
         "suggest": "Suggestion",
@@ -655,10 +653,19 @@
       "approvalFullPreset": "approval: full access (preset)",
       "plan": "plan first: read-only turn"
     },
-    "turns": {
-      "toggle": "Expand or collapse this turn",
-      "meta": "{replies} replies · {tools} tool calls",
-      "empty": "(no text in this turn)"
+    "process": {
+      "running": "Working",
+      "worked": "Worked",
+      "took": "Worked for {duration}",
+      "failed": "This turn failed",
+      "stopped": "Stopped",
+      "tools": "{n} tool calls",
+      "seconds": "{n}s",
+      "minutes": "{m}m {s}s"
+    },
+    "running": {
+      "idle": "Deep diving",
+      "for": "Deep diving {duration}"
     },
     "allowRules": {
       "title": "{n} action(s) remembered — no longer asking",

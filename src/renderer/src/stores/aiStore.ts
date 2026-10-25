@@ -74,6 +74,8 @@ export interface ToolTraceEntry {
 /** 渲染层自己的消息类型：比 `ChatMessage` 多一个"这一轮干了什么"的痕迹 */
 export interface ChatMessageWithTrace extends ChatMessage {
   trace?: ToolTraceEntry[]
+  /** 这一轮从发起到收尾的墙钟时长（毫秒）；缺省 = 不知道（老历史没有） */
+  turnMs?: number
 }
 
 /** 把"这一刻的工具记录"压成可长期保存的痕迹（只留展示需要的字段） */
@@ -168,6 +170,8 @@ export interface ProjectConversation {
   currentChunk: string
   /** 流式思考过程（厂商给 reasoning_content 才有；结束/中断时附件到最终消息并清空） */
   currentReasoning: string
+  /** 这一轮开始的墙钟时间（0 = 没在跑）；界面据此说「工作了 N 秒」 */
+  runStartedAt: number
   isBatchMode: boolean
   batchSnapshot: FlowSnapshot | null
   toolCalls: ToolCallRecord[]
@@ -192,6 +196,7 @@ export function emptyConversation(): ProjectConversation {
     mainProcessRunning: false,
     currentChunk: '',
     currentReasoning: '',
+    runStartedAt: 0,
     isBatchMode: false,
     batchSnapshot: null,
     toolCalls: [],
@@ -209,6 +214,8 @@ interface AiState {
   streaming: boolean
   currentChunk: string
   currentReasoning: string
+  /** 这一轮开始的墙钟时间（0 = 没在跑） */
+  runStartedAt: number
   isBatchMode: boolean
   batchSnapshot: FlowSnapshot | null
   toolCalls: ToolCallRecord[]
@@ -661,10 +668,16 @@ async function runAgentCoreTurn(
     /**
      * 正常路径：正文与工具行已经在 `ai:chunk` / `ai:toolCall` 里边跑边显示，
      * 收尾由 `ai:response` 那条既有监听完成（提交正文 + 本轮工具行）。
-     * 走到这里还是 streaming，说明**一条事件都没来**（旧主进程 / 通道断）——
-     * 那就退回"跑完一次性回执"，至少让用户看到结果。
+     * 走到这里还是 streaming，说明**收尾事件没到** —— 旧主进程、通道断，
+     * **或者回执比事件先到**（2026-10-25 真机撞到：`ai:response` 与 invoke 的回执
+     * 是两条独立消息，谁先到没有保证）。那就由这里收尾，至少让用户看到结果。
+     *
+     * ⚠️ 这条兜底**必须和 `ai:response` 那条长得一样**：同样带耗时、思考与工具痕迹。
+     * 以前它只写正文 —— 于是同一个界面在两台机器/两种时序下，一轮的结算行有时是
+     * 「工作了 5 秒」、有时是「已完成」，看起来像随机的。
      */
     if (!useAiStore.getState().streaming) return
+    const s = useAiStore.getState()
     const trace: ToolTraceEntry[] = res.toolResults.map((r, i) => ({
       id: `agentcore-${i}`,
       name: r.name,
@@ -672,16 +685,24 @@ async function runAgentCoreTurn(
       status: 'done',
       result: r.output,
     }))
+    const turnMs = s.runStartedAt ? Date.now() - s.runStartedAt : 0
     const msg: ChatMessageWithTrace = {
       role: 'assistant',
-      content: res.finalText.trim() || t('ai.agentCore.emptyReply', { rounds: String(res.rounds) }),
+      content:
+        res.finalText.trim() ||
+        s.currentChunk.trim() ||
+        t('ai.agentCore.emptyReply', { rounds: String(res.rounds) }),
+      ...(s.currentReasoning ? { reasoning: s.currentReasoning } : {}),
       ...(trace.length > 0 ? { trace } : {}),
+      ...(turnMs ? { turnMs } : {}),
     }
-    useAiStore.getState().addMessage(msg)
     useAiStore.setState({
+      messages: [...s.messages, msg],
       streaming: false,
       currentChunk: '',
       currentReasoning: '',
+      toolCalls: [],
+      runStartedAt: 0,
       agentStages: [],
     })
   } catch (e) {
@@ -699,6 +720,7 @@ export const useAiStore = create<AiState>((set, get) => {
       mainProcessRunning: s.mainProcessRunning,
       currentChunk: s.currentChunk,
       currentReasoning: s.currentReasoning,
+      runStartedAt: s.runStartedAt,
       isBatchMode: s.isBatchMode,
       batchSnapshot: s.batchSnapshot,
       toolCalls: s.toolCalls,
@@ -763,20 +785,39 @@ export const useAiStore = create<AiState>((set, get) => {
     agentState: AgentState,
   ): ProjectConversation => {
     const trace = traceOf(c.toolCalls)
+    const turnMs = c.runStartedAt ? Date.now() - c.runStartedAt : 0
     let messages = c.messages
     if (c.streaming && c.currentChunk) {
       messages = [
         ...messages,
-        { role: 'assistant', content: c.currentChunk, ...(trace.length ? { trace } : {}) },
+        {
+          role: 'assistant',
+          content: c.currentChunk,
+          ...(c.currentReasoning ? { reasoning: c.currentReasoning } : {}),
+          ...(trace.length ? { trace } : {}),
+          ...(turnMs ? { turnMs } : {}),
+        },
       ]
     } else if (trace.length > 0) {
       // 没有正文但用过工具（真机常见：查了一堆然后只说了句"现在开始…"）——
       // 也要留下"它干了什么"，否则这一轮在界面上就等于没发生。
-      messages = [...messages, { role: 'assistant', content: '', trace }]
+      messages = [
+        ...messages,
+        { role: 'assistant', content: '', trace, ...(turnMs ? { turnMs } : {}) },
+      ]
     }
     if (note) messages = [...messages, { role: 'system', content: note }]
     // toolCalls 移交给消息后清空：下一次发送不该再把它们挂到新消息上
-    return { ...c, messages, streaming: false, currentChunk: '', agentState, toolCalls: [] }
+    return {
+      ...c,
+      messages,
+      streaming: false,
+      currentChunk: '',
+      currentReasoning: '',
+      runStartedAt: 0,
+      agentState,
+      toolCalls: [],
+    }
   }
 
   return {
@@ -788,6 +829,7 @@ export const useAiStore = create<AiState>((set, get) => {
     streaming: false,
     currentChunk: '',
     currentReasoning: '',
+    runStartedAt: 0,
     isBatchMode: false,
     batchSnapshot: null,
     toolCalls: [],
@@ -905,16 +947,22 @@ export const useAiStore = create<AiState>((set, get) => {
         // stopStreaming 已经把 streaming 置为 false 并清空 currentChunk，这里幂等返回
         if (!s.streaming) return s
         if (!s.currentChunk) return { streaming: false, currentChunk: '', currentReasoning: '' }
-        const finalMsg: ChatMessage = {
+        const trace = traceOf(s.toolCalls)
+        const turnMs = s.runStartedAt ? Date.now() - s.runStartedAt : 0
+        const finalMsg: ChatMessageWithTrace = {
           role: 'assistant',
           content: s.currentChunk,
           ...(s.currentReasoning ? { reasoning: s.currentReasoning } : {}),
+          ...(trace.length ? { trace } : {}),
+          ...(turnMs ? { turnMs } : {}),
         }
         return {
           messages: [...s.messages, finalMsg],
           streaming: false,
           currentChunk: '',
           currentReasoning: '',
+          toolCalls: [],
+          runStartedAt: 0,
         }
       }),
 
@@ -967,16 +1015,21 @@ export const useAiStore = create<AiState>((set, get) => {
           return { streaming: false, agentState: { state: 'idle' } }
         }
         const trace = traceOf(s.toolCalls)
+        const turnMs = s.runStartedAt ? Date.now() - s.runStartedAt : 0
         const finalMsg: ChatMessageWithTrace = {
           role: 'assistant',
           content: s.currentChunk + t('ai.ops.interrupted'),
+          ...(s.currentReasoning ? { reasoning: s.currentReasoning } : {}),
           ...(trace.length ? { trace } : {}),
+          ...(turnMs ? { turnMs } : {}),
         }
         return {
           messages: [...s.messages, finalMsg],
           streaming: false,
           currentChunk: '',
+          currentReasoning: '',
           toolCalls: [],
+          runStartedAt: 0,
           agentState: { state: 'idle' },
         }
       })
@@ -1263,7 +1316,7 @@ export const useAiStore = create<AiState>((set, get) => {
       const { addMessage } = get()
       addMessage({ role: 'user', content: text, ...(images?.length ? { images } : {}) })
       // 新一轮开始：清掉上一轮的多智能体阶段进度
-      set({ streaming: true, currentChunk: '', agentStages: [] })
+      set({ streaming: true, currentChunk: '', agentStages: [], runStartedAt: Date.now() })
       /**
        * 用户当前在代码编辑器里打开的文件 —— 两条链路都要送（"帮我改这个文件"里的"这个"）。
        * 这里**不按页面过滤**：「哪些模式用得上它」是主进程的规则（角色 = 页面/模式），
@@ -1907,6 +1960,7 @@ export const useAiStore = create<AiState>((set, get) => {
         routeTo(data.projectPath, c => {
           if (!c.streaming) return c
           const trace = traceOf(c.toolCalls)
+          const turnMs = c.runStartedAt ? Date.now() - c.runStartedAt : 0
           const messages = c.currentChunk
             ? [
                 ...c.messages,
@@ -1915,10 +1969,19 @@ export const useAiStore = create<AiState>((set, get) => {
                   content: c.currentChunk,
                   ...(c.currentReasoning ? { reasoning: c.currentReasoning } : {}),
                   ...(trace.length ? { trace } : {}),
+                  ...(turnMs ? { turnMs } : {}),
                 },
               ]
             : trace.length
-              ? [...c.messages, { role: 'assistant' as const, content: '', trace }]
+              ? [
+                  ...c.messages,
+                  {
+                    role: 'assistant' as const,
+                    content: '',
+                    trace,
+                    ...(turnMs ? { turnMs } : {}),
+                  },
+                ]
               : c.messages
           return {
             ...c,
@@ -1927,6 +1990,7 @@ export const useAiStore = create<AiState>((set, get) => {
             currentChunk: '',
             currentReasoning: '',
             toolCalls: [],
+            runStartedAt: 0,
           }
         })
       })

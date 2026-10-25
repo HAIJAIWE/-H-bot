@@ -1,6 +1,8 @@
 // src/renderer/src/components/ai/ToolRows.tsx
 //
-// **工具行**：运行中的一行（`ToolCallCard`）与"这一轮干了什么"的折叠列表（`ToolTrace`）。
+// **工具行**（`ToolCallCard`）：一条工具调用一行，点开才是参数与结果。
+// 2026-10-25 按 DSH 重排：折叠发生在**整轮的过程行**（`TurnProcess`），工具行不再自带折叠列表 ——
+// 两层折叠（轮 → 工具组 → 单条）在右栏 180px 里是三次点击才看到一行参数。
 //
 // 从 ChatPanel 拆出来（2026-10-18）：那个文件已经贴着 fileGrowth 的增长预算，
 // 而这两块是**自成一体的展示件** —— 不碰发送、不碰会话状态，搬出去风险最低。
@@ -8,12 +10,11 @@
 // 工具事件都渲染在这里：主进程循环发来的 toolCall 行与历史回放是同一套消息形状
 // （见 docs/ai/agent-core-wiring.md §9）。
 import { useState } from 'react'
-import { Button } from '../ui/Button'
 import { t } from '../../i18n'
 import { toolLabel } from '@shared/ai/toolLabels'
 import { runningText, settledFallbackText, summarizeToolResult } from '@shared/ai/toolSummary'
 import { useLocaleSubscription } from '../../stores/i18nStore'
-import type { ToolCallRecord, ToolTraceEntry } from '../../stores/aiStore'
+import type { ToolCallRecord } from '../../stores/aiStore'
 import { getToolPresenter, toolResultText } from '../../lib/ai/toolPresenters'
 
 /**
@@ -181,64 +182,6 @@ export function ToolCallCard({ call }: { call: ToolCallRecord }) {
               <ToolResultView result={call.result} presentation={presentation} />
             </div>
           )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ── 这一轮"干了什么"（随消息长期可见，可折叠） ────────── */
-
-/**
- * 真机诉求原话（2026-10-06）："不知道他的工作干了什么？还有为啥完事后那个绿色会消失？"
- *
- * 在此之前工具卡片只挂在**最新一条消息**上，下一次发送就把它们清掉了 —— 于是
- * "它刚查了 8 个节点定义"在界面上消失得无影无踪。现在工具调用随消息存下来：
- * 默认一行摘要（`🔧 8 次工具调用：list_nodes ×7、read_flow ×1`），点开是逐条卡片。
- */
-export function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
-  useLocaleSubscription()
-  const [expanded, setExpanded] = useState(false)
-
-  const counts = new Map<string, number>()
-  for (const entry of trace) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1)
-  const detail = [...counts.entries()]
-    .map(([name, n]) => (n > 1 ? `${name} ×${n}` : name))
-    .join('、')
-
-  return (
-    <div className="mt-1 w-full">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full flex items-center gap-2 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
-        onClick={() => setExpanded(v => !v)}
-        aria-expanded={expanded}
-      >
-        <span
-          className={`text-zinc-600 text-xs transition-transform ${expanded ? 'rotate-90' : ''}`}
-          aria-hidden="true"
-        >
-          ▶
-        </span>
-        <span className="truncate">{t('ai.tool.trace', { count: trace.length, detail })}</span>
-      </Button>
-      {expanded && (
-        <div className="space-y-1">
-          {trace.map(entry => (
-            <ToolCallCard
-              key={entry.id}
-              call={{
-                id: entry.id,
-                name: entry.name,
-                args: entry.args,
-                // 痕迹里不会有 pending（那是运行中的临时态）
-                status: entry.status === 'pending' ? 'done' : entry.status,
-                result: entry.result,
-                timestamp: 0,
-              }}
-            />
-          ))}
         </div>
       )}
     </div>

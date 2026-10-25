@@ -362,7 +362,6 @@
       "hint": "描述你想要的 QQ 机器人功能，或使用快捷操作",
       "placeholder": "描述你想实现的功能...",
       "sendAria": "发送消息",
-      "thinkingAria": "AI 正在思考",
       "threadOption": "{title}（{count} 条）",
       "placeholderOnboarding": "描述你想做个什么样的机器人（我来帮你建项目）...",
       "removeImage": "移除这张图",
@@ -377,7 +376,7 @@
       "sessionStepTitle": "循环模式的步边界：这一轮走到第几步（每步 = 问一次模型）",
       "sessionRunning": "运行中",
       "jumpLatest": "回到最新",
-      "reasoning": "思考过程",
+      "reasoning": "思考",
       "attachImage": "添加图片",
       "modelUnset": "未配置模型",
       "modelTitle": "切换模型（候选来自服务商预设）",
@@ -546,7 +545,6 @@
     "tool": {
       "empty": "(空)",
       "result": "结果:",
-      "trace": "🔧 {count} 次工具调用：{detail}",
       "failure": {
         "title": "失败原因",
         "suggest": "建议",
@@ -655,10 +653,19 @@
       "approvalFullPreset": "审批：完全放行（预设）",
       "plan": "先计划：本轮只读"
     },
-    "turns": {
-      "toggle": "展开或收起这一轮",
-      "meta": "{replies} 条回复 · {tools} 次工具",
-      "empty": "（这一轮没有文字）"
+    "process": {
+      "running": "执行中",
+      "worked": "已完成",
+      "took": "工作了 {duration}",
+      "failed": "这一轮失败了",
+      "stopped": "已停止",
+      "tools": "{n} 次工具",
+      "seconds": "{n} 秒",
+      "minutes": "{m} 分 {s} 秒"
+    },
+    "running": {
+      "idle": "正在处理",
+      "for": "正在处理 {duration}"
     },
     "allowRules": {
       "title": "已记住 {n} 个动作，不再询问",

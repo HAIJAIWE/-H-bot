@@ -14,8 +14,8 @@ import { AIProviderConfig } from '../settings/AIProviderConfig'
 import { findLlmPreset } from '@shared/types/llm-presets'
 import type { ChatMessageWithTrace, ToolCallRecord } from '../../stores/aiStore'
 import { t } from '../../i18n'
-import { groupIntoTurns, turnPreview } from '../../lib/ai/turnGrouping'
-import { ToolCallCard, ToolTrace } from './ToolRows'
+import { groupIntoTurns } from '../../lib/ai/turnGrouping'
+import { ToolCallCard } from './ToolRows'
 import { AiSlot } from '../../lib/ai/uiSlots'
 import '../../plugins'
 import { listPlugins } from '../../lib/plugins/api'
@@ -27,11 +27,12 @@ import { ChatEmptyState } from './ChatEmptyState'
 import type { PresetMeta } from './presetOptions'
 import { PresetEditor } from './PresetEditor'
 import { InlineEditBox } from './InlineEditBox'
-import { TurnFoldHeader } from './TurnFoldHeader'
-import { MessageBubble, StreamingBubble } from './MessageBubble'
+import { StreamingBubble } from './MessageBubble'
 import { MessageActions } from './MessageActions'
 import { AgentTranscript } from './AgentTranscript'
-import { ThinkingIndicator } from './ThinkingIndicator'
+import { ReasoningRow } from './ReasoningRow'
+import { RunningLine } from './RunningLine'
+import { TurnProcess } from './TurnProcess'
 import { toast } from '../ui/Toast'
 import { compactTokens, formatRunStats } from './runStats'
 import { useLocaleSubscription } from '../../stores/i18nStore'
@@ -346,11 +347,6 @@ export const ChatPanel = React.memo(function ChatPanel() {
   /** 上次失败的尝试（进日志、不进模型历史；只在面板上提示一次） */
   const lastAttempt = useAiStore(s => s.lastAttempt)
   const clearLastAttempt = useAiStore(s => s.clearLastAttempt)
-  /**
-   * **按轮折叠**（2026-10-18）：默认只展开**最后一轮**，往上都是"你: … · N 条回复"的一行摘要。
-   * 键是这一轮的起点下标（消息只追加，所以稳定）；用户点过就以他为准。
-   */
-  const [turnOpen, setTurnOpen] = useState<Record<string, boolean>>({})
   const stopStreaming = useAiStore(s => s.stopStreaming)
   /** 主进程是否真有请求在飞 —— 「停止」按钮该看它（本地 streaming 可能是 false 而主进程还在跑工具） */
   const mainProcessRunning = useAiStore(s => s.mainProcessRunning)
@@ -863,13 +859,6 @@ export const ChatPanel = React.memo(function ChatPanel() {
    * 渲染时每条消息都要查一次，先算好，别在 map 里反复 findIndex。
    */
   const turns = useMemo(() => groupIntoTurns(messages), [messages])
-  const turnAt = useMemo(() => {
-    const at: number[] = new Array(messages.length).fill(0)
-    turns.forEach((tg, idx) => {
-      for (let k = tg.start; k < tg.end; k += 1) at[k] = idx
-    })
-    return at
-  }, [turns, messages.length])
 
   return (
     // ⚠️ `min-h-0` 不能省：flex 子项默认 `min-height:auto`（= 内容高度），
@@ -996,15 +985,11 @@ export const ChatPanel = React.memo(function ChatPanel() {
             <AgentTranscript
               messages={messages}
               turns={turns}
-              turnAt={turnAt}
-              turnOpen={turnOpen}
-              setTurnOpen={setTurnOpen}
               editingIndex={editingIndex}
               setEditingIndex={setEditingIndex}
               editDraft={editDraft}
               setEditDraft={setEditDraft}
               streaming={streaming}
-              toolCalls={toolCalls}
               copiedIndex={copiedIndex}
               copyText={copyText}
               regenerate={regenerate}
@@ -1030,14 +1015,23 @@ export const ChatPanel = React.memo(function ChatPanel() {
           />
         )}
 
-        {/* 流式输出 */}
-        {streaming && (currentChunk || currentReasoning) && (
-          <StreamingBubble text={currentChunk} reasoning={currentReasoning} />
-        )}
-
-        {/* 加载指示器（流式开始前） */}
-        {streaming && !currentChunk && !currentReasoning && (
-          <ThinkingIndicator label={runningLabel} elapsed={runElapsed} step={agentStep} />
+        {/*
+          正在跑的这一轮（2026-10-25 按 DSH 重排）：过程在前、正文在后、运行行收尾。
+          过程来自 store 的瞬态字段（历史轮的同一份内容在消息的 reasoning / trace 里）。
+        */}
+        {streaming && (
+          <>
+            {(currentReasoning || toolCalls.length > 0) && (
+              <TurnProcess running defaultOpen tools={toolCalls.length}>
+                {currentReasoning && <ReasoningRow text={currentReasoning} running defaultOpen />}
+                {toolCalls.map(tc => (
+                  <ToolCallCard key={tc.id} call={tc} />
+                ))}
+              </TurnProcess>
+            )}
+            {currentChunk && <StreamingBubble text={currentChunk} />}
+            <RunningLine elapsed={runElapsed} {...(runningLabel ? { label: runningLabel } : {})} />
+          </>
         )}
       </div>
 

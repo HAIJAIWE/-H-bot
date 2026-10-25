@@ -1,24 +1,33 @@
 // src/renderer/src/components/ai/MessageBubble.tsx
 //
-// **消息气泡与流式气泡**（从 ChatPanel 拆出，2026-10-18）。
-// 自包含：只吃 msg / toolCalls / 流式文本；系统回执的隐藏规则也在这里（真机踩过：把错误横幅一起藏了）。
+// **一条消息**（2026-10-25 按 DSH 重排）：用户 = 右对齐气泡，助手 = 整栏正文，
+// **两边都没有头像** —— DSH 用对齐与底色区分说话人，"AI / U" 圆点只是噪音，
+// 窄右栏里它还各占 24px。助手头上先挂一条「过程行」（思考与工具收在里面），再是正文。
+// 系统回执的隐藏规则与压缩提示的分隔线样式都留在这里（真机踩过：把错误横幅一起藏了）。
 import { t } from '../../i18n'
 import { useLocaleSubscription } from '../../stores/i18nStore'
-import type { ChatMessageWithTrace, ToolCallRecord } from '../../stores/aiStore'
+import type { ChatMessageWithTrace, ToolCallRecord, ToolTraceEntry } from '../../stores/aiStore'
 import { AI_TURN_NOTE_PREFIX } from '@shared/types/ai'
 import { MiniMarkdown } from '../ui/MiniMarkdown'
 import { ZoomableImage } from '../ui/ZoomableImage'
-import { ToolCallCard, ToolTrace } from './ToolRows'
+import { ToolCallCard } from './ToolRows'
+import { ReasoningRow } from './ReasoningRow'
+import { TurnProcess } from './TurnProcess'
 
-export function MessageBubble({
-  msg,
-  toolCalls,
-}: {
-  msg: ChatMessageWithTrace
-  toolCalls?: ToolCallRecord[]
-}): React.ReactNode {
+/** 历史痕迹 → 工具行（痕迹里不会有 pending，那是运行中的临时态） */
+function recordsOfTrace(trace: readonly ToolTraceEntry[]): ToolCallRecord[] {
+  return trace.map(entry => ({
+    id: entry.id,
+    name: entry.name,
+    args: entry.args,
+    status: entry.status === 'pending' ? 'done' : entry.status,
+    result: entry.result,
+    timestamp: 0,
+  }))
+}
+
+export function MessageBubble({ msg }: { msg: ChatMessageWithTrace }): React.ReactNode {
   useLocaleSubscription()
-  const isUser = msg.role === 'user'
   const isSystem = msg.role === 'system'
 
   /**
@@ -30,13 +39,11 @@ export function MessageBubble({
 
   /**
    * **压缩提示**不是警告（2026-10-25）：走系统消息那条路会被画成琥珀色横幅，
-   * 看着像出了错。它其实是一条"分隔线式的说明"—— 用两侧细线收在中间，
+   * 看着像出了错。它其实是一条"分隔线式的说明"—— 用上方细线收住，
    * 与"这里以前还有内容"的语义一致。
    */
   if (msg.notice === 'compaction') {
     return (
-      // 上方一条细线当分隔：不靠"左右两条线 + flex-1"—— 窄栏（右栏 200px 上下）里
-      // 文字本身就把宽度吃满，两侧线会缩成 0，看着只是段孤立灰字。
       <div className="mb-3 border-t border-zinc-800 pt-2 text-center text-[11px] break-words text-zinc-500 select-none">
         {msg.content}
       </div>
@@ -50,101 +57,63 @@ export function MessageBubble({
     )
   }
 
-  return (
-    <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : ''} ${isUser ? 'mb-4' : 'mb-5'}`}>
-      <div
-        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${
-          isUser ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-300'
-        }`}
-      >
-        {isUser ? 'U' : 'AI'}
-      </div>
-      {/*
-       * 对齐 DSH 的对话排版：**助手是整栏正文，不是气泡**（14/24 行高、无底色），
-       * 只有用户消息用右侧圆角气泡 —— 一眼分得清"谁在说"，又不让每段回复都套个大盒子。
-       */}
-      <div
-        className={`min-w-0 flex flex-col ${isUser ? 'max-w-[85%] items-end' : 'flex-1 items-start'}`}
-      >
-        <div
-          className={`break-words ${
-            isUser
-              ? 'rounded-2xl bg-blue-700 px-3.5 py-2 text-sm leading-6 text-white rounded-tr-sm whitespace-pre-wrap'
-              : 'w-full text-sm leading-6 text-zinc-200'
-          }`}
-        >
-          {msg.images && msg.images.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {msg.images.map((src, i) => (
-                <ZoomableImage
-                  key={i}
-                  src={src}
-                  className="max-h-28 max-w-full rounded border border-zinc-500/40"
-                />
-              ))}
-            </div>
-          )}
-          {!isUser && msg.reasoning && (
-            <details className="mb-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-2 py-1 text-xs">
-              <summary className="cursor-pointer select-none text-zinc-500">
-                {t('ai.chat.reasoning')}
-              </summary>
-              <div className="mt-1 whitespace-pre-wrap leading-5 text-zinc-400">
-                {msg.reasoning}
-              </div>
-            </details>
-          )}
-          {isUser ? (
-            msg.content || (msg.toolCalls && msg.toolCalls.length > 0 ? '' : t('ai.tool.empty'))
-          ) : msg.content ? (
-            <MiniMarkdown content={msg.content} />
-          ) : msg.toolCalls && msg.toolCalls.length > 0 ? (
-            ''
-          ) : (
-            t('ai.tool.empty')
-          )}
+  const images = msg.images && msg.images.length > 0 && (
+    <div className="mb-1.5 flex flex-wrap gap-1">
+      {msg.images.map((src, i) => (
+        <ZoomableImage
+          key={i}
+          src={src}
+          className="max-h-28 max-w-full rounded border border-zinc-500/40"
+        />
+      ))}
+    </div>
+  )
+
+  if (msg.role === 'user') {
+    return (
+      <div className="mb-2 flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-blue-700 px-3.5 py-2 text-sm leading-6 break-words whitespace-pre-wrap text-white">
+          {images}
+          {msg.content || t('ai.tool.empty')}
         </div>
+      </div>
+    )
+  }
 
-        {toolCalls && toolCalls.length > 0 && (
-          <div className="mt-1 space-y-1 w-full">
-            {toolCalls.map(tc => (
-              <ToolCallCard key={tc.id} call={tc} />
-            ))}
-          </div>
+  const records = recordsOfTrace(msg.trace ?? [])
+  return (
+    <div className="mb-1">
+      {(msg.reasoning || records.length > 0) && (
+        <TurnProcess tools={records.length} {...(msg.turnMs ? { elapsedMs: msg.turnMs } : {})}>
+          {msg.reasoning && <ReasoningRow text={msg.reasoning} />}
+          {records.map(tc => (
+            <ToolCallCard key={tc.id} call={tc} />
+          ))}
+        </TurnProcess>
+      )}
+      <div className="w-full text-sm leading-6 break-words text-zinc-200">
+        {msg.content ? (
+          <MiniMarkdown content={msg.content} />
+        ) : records.length > 0 ? null : (
+          t('ai.tool.empty')
         )}
-
-        {msg.trace && msg.trace.length > 0 && <ToolTrace trace={msg.trace} />}
       </div>
     </div>
   )
 }
 
-/** 流式输出：与助手消息同一套排版（整栏正文 + 光标），不套气泡 */
-export function StreamingBubble({
-  text,
-  reasoning,
-}: {
-  text: string
-  /** 思考过程（还没出正文时也要看得见"它在想"） */
-  reasoning?: string
-}): React.ReactNode {
+/**
+ * 流式正文：与助手消息同一套排版（整栏正文 + 光标）。
+ *
+ * 思考与工具**不在这里** —— 它们在 ChatPanel 的 `TurnProcess`（运行中那一轮）里，
+ * 与历史轮的排版完全一致；否则同一条思考在"跑的时候"和"跑完以后"会长得不一样。
+ */
+export function StreamingBubble({ text }: { text: string }): React.ReactNode {
+  useLocaleSubscription()
   return (
-    <div className="flex gap-2 mb-5">
-      <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-xs text-zinc-300 flex-shrink-0">
-        AI
-      </div>
-      <div className="min-w-0 flex-1 text-sm leading-6 text-zinc-200 break-words">
-        {reasoning && (
-          <details className="mb-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-2 py-1 text-xs">
-            <summary className="cursor-pointer select-none text-zinc-500">
-              {t('ai.chat.reasoning')}
-            </summary>
-            <div className="mt-1 whitespace-pre-wrap leading-5 text-zinc-400">{reasoning}</div>
-          </details>
-        )}
-        <MiniMarkdown content={text} />
-        <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-0.5 align-text-bottom" />
-      </div>
+    <div className="mb-1 w-full text-sm leading-6 break-words text-zinc-200">
+      <MiniMarkdown content={text} />
+      <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-zinc-400 align-text-bottom" />
     </div>
   )
 }

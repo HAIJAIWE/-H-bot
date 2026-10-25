@@ -5,10 +5,10 @@
 // 90-98 行是**另一版**的尾巴（工具痕迹摘要），100-122 行又起了一遍「应用全部」并且
 // 丢掉了 `it(...)` 头部，只剩 proposalA/proposalB 的构造。这里按当前组件契约重写，
 // 覆盖旧版能确认的 4 个用例 + 补回被 splice 掉的两个（工具痕迹展开、切提案重置选择）。
-import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import type { Proposal } from '@shared/types/proposal';
+import '@testing-library/jest-dom/vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import type { Proposal } from '@shared/types/proposal'
 
 // 必须在 import aiStore 之前 mock flowStore（vi.mock 会自动提升到文件顶部）
 vi.mock('@renderer/stores/flowStore', () => ({
@@ -24,20 +24,20 @@ vi.mock('@renderer/stores/flowStore', () => ({
       generateCode: vi.fn().mockResolvedValue(true),
     }),
   },
-}));
+}))
 
 vi.mock('@renderer/stores/projectStore', () => ({
   useProjectStore: (selector: (s: { currentProject: null }) => unknown) =>
     selector({ currentProject: null }),
-}));
+}))
 
-import { t } from '@renderer/i18n';
-import { useAiStore } from '@renderer/stores/aiStore';
-import { ChatPanel } from '@renderer/components/ai/ChatPanel';
+import { t } from '@renderer/i18n'
+import { useAiStore } from '@renderer/stores/aiStore'
+import { ChatPanel } from '@renderer/components/ai/ChatPanel'
 
 afterEach(() => {
-  cleanup();
-});
+  cleanup()
+})
 
 beforeEach(() => {
   // 重置 store 状态，确保测试隔离
@@ -49,13 +49,13 @@ beforeEach(() => {
     toolCalls: [],
     agentState: { state: 'idle' },
     isBatchMode: false,
-  });
-});
+  })
+})
 
 /** 按钮文案全部来自 i18n：用 t() 取，别把中文写死进断言（否则换语言就红） */
-const APPLY_ALL = () => t('ai.proposal.applyAll');
-const REJECT = () => t('ai.proposal.reject');
-const REJECT_ALL = () => t('ai.proposal.rejectAll');
+const APPLY_ALL = () => t('ai.proposal.applyAll')
+const REJECT = () => t('ai.proposal.reject')
+const REJECT_ALL = () => t('ai.proposal.rejectAll')
 
 describe('ChatPanel 集成 ProposalCard', () => {
   const mockProposal: Proposal = {
@@ -66,42 +66,42 @@ describe('ChatPanel 集成 ProposalCard', () => {
     operations: [
       { kind: 'add_node', tempRef: 'n1', nodeKind: 'message_received', label: '收到消息' },
     ],
-  };
+  }
 
   it('currentProposal 为 null 时不显示 ProposalCard', () => {
-    render(<ChatPanel />);
-    expect(screen.queryByText('添加复读节点')).not.toBeInTheDocument();
-  });
+    render(<ChatPanel />)
+    expect(screen.queryByText('添加复读节点')).not.toBeInTheDocument()
+  })
 
   it('currentProposal 存在时显示 ProposalCard 与三个动作', () => {
-    useAiStore.setState({ currentProposal: mockProposal });
-    render(<ChatPanel />);
-    expect(screen.getByText('添加复读节点')).toBeInTheDocument();
+    useAiStore.setState({ currentProposal: mockProposal })
+    render(<ChatPanel />)
+    expect(screen.getByText('添加复读节点')).toBeInTheDocument()
     // 应用 / 拒绝 / 全部拒绝 是三个不同动作，缺一个用户就少一条路
-    expect(screen.getByText(APPLY_ALL())).toBeInTheDocument();
-    expect(screen.getByText(REJECT())).toBeInTheDocument();
-    expect(screen.getByText(REJECT_ALL())).toBeInTheDocument();
-  });
+    expect(screen.getByText(APPLY_ALL())).toBeInTheDocument()
+    expect(screen.getByText(REJECT())).toBeInTheDocument()
+    expect(screen.getByText(REJECT_ALL())).toBeInTheDocument()
+  })
 
   it('点击应用全部调用 applyProposal，且默认全选', () => {
-    const applySpy = vi.fn().mockResolvedValue(undefined);
-    useAiStore.setState({ currentProposal: mockProposal, applyProposal: applySpy });
-    render(<ChatPanel />);
-    fireEvent.click(screen.getByText(APPLY_ALL()));
-    expect(applySpy).toHaveBeenCalledTimes(1);
+    const applySpy = vi.fn().mockResolvedValue(undefined)
+    useAiStore.setState({ currentProposal: mockProposal, applyProposal: applySpy })
+    render(<ChatPanel />)
+    fireEvent.click(screen.getByText(APPLY_ALL()))
+    expect(applySpy).toHaveBeenCalledTimes(1)
     // ProposalCard 默认全选操作，因此传入全部 operations
-    expect(applySpy).toHaveBeenCalledWith(mockProposal.operations);
-  });
+    expect(applySpy).toHaveBeenCalledWith(mockProposal.operations)
+  })
 
   it('点击拒绝调用 rejectProposal', () => {
-    const rejectSpy = vi.fn();
-    useAiStore.setState({ currentProposal: mockProposal, rejectProposal: rejectSpy });
-    render(<ChatPanel />);
-    fireEvent.click(screen.getByText(REJECT()));
-    expect(rejectSpy).toHaveBeenCalledTimes(1);
-  });
+    const rejectSpy = vi.fn()
+    useAiStore.setState({ currentProposal: mockProposal, rejectProposal: rejectSpy })
+    render(<ChatPanel />)
+    fireEvent.click(screen.getByText(REJECT()))
+    expect(rejectSpy).toHaveBeenCalledTimes(1)
+  })
 
-  it('工具痕迹：一行摘要 + 展开后逐条可读', () => {
+  it('过程行：一行结算 + 展开后逐条工具可读（2026-10-25 按 DSH 重排后）', () => {
     useAiStore.setState({
       messages: [
         { role: 'user', content: '查一下节点' },
@@ -116,19 +116,21 @@ describe('ChatPanel 集成 ProposalCard', () => {
           ],
         },
       ],
-    });
-    render(<ChatPanel />);
+    })
+    render(<ChatPanel />)
 
-    const summary = t('ai.tool.trace', { count: 3, detail: 'list_nodes ×2、read_flow' });
-    expect(screen.getByText(summary), '没有那一行"干了什么"').toBeInTheDocument();
+    // 折叠层级变了：整轮不再折成一行，折的是「过程」（思考 + 工具）这一层
+    const summary = t('ai.process.worked')
+    expect(screen.getByText(summary), '没有那一行结算').toBeInTheDocument()
+    expect(screen.getByText(t('ai.process.tools', { n: '3' }))).toBeInTheDocument()
     // 收起态不该有明细
-    expect(screen.queryByText(/message_received/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/message_received/)).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText(summary));
+    fireEvent.click(screen.getByText(summary))
     // 展开后一行显示「工具名 + 目标」，目标就是 nodeKind（不是 kind=… 的拼接）
-    expect(screen.getByText(/message_received/)).toBeInTheDocument();
-    expect(screen.getByText(/message_send/)).toBeInTheDocument();
-  });
+    expect(screen.getByText(/message_received/)).toBeInTheDocument()
+    expect(screen.getByText(/message_send/)).toBeInTheDocument()
+  })
 
   it('换一条提案时选择被重置为全选（应用按钮重新可用）', () => {
     const proposalA: Proposal = {
@@ -140,7 +142,7 @@ describe('ChatPanel 集成 ProposalCard', () => {
         { kind: 'add_node', tempRef: 'a1', nodeKind: 'message_received', label: 'A1' },
         { kind: 'add_node', tempRef: 'a2', nodeKind: 'message_send', label: 'A2' },
       ],
-    };
+    }
     const proposalB: Proposal = {
       id: 'p-b',
       summary: 'B 方案',
@@ -150,26 +152,26 @@ describe('ChatPanel 集成 ProposalCard', () => {
         { kind: 'add_node', tempRef: 'b1', nodeKind: 'message_received', label: 'B1' },
         { kind: 'add_node', tempRef: 'b2', nodeKind: 'message_send', label: 'B2' },
       ],
-    };
+    }
 
-    useAiStore.setState({ currentProposal: proposalA });
-    const { rerender } = render(<ChatPanel />);
+    useAiStore.setState({ currentProposal: proposalA })
+    const { rerender } = render(<ChatPanel />)
     // 先「全部拒绝」= 取消全选 → 应用按钮 disabled（没选任何操作就不该让它点）
-    fireEvent.click(screen.getByText(REJECT_ALL()));
-    expect(screen.getByText(APPLY_ALL())).toBeDisabled();
+    fireEvent.click(screen.getByText(REJECT_ALL()))
+    expect(screen.getByText(APPLY_ALL())).toBeDisabled()
 
     // 切到 proposalB：selected 应被重置为全选，应用按钮不再 disabled
-    useAiStore.setState({ currentProposal: proposalB });
-    rerender(<ChatPanel />);
-    expect(screen.getByText('B 方案')).toBeInTheDocument();
-    expect(screen.getByText(APPLY_ALL())).not.toBeDisabled();
-  });
+    useAiStore.setState({ currentProposal: proposalB })
+    rerender(<ChatPanel />)
+    expect(screen.getByText('B 方案')).toBeInTheDocument()
+    expect(screen.getByText(APPLY_ALL())).not.toBeDisabled()
+  })
 
   it('clearMessages 清理 currentProposal', () => {
-    useAiStore.setState({ currentProposal: mockProposal });
-    render(<ChatPanel />);
-    expect(screen.getByText('添加复读节点')).toBeInTheDocument();
-    useAiStore.getState().clearMessages();
-    expect(useAiStore.getState().currentProposal).toBeNull();
-  });
-});
+    useAiStore.setState({ currentProposal: mockProposal })
+    render(<ChatPanel />)
+    expect(screen.getByText('添加复读节点')).toBeInTheDocument()
+    useAiStore.getState().clearMessages()
+    expect(useAiStore.getState().currentProposal).toBeNull()
+  })
+})
