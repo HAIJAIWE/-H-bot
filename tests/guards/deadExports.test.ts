@@ -32,12 +32,12 @@
 // ⚠️ 基线**不能**从"带 bug 的中间态"生成 —— 我自己踩过：反向对照时先把接线摘了、
 // 又拿那个中间态重新生成基线，于是 `cancelAiChat` 被登记进基线，闸门就再也抓不到它了。
 //
-import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import ts from 'typescript';
+import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
+import ts from 'typescript'
 
-const ROOT = process.cwd();
+const ROOT = process.cwd()
 
 /** 整个文件级别的豁免（该文件多数导出都零引用 —— 整块登记比逐条清楚） */
 const BASELINE_FILES: Record<string, string> = {
@@ -63,7 +63,7 @@ const BASELINE_FILES: Record<string, string> = {
   'src\\shared\\errors\\codes.ts': '错误码工具（fromUnknown/isAppError）未接入',
   'src\\shared\\message\\compose.ts':
     '消息拼装辅助（md* 系列）；当前消息都由节点配置拼，用不到这些',
-};
+}
 
 /** 单条豁免（键 = `相对路径:名字`） */
 const BASELINE_NAMES: Record<string, string> = {
@@ -101,7 +101,7 @@ const BASELINE_NAMES: Record<string, string> = {
     '⚠️ 同上：代码生成器按名发射 subflowCall(...)（codegen/emitters.ts:281），静态引用扫不到',
   'src\\main\\services\\ai\\historyStore.ts:defaultHistoryFile':
     '泛化出口（可指向任意 JSONL）：机器人侧自己拼 conversationFile，所以没人调它；保留是为了让"追加式落盘"只有一个入口（接上或删除时从基线移除）',
-};
+}
 
 /**
  * **仅测试引用**（生产路径没接）的基线。
@@ -116,9 +116,6 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
     '⚠️ 进行中：供调用方做类型收窄（避免 UI 层写 as），接线时使用。',
   'src\\main\\services\\agent-core\\modelAdapter.ts:createModelFn':
     '⚠️ 进行中：模型适配器，**接代码页开关时**由 main 装配（createModelFn(config) → runAgentLoop）。接线后删掉本条。',
-  'src\\main\\services\\ai\\legacyToolAdapter.ts:adaptLegacyTool':
-    '**迁移阶段 1 的诊断**：旧工具 → 新循环的适配器，目前只被 legacyToolAdapter.test.ts 驱动。' +
-    '阶段 2 接进 processAiChat（按意图分流）后就有真实调用点，届时删掉本条。',
   'src\\main\\services\\agent-core\\sandbox.ts:setSandboxProvider':
     '**缝**：生产里还没有第二个沙箱实现，测试用它证明"换提供者循环不改一行"。' +
     '接容器/受限账户时会有真实调用点，届时删掉本条。',
@@ -313,7 +310,7 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
     '测试夹具用；生产侧不需要主动清空 —— 缓冲有 300 条上限，自己会收敛（接上或删除时从基线移除）',
   'src\\main\\vendor\\dsh\\tool-pipeline\\pipeline.ts:fuseToolSignals':
     'vendored 纯函数；本仓 dispatch 直接用 caller 的 signal（不另建 wrapper），生产侧不调它。保留供以后接内部取消源时用。',
-};
+}
 
 /**
  * **恢复树专用基线**（2026-10-23 重组时新增）：
@@ -321,7 +318,8 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
  * 「零引用」和「仅测试引用」之间漂移。下面按**原因分组**登记存量，按组写理由（逐条写会重复一百遍）。
  * 它同样是**待清理清单**：接上或删除时把对应键移出。
  */
-const RESTORED_REASON = '恢复树存量（分组理由见上方注释）：10/18 产物与磁带测试不同步造成；接上或删除时移出本条';
+const RESTORED_REASON =
+  '恢复树存量（分组理由见上方注释）：10/18 产物与磁带测试不同步造成；接上或删除时移出本条'
 
 const RESTORED_BASELINE: Record<string, string> = {
   // 10/18 之后的 AI 分流/规划/检索层（planner·rag·lanes·scout·readOnlyRoute·benchmark·allowRules·legacyTools）—— 源码已恢复、测试在驱动，但入口（processAiChat 的只读分流/规划开关）尚未接线；接线后逐条移出。
@@ -377,89 +375,88 @@ const RESTORED_BASELINE: Record<string, string> = {
   'src\\shared\\nodes\\varRef.ts:namedVarNameOf': RESTORED_REASON,
   'src\\shared\\runtime\\rolldownShim.ts:__commonJSMin': RESTORED_REASON,
   'src\\shared\\types\\nodeV2.ts:inferRiskLevel': RESTORED_REASON,
-
-};
+}
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
-    if (name === 'node_modules' || name === '.git' || name === '.dsh-tmp') continue;
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(ts|tsx)$/.test(name)) out.push(p);
+    if (name === 'node_modules' || name === '.git' || name === '.dsh-tmp') continue
+    const p = join(dir, name)
+    if (statSync(p).isDirectory()) walk(p, out)
+    else if (/\.(ts|tsx)$/.test(name)) out.push(p)
   }
-  return out;
+  return out
 }
 
 interface DeadExport {
-  name: string;
-  rel: string;
+  name: string
+  rel: string
 }
 
 /** 单遍解析：统计标识符出现 + 收集导出（别写成"每个导出都重扫全仓"，那是 O(n²)） */
 function scan(): { dead: DeadExport[]; testOnly: DeadExport[]; exportCount: number } {
-  const srcFiles = walk(join(ROOT, 'src'));
-  const testFiles = walk(join(ROOT, 'tests'));
-  const refs = new Map<string, { src: number; tests: number }>();
+  const srcFiles = walk(join(ROOT, 'src'))
+  const testFiles = walk(join(ROOT, 'tests'))
+  const refs = new Map<string, { src: number; tests: number }>()
   const bump = (name: string, bucket: 'src' | 'tests'): void => {
-    const e = refs.get(name) ?? { src: 0, tests: 0 };
-    e[bucket] += 1;
-    refs.set(name, e);
-  };
+    const e = refs.get(name) ?? { src: 0, tests: 0 }
+    e[bucket] += 1
+    refs.set(name, e)
+  }
 
-  const exports: Array<{ name: string; file: string }> = [];
+  const exports: Array<{ name: string; file: string }> = []
   for (const file of [...srcFiles, ...testFiles]) {
-    const bucket = file.startsWith(join(ROOT, 'tests')) ? 'tests' : 'src';
+    const bucket = file.startsWith(join(ROOT, 'tests')) ? 'tests' : 'src'
     const sf = ts.createSourceFile(
       file,
       readFileSync(file, 'utf-8'),
       ts.ScriptTarget.ES2022,
       true,
       ts.ScriptKind.TSX,
-    );
+    )
     /**
      * ⚠️ `import { x }` / `export { x }` 里的标识符**不算使用**。
      * 否则"导入了但从不调用"会被当成已接线 ——
      * 本闸门的第一版就是这么把 `cancelAiChat` 漏掉的（反向对照时才发现）。
      */
     const isImportExportName = (node: ts.Node): boolean => {
-      const parent = node.parent as ts.Node | undefined;
-      if (!parent) return false;
+      const parent = node.parent as ts.Node | undefined
+      if (!parent) return false
       return (
         ts.isImportSpecifier(parent) ||
         ts.isImportClause(parent) ||
         ts.isNamespaceImport(parent) ||
         ts.isExportSpecifier(parent)
-      );
-    };
+      )
+    }
     /**
      * ★ 别名映射：`import { formatTimeOnly as formatTime }` 之后，**使用点写的是别名**
      * `formatTime`，而本闸门数的是**原名** `formatTimeOnly` —— 于是"导入了、也真的在用"
      * 会被误判成零引用 ✗（2026-10-03 实测：差点删掉 format.ts 的两个活函数，靠 tsc 兜住）。
      * 所以先把别名记下来，遇到别名时按**原名**计数。
      */
-    const aliases = new Map<string, string>();
+    const aliases = new Map<string, string>()
     for (const stmt of sf.statements) {
-      if (!ts.isImportDeclaration(stmt) || !stmt.importClause?.namedBindings) continue;
-      const nb = stmt.importClause.namedBindings;
-      if (!ts.isNamedImports(nb)) continue;
+      if (!ts.isImportDeclaration(stmt) || !stmt.importClause?.namedBindings) continue
+      const nb = stmt.importClause.namedBindings
+      if (!ts.isNamedImports(nb)) continue
       for (const spec of nb.elements) {
-        if (spec.propertyName) aliases.set(spec.name.text, spec.propertyName.text);
+        if (spec.propertyName) aliases.set(spec.name.text, spec.propertyName.text)
       }
     }
     const visit = (node: ts.Node): void => {
       if (ts.isIdentifier(node) && !isImportExportName(node)) {
-        bump(node.text, bucket);
-        const original = aliases.get(node.text);
-        if (original) bump(original, bucket);
+        bump(node.text, bucket)
+        const original = aliases.get(node.text)
+        if (original) bump(original, bucket)
       }
-      ts.forEachChild(node, visit);
-    };
-    visit(sf);
-    if (bucket !== 'src') continue;
+      ts.forEachChild(node, visit)
+    }
+    visit(sf)
+    if (bucket !== 'src') continue
     for (const stmt of sf.statements) {
-      const mods = ts.canHaveModifiers(stmt) ? ts.getModifiers(stmt) : undefined;
-      if (!mods?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
-      if (ts.isFunctionDeclaration(stmt) && stmt.name) exports.push({ name: stmt.name.text, file });
+      const mods = ts.canHaveModifiers(stmt) ? ts.getModifiers(stmt) : undefined
+      if (!mods?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) continue
+      if (ts.isFunctionDeclaration(stmt) && stmt.name) exports.push({ name: stmt.name.text, file })
       else if (ts.isVariableStatement(stmt)) {
         for (const d of stmt.declarationList.declarations) {
           if (
@@ -467,32 +464,32 @@ function scan(): { dead: DeadExport[]; testOnly: DeadExport[]; exportCount: numb
             d.initializer &&
             (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer))
           ) {
-            exports.push({ name: d.name.text, file });
+            exports.push({ name: d.name.text, file })
           }
         }
       }
     }
   }
 
-  const dead: DeadExport[] = [];
-  const testOnly: DeadExport[] = [];
+  const dead: DeadExport[] = []
+  const testOnly: DeadExport[] = []
   for (const e of exports) {
-    const r = refs.get(e.name) ?? { src: 0, tests: 0 };
-    const srcOthers = r.src - 1;
-    const item = { name: e.name, rel: relative(ROOT, e.file) };
-    if (srcOthers + r.tests <= 0) dead.push(item);
-    else if (srcOthers <= 0) testOnly.push(item);
+    const r = refs.get(e.name) ?? { src: 0, tests: 0 }
+    const srcOthers = r.src - 1
+    const item = { name: e.name, rel: relative(ROOT, e.file) }
+    if (srcOthers + r.tests <= 0) dead.push(item)
+    else if (srcOthers <= 0) testOnly.push(item)
   }
-  return { dead, testOnly, exportCount: exports.length };
+  return { dead, testOnly, exportCount: exports.length }
 }
 
 describe('零引用导出', () => {
-  const { dead, testOnly, exportCount } = scan();
+  const { dead, testOnly, exportCount } = scan()
 
   it('★ 每一个零引用导出都在基线里（新增的必须接上或写明理由）', () => {
-    const unregistered = dead.filter((d) => {
-      const rel = d.rel.replace(/\//g, '\\');
-      const key = `${rel}:${d.name}`;
+    const unregistered = dead.filter(d => {
+      const rel = d.rel.replace(/\//g, '\\')
+      const key = `${rel}:${d.name}`
       // 恢复树：源（10/18 产物）与测试（更晚 revision）不同步，同一批导出会在两个桶之间漂移；
       // 因此三类基线都算已登记，但**新增**的死导出仍然会红。
       return (
@@ -500,8 +497,8 @@ describe('零引用导出', () => {
         !(key in BASELINE_NAMES) &&
         !(key in BASELINE_TEST_ONLY) &&
         !(key in RESTORED_BASELINE)
-      );
-    });
+      )
+    })
 
     expect(
       unregistered,
@@ -510,29 +507,29 @@ describe('零引用导出', () => {
         : '这些导出**全仓零引用**（生产与测试都没人用）。两种修法：\n' +
             '  ① **接上它** —— 生产路径真的调用（正常情况，本仓库 7 处"写好了没接线"都是这么修的）\n' +
             '  ② 在 BASELINE_FILES / BASELINE_NAMES 里登记并**写明理由**\n' +
-            unregistered.map((d) => `  ${d.rel}  ${d.name}`).join('\n'),
-    ).toEqual([]);
-  });
+            unregistered.map(d => `  ${d.rel}  ${d.name}`).join('\n'),
+    ).toEqual([])
+  })
 
   // ★ 正控（2026-10-03 加）：别名导入必须算引用。
   // 起因：`import { formatTimeOnly as formatTime }` 的使用点写的是**别名**，而扫描数的是**原名**
   // → 两个真在用的函数被判成"零引用"，我差点把它们删掉（tsc 兜住）。这条断言把它们钉在"活"的一侧。
   it('★ 别名导入（import { X as Y }）必须算引用 —— 否则活函数会被误判成零引用', () => {
-    const deadKeys = new Set(dead.map((d) => `${d.rel.replace(/\//g, '\\')}:${d.name}`));
+    const deadKeys = new Set(dead.map(d => `${d.rel.replace(/\//g, '\\')}:${d.name}`))
     for (const key of [
       'src\\renderer\\src\\lib\\infra\\format.ts:formatTimeOnly',
       'src\\renderer\\src\\lib\\infra\\format.ts:formatFullDateTime',
     ]) {
-      expect(deadKeys.has(key), `${key} 被判成零引用 —— 别名映射可能失效了`).toBe(false);
+      expect(deadKeys.has(key), `${key} 被判成零引用 —— 别名映射可能失效了`).toBe(false)
     }
-  });
+  })
 
   it('★ 仅测试引用的导出也必须登记（这类正是"写好了没接线"）', () => {
-    const unregistered = testOnly.filter((d) => {
-      const rel = d.rel;
-      const key = `${rel}:${d.name}`;
-      return !(key in BASELINE_TEST_ONLY) && !(key in BASELINE_NAMES) && !(key in RESTORED_BASELINE);
-    });
+    const unregistered = testOnly.filter(d => {
+      const rel = d.rel
+      const key = `${rel}:${d.name}`
+      return !(key in BASELINE_TEST_ONLY) && !(key in BASELINE_NAMES) && !(key in RESTORED_BASELINE)
+    })
 
     expect(
       unregistered,
@@ -541,28 +538,28 @@ describe('零引用导出', () => {
         : '这些导出**只有测试引用、生产路径没接**（测试里调得好好的）。两种修法：\n' +
             '  ① **接上它**（正常情况：「停止」按钮就是这么假了半年）\n' +
             '  ② 在 BASELINE_TEST_ONLY 里登记并写明理由\n' +
-            unregistered.map((d) => `  ${d.rel}  ${d.name}`).join('\n'),
-    ).toEqual([]);
-  });
+            unregistered.map(d => `  ${d.rel}  ${d.name}`).join('\n'),
+    ).toEqual([])
+  })
 
   it('扫描确实在工作（防止某次改动把扫描变成空转）', () => {
-    expect(exportCount).toBeGreaterThan(800);
-    expect(dead.length).toBeGreaterThan(0);
-  });
+    expect(exportCount).toBeGreaterThan(800)
+    expect(dead.length).toBeGreaterThan(0)
+  })
 
   it('基线里"已经不再零引用"的项会被报出来（提示可以清理）', () => {
-    const deadKeys = new Set(dead.map((d) => `${d.rel.replace(/\//g, '\\')}:${d.name}`));
-    const deadFiles = new Set(dead.map((d) => d.rel.replace(/\//g, '\\')));
+    const deadKeys = new Set(dead.map(d => `${d.rel.replace(/\//g, '\\')}:${d.name}`))
+    const deadFiles = new Set(dead.map(d => d.rel.replace(/\//g, '\\')))
     const stale = [
-      ...Object.keys(BASELINE_FILES).filter((f) => !deadFiles.has(f)),
-      ...Object.keys(BASELINE_NAMES).filter((k) => !deadKeys.has(k)),
-    ];
+      ...Object.keys(BASELINE_FILES).filter(f => !deadFiles.has(f)),
+      ...Object.keys(BASELINE_NAMES).filter(k => !deadKeys.has(k)),
+    ]
     if (stale.length > 0) {
       // 只提示不失败：接上了是好事，别让"清理"变成负担
       console.log(
         `[deadExports] 基线里有 ${stale.length} 项已经接上了，可以从基线移除：\n  ${stale.join('\n  ')}`,
-      );
+      )
     }
-    expect(true).toBe(true);
-  });
-});
+    expect(true).toBe(true)
+  })
+})

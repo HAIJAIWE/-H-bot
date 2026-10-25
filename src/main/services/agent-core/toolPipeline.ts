@@ -10,7 +10,15 @@
 // 执行器与模式推断留在 scheduler（改动面小），这里只 import 它们的类型和 executeToolCall；
 // 其余依赖（落盘出口、消息、开始回调）由 deps 注入，避免和 core 之间形成更多环。
 import { classifyToolFailure, toolFailureForCode } from '@shared/ai/toolFailure'
-import type { ChatTurn, Tool, ToolCall, ToolContext, ToolResultEntry } from './core'
+import {
+  type ChatTurn,
+  type GateRequest,
+  type Tool,
+  type ToolCall,
+  type ToolContext,
+  type ToolResultEntry,
+} from './core'
+import { approvalRequestOf } from './toolGate'
 import type { BatchCommit, BatchPipeline, BatchPrepared } from '../../vendor/dsh/tool-batch/batch'
 import {
   cancellationText,
@@ -19,6 +27,7 @@ import {
   failureMessageFromText,
   isAborted,
   TOOL_ABORTED_BEFORE_DISPATCH_TEXT,
+  toolErrorMessage,
   type ToolExecutionMode,
   type Waterfall,
 } from '../../vendor/dsh/tool-pipeline/pipeline'
@@ -32,7 +41,13 @@ export interface PreExecuteInput {
   args: Record<string, unknown>
 }
 
-/** prepare 的三态：放行 / 拒绝（给模型看的理由） / 要审批（本批不产生，留接口位） */
+/**
+ * prepare 的三态：放行 / 拒绝（给模型看的理由） / 要审批。
+ *
+ * `ask` 不再是一句"暂不支持"：它现在走**同一道**审批闸门（`ctx.gate`），
+ * 与工具自己声明的 `approval` 汇到一处 —— 钩子要不要问人，和工具要不要问人，
+ * 不该是两套机制。
+ */
 export type PreExecuteDecision =
   { kind: 'allow' } | { kind: 'deny'; reason: string } | { kind: 'ask'; reason?: string }
 
@@ -91,6 +106,46 @@ function cancelledSlot(startedAt: number, bodyInvoked: boolean): ToolSlot {
   }
 }
 
+/** 闸门请求的一句话（"写哪个文件 / 跑什么命令 / 哪个工具"） */
+function describeGate(req: GateRequest): string {
+  if (req.kind === 'write') return '写 ' + req.path
+  if (req.kind === 'command') return '命令 ' + req.command
+  return '工具 ' + req.tool
+}
+
+/** 拒绝文案：与闸门搬进 prepare 之前**逐字相同**（模型文案与历史测试都对得上） */
+function rejectedText(req: GateRequest): string {
+  if (req.kind === 'write') return '写操作被拒绝（未通过闸门）'
+  if (req.kind === 'command') return '命令被拒绝（未通过闸门）'
+  return '工具 ' + req.tool + ' 被拒绝（未通过闸门）'
+}
+
+/** 一次审批的结果：放行，或者"回灌给模型的那句失败" */
+type GateOutcome = { allow: true } | { allow: false; text: string }
+
+/**
+ * 过闸门（**唯一**一处调用 `ctx.gate` 的地方）。三条纪律：
+ * ① 没有闸门 = 没人可问：需要审批的调用**不擅自执行**；
+ * ② 闸门抛异常（角色的写域拒绝就是这么拒的）→ `[工具失败] <原因>`，与旧路径"run 里 throw"一致；
+ * ③ 拒绝 → 一句可按类别对账的话；`[工具失败]` 前缀让模型知道这条路走不通。
+ */
+async function askGate(ctx: ToolContext, req: GateRequest): Promise<GateOutcome> {
+  const gate = ctx.gate
+  if (!gate) {
+    return {
+      allow: false,
+      text: FAILURE_PREFIX + '没有可用的审批通道，这次调用没有执行：' + describeGate(req),
+    }
+  }
+  try {
+    if (await gate(req)) return { allow: true }
+  } catch (error: unknown) {
+    // 角色写域用的是 throw（原因里带"这是谁的活、怎么才能做"），不能被吞成一句"未通过闸门"
+    return { allow: false, text: FAILURE_PREFIX + toolErrorMessage(error) }
+  }
+  return { allow: false, text: FAILURE_PREFIX + rejectedText(req) }
+}
+
 /** 参数快照：structuredClone 失败（含函数/循环引用）就落回原对象 —— 快照是增强，不是前置条件 */
 function snapshotArgs(args: Record<string, unknown> | undefined): Record<string, unknown> {
   const input = args ?? {}
@@ -127,34 +182,66 @@ export function createToolPipeline(deps: ToolPipelineDeps): BatchPipeline<Planne
     },
 
     async prepare(exec): Promise<BatchPrepared<ToolSlot>> {
+      const tool = deps.tools.find(t => t.name === exec.name)
       // 未知工具是"一条失败结果"，不是整轮崩溃：模型拼错名字时要能在界面上看见
-      if (!deps.tools.some(t => t.name === exec.name)) {
+      if (!tool) {
         return {
           kind: 'settled',
           slot: failedSlot(FAILURE_PREFIX + '未知工具: ' + exec.name, exec.startedAt),
         }
       }
-      if (before.length === 0) return { kind: 'dispatch' }
-      const decide = composeWaterfall<PreExecuteInput, PreExecuteDecision>(before, async () => ({
-        kind: 'allow',
-      }))
-      const decision = await decide({
-        callId: exec.callId,
-        name: exec.name,
-        args: snapshotArgs(exec.call.args),
-      })
-      if (decision.kind === 'allow') return { kind: 'dispatch' }
-      if (decision.kind === 'ask') {
-        // 审批上移本批不做；没有审批通道时上游也是 fail-closed 拒绝（不擅自放行）
-        return {
-          kind: 'settled',
-          slot: failedSlot(
-            FAILURE_PREFIX + `tool "${exec.name}" requires approval (not yet supported)`,
-            exec.startedAt,
-          ),
+      // ① 前钩子：可以拒绝，也可以点名"这条要人点头"（ask 与工具自己声明的审批走同一个口子）
+      if (before.length > 0) {
+        const decide = composeWaterfall<PreExecuteInput, PreExecuteDecision>(before, async () => ({
+          kind: 'allow',
+        }))
+        const decision = await decide({
+          callId: exec.callId,
+          name: exec.name,
+          args: snapshotArgs(exec.call.args),
+        })
+        if (decision.kind === 'deny') {
+          return {
+            kind: 'settled',
+            slot: failedSlot(FAILURE_PREFIX + decision.reason, exec.startedAt),
+          }
+        }
+        if (decision.kind === 'ask') {
+          // 钩子都说"要人"了：没有审批通道时 fail-closed（不擅自替人放行）
+          const outcome = await askGate(deps.ctx, {
+            kind: 'tool',
+            tool: exec.name,
+            args: snapshotArgs(exec.call.args),
+          })
+          if (!outcome.allow) {
+            return { kind: 'settled', slot: failedSlot(outcome.text, exec.startedAt) }
+          }
         }
       }
-      return { kind: 'settled', slot: failedSlot(FAILURE_PREFIX + decision.reason, exec.startedAt) }
+      // ② 审批：工具声明优先，没声明按 category 保守推断（mutation 一律要问）
+      const args = exec.call.args ?? {}
+      let approval: GateRequest | null
+      try {
+        approval = approvalRequestOf(tool, args, deps.ctx)
+      } catch (error: unknown) {
+        // 声明里就抛的（比如路径越界）：不派发，原因照旧回灌给模型
+        return {
+          kind: 'settled',
+          slot: failedSlot(FAILURE_PREFIX + toolErrorMessage(error), exec.startedAt),
+        }
+      }
+      /**
+       * 没有闸门 = 调用方没接审批（脚本 / 测试的旧形态）—— 保持旧行为：不问人，直接跑。
+       * 一旦接了闸门，声明要审批的调用就必须过：这是本批唯一的语义变化
+       * （插件工具标着 mutation 却从不问人，就是靠这一点修掉的）。
+       */
+      if (approval && deps.ctx.gate) {
+        const outcome = await askGate(deps.ctx, approval)
+        if (!outcome.allow) {
+          return { kind: 'settled', slot: failedSlot(outcome.text, exec.startedAt) }
+        }
+      }
+      return { kind: 'dispatch' }
     },
 
     async dispatch(exec) {

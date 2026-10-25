@@ -11,6 +11,11 @@
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { AgentServices } from './contracts'
+import { toApprovalRequest } from './toolGate'
+import type { ApprovalTool, GateRequest, ToolContext } from './toolGate'
+
+// 契约（GateRequest / ToolContext）在 toolGate.ts —— 别的模块照旧从 core 拿，避免一次性改一大片
+export type { GateRequest, ToolContext } from './toolGate'
 import {
   classifyToolFailure,
   toolFailureForCode,
@@ -64,33 +69,7 @@ export interface ModelReply {
 }
 export type ModelFn = (messages: ChatTurn[]) => Promise<ModelReply>
 
-/**
- * 需要人点头的动作。
- *
- * ⚠️ `command` 这一类是 2026-10-18 补的：在这之前**只有写文件要审批**，
- * 而白名单里的命令能做的事比写文件更多（`git push`、`npx <任何包>`）——
- * 一个会自己跑命令的循环不该有"不用问"的口子。
- */
-export type GateRequest = { kind: 'write'; path: string } | { kind: 'command'; command: string }
-
-export interface ToolContext {
-  workspace: string
-  signal?: AbortSignal
-  /** 动作闸门：返回 false = 拒绝（真实接入时是用户审批；测试里是断言钩子） */
-  gate?: (req: GateRequest) => Promise<boolean>
-  /**
-   * **写盘之前**的钩子（项目内相对路径）：轮次日志靠它记下"改之前是什么样"，
-   * 撤回才有依据。不传 = 不记（脚本/测试的默认，无副作用）。
-   *
-   * 失败不该挡住写入（日志是"能撤销"的增强，不是写入的前置条件）——
-   * 调用方自己吞异常，这里只管调用。
-   */
-  onBeforeWrite?: (relPath: string) => Promise<void>
-  /** 命令执行超时（毫秒） */
-  commandTimeoutMs?: number
-}
-
-export interface Tool {
+export interface Tool extends ApprovalTool {
   name: string
   description: string
   /**
@@ -105,8 +84,6 @@ export interface Tool {
    * 「先计划」模式（planOnly）只放这类工具 —— 光靠提示词约束"只许看"是不可靠的。
    */
   readOnly?: boolean
-  /** 工具类别：query = 只读（计划阶段可用），mutation = 会改东西 */
-  category?: 'query' | 'mutation'
   /**
    * 批内调度语义（对齐 DSH）：`parallel` 可与同批的只读调用并行，
    * `exclusive` 是屏障（它前后的调用不与它重叠）。不写就按 category 保守推断。
@@ -289,10 +266,13 @@ export const CORE_TOOLS: Tool[] = [
       },
       required: ['path', 'content'],
     },
+    // 闸门在 toolPipeline.prepare 里过（路径也由它解析）：这里只管写
+    approval: (args, ctx) => ({
+      kind: 'write',
+      path: resolveInWorkspace(ctx.workspace, args.path),
+    }),
     async run(args, ctx) {
       const abs = resolveInWorkspace(ctx.workspace, args.path)
-      const verdict = ctx.gate ? await ctx.gate({ kind: 'write', path: abs }) : true
-      if (!verdict) throw new Error('写操作被拒绝（未通过闸门）')
       // 闸门过了才记 before：被拒的写入没有改动，记了反而会让撤回多删一个文件
       if (ctx.onBeforeWrite) {
         try {
@@ -316,10 +296,10 @@ export const CORE_TOOLS: Tool[] = [
       },
       required: ['command'],
     },
+    // 闸门要的是"真正要跑的那一行"（trim 过），与 run 里执行的是同一行
+    approval: args => ({ kind: 'command', command: String(args.command ?? '').trim() }),
     async run(args, ctx) {
       const line = String(args.command ?? '').trim()
-      const verdict = ctx.gate ? await ctx.gate({ kind: 'command', command: line }) : true
-      if (!verdict) throw new Error('命令被拒绝（未通过闸门）')
       const r = await runCommand(line, ctx)
       return (
         (r.ok ? '' : '[退出码 ' + String(r.code) + ']\n') +
@@ -681,11 +661,7 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
     gate:
       opts.gate ??
       (opts.services
-        ? (req: GateRequest) =>
-            opts.services!.approval.request({
-              kind: req.kind,
-              summary: req.kind === 'write' ? req.path : req.command,
-            })
+        ? (req: GateRequest) => opts.services!.approval.request(toApprovalRequest(req))
         : undefined),
     commandTimeoutMs: opts.commandTimeoutMs,
     ...(opts.onBeforeWrite ? { onBeforeWrite: opts.onBeforeWrite } : {}),

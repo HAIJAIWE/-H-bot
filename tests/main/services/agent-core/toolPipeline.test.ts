@@ -3,7 +3,13 @@
 // 第 45 批：工具执行适配层（prepare / dispatch / complete）。这里钉的是**语义**：
 // 未知工具是一条失败结果、钩子能拒能拦、取消在派发前后各有各的文案。
 import { describe, expect, it } from 'vitest'
-import type { ChatTurn, Tool, ToolContext, ToolResultEntry } from '@main/services/agent-core/core'
+import type {
+  ChatTurn,
+  GateRequest,
+  Tool,
+  ToolContext,
+  ToolResultEntry,
+} from '@main/services/agent-core/core'
 import type { PlannedExec, ToolSlot } from '@main/services/agent-core/scheduler'
 import {
   createToolPipeline,
@@ -29,6 +35,8 @@ interface HarnessOptions {
   signal?: AbortSignal
   hooks?: ToolPipelineHooks
   onToolResult?: (output: string, ok?: boolean) => void
+  /** 动作闸门（第 46 批：审批只在 prepare 里过一次） */
+  gate?: ToolContext['gate']
 }
 
 /** 一个最小的"落地出口"：真实实现是 scheduler 的 commitSlot，这里只记事实 */
@@ -40,6 +48,7 @@ function makeHarness(options: HarnessOptions) {
   const ctx: ToolContext = {
     workspace: '/tmp',
     ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.gate ? { gate: options.gate } : {}),
   }
   const deps: ToolPipelineDeps = {
     tools: options.tools,
@@ -229,5 +238,176 @@ describe('toolPipeline：complete 的 afterExecute', () => {
     expect(harness.completed).toEqual([{ output: '[工具失败] 不许这么干', ok: false }])
     expect(harness.messages[0]?.content).toBe('[工具失败] 不许这么干')
     expect(seen).toEqual(['[工具失败] 不许这么干'])
+  })
+})
+
+describe('toolPipeline：审批的单一入口（第 46 批）', () => {
+  /** 记录闸门收到的请求；allow=false 用它模拟"人拒绝" */
+  function recorder(allow = true) {
+    const seen: GateRequest[] = []
+    return {
+      seen,
+      gate: async (req: GateRequest) => {
+        seen.push(req)
+        return allow
+      },
+    }
+  }
+
+  it('★ 没声明 approval 的 mutation 也要过闸（插件工具以前完全不过）', async () => {
+    let runs = 0
+    const tool = makeTool(
+      'market_coin',
+      async () => {
+        runs += 1
+        return 'heads'
+      },
+      { category: 'mutation' },
+    )
+    const { seen, gate } = recorder()
+    const harness = makeHarness({ tools: [tool], gate })
+    await executeToolBatch(
+      { execs: [makeExec({ name: 'market_coin', args: { n: 1 } })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(seen).toEqual([{ kind: 'tool', tool: 'market_coin', args: { n: 1 } }])
+    expect(runs).toBe(1)
+    expect(harness.results[0]?.ok).toBe(true)
+  })
+
+  it('★ mutation 被拒绝 → 不派发，模型拿到"工具 x 被拒绝（未通过闸门）"', async () => {
+    let runs = 0
+    const tool = makeTool(
+      'market_coin',
+      async () => {
+        runs += 1
+        return 'heads'
+      },
+      { category: 'mutation' },
+    )
+    const { gate } = recorder(false)
+    const harness = makeHarness({ tools: [tool], gate })
+    const outcome = await executeToolBatch(
+      { execs: [makeExec({ name: 'market_coin' })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(outcome.consumed).toBe(1)
+    expect(runs).toBe(0)
+    expect(harness.results[0]?.output).toBe('[工具失败] 工具 market_coin 被拒绝（未通过闸门）')
+    expect(harness.results[0]?.ok).toBe(false)
+  })
+
+  it('query 不问人：闸门一次都不调，照跑', async () => {
+    const { seen, gate } = recorder()
+    const harness = makeHarness({
+      tools: [makeTool('read_file', async () => '内容', { category: 'query' })],
+      gate,
+    })
+    await executeToolBatch(
+      { execs: [makeExec({ name: 'read_file' })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(seen).toEqual([])
+    expect(harness.results[0]?.output).toBe('内容')
+  })
+
+  it('显式声明优先于 category 推断（同一个 mutation 可以只报 write，不带 args）', async () => {
+    const { seen, gate } = recorder()
+    const tool = makeTool('write_file', async () => '已写入', {
+      category: 'mutation',
+      approval: args => ({ kind: 'write', path: String(args.path) }),
+    })
+    const harness = makeHarness({ tools: [tool], gate })
+    await executeToolBatch(
+      { execs: [makeExec({ name: 'write_file', args: { path: 'a.txt' } })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(seen).toEqual([{ kind: 'write', path: 'a.txt' }])
+  })
+
+  it('★ 声明 approval: () => null ⇒ 不问（旧工具提案制已在界面确认过，别再问一遍）', async () => {
+    const { seen, gate } = recorder()
+    const tool = makeTool('add_node', async () => '加好了', {
+      category: 'mutation',
+      approval: () => null,
+    })
+    const harness = makeHarness({ tools: [tool], gate })
+    await executeToolBatch(
+      { execs: [makeExec({ name: 'add_node' })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(seen).toEqual([])
+    expect(harness.results[0]?.ok).toBe(true)
+  })
+
+  it('★ 闸门抛异常（角色写域这么拒）→ [工具失败] <原因>，且不派发', async () => {
+    let runs = 0
+    const tool = makeTool(
+      'write_file',
+      async () => {
+        runs += 1
+        return '已写入'
+      },
+      { category: 'mutation' },
+    )
+    const harness = makeHarness({
+      tools: [tool],
+      gate: async () => {
+        throw new Error('代码助手不能改 flow.json')
+      },
+    })
+    await executeToolBatch(
+      { execs: [makeExec({ name: 'write_file' })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(runs).toBe(0)
+    expect(harness.results[0]?.output).toBe('[工具失败] 代码助手不能改 flow.json')
+    expect(harness.results[0]?.ok).toBe(false)
+  })
+
+  it('没有闸门（脚本/测试形态）⇒ 保持旧行为：不问、照跑', async () => {
+    let runs = 0
+    const harness = makeHarness({
+      tools: [
+        makeTool(
+          'market_coin',
+          async () => {
+            runs += 1
+            return 'heads'
+          },
+          { category: 'mutation' },
+        ),
+      ],
+    })
+    await executeToolBatch(
+      { execs: [makeExec({ name: 'market_coin' })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(runs).toBe(1)
+    expect(harness.results[0]?.output).toBe('heads')
+  })
+
+  it('声明 approval 自己抛错（如路径越界）⇒ settled 失败，原因回灌，不派发', async () => {
+    let runs = 0
+    const tool = makeTool(
+      'write_file',
+      async () => {
+        runs += 1
+        return '已写入'
+      },
+      {
+        category: 'mutation',
+        approval: () => {
+          throw new Error('路径越界: ../x')
+        },
+      },
+    )
+    const harness = makeHarness({ tools: [tool], gate: async () => true })
+    await executeToolBatch(
+      { execs: [makeExec({ name: 'write_file' })], maxParallel: 2 },
+      harness.pipeline,
+    )
+    expect(runs).toBe(0)
+    expect(harness.results[0]?.output).toBe('[工具失败] 路径越界: ../x')
   })
 })

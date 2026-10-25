@@ -27,7 +27,7 @@ import {
   historyToMessages,
   loadHistory,
 } from '../services/ai/historyStore'
-import { addAllowRule, readAllowRules, ruleMatches } from '../services/ai/allowRules'
+import { addAllowRule, readAllowRules, ruleMatches, toolRuleMatch } from '../services/ai/allowRules'
 import { DEFAULT_THREAD_ID, threadFile } from '../services/ai/threads'
 import { saveSpillText } from '../services/ai/spillStore'
 import { loadInbox, saveInbox, type PendingInbox } from '../services/ai/inboxStore'
@@ -70,12 +70,40 @@ const TOOL_NAME: Record<ApprovalRequest['kind'], string> = {
   write: 'write_file',
   command: 'run_command',
   irreversible: 'run_command',
+  tool: 'tool',
 }
 
-/** 审批弹窗里要展示的结构化参数（"改哪个文件 / 跑什么命令"） */
+/**
+ * 弹窗标题里的工具名。`tool` 类用**真名**（插件工具叫什么就显示什么）——
+ * 拿一个占位的 "tool" 去问"要不要允许 tool"，等于什么都没说。
+ */
+function toolNameOf(req: ApprovalRequest): string {
+  return req.kind === 'tool' ? (req.tool ?? req.summary) : TOOL_NAME[req.kind]
+}
+
+/** 审批弹窗里要展示的结构化参数（"改哪个文件 / 跑什么命令 / 哪个工具的什么参数"） */
 function approvalArgs(req: ApprovalRequest): Record<string, unknown> {
   if (req.kind === 'write') return { path: req.summary, ...req.detail }
+  if (req.kind === 'tool') return { tool: req.tool ?? req.summary, ...req.detail }
   return { command: req.summary, ...req.detail }
+}
+
+/**
+ * 工具类审批的正文。summary 只有工具名 —— 光问"要不要允许 market_coin"，
+ * 用户没法判断这次要花什么、动哪里；参数太长就截断（弹窗不该是一屏滚动 JSON）。
+ */
+function describeToolRequest(req: ApprovalRequest): string {
+  const name = req.tool ?? req.summary
+  const args = req.detail?.args
+  if (args === undefined) return '工具 ' + name + ' 要在项目里做改动'
+  let text: string
+  try {
+    text = JSON.stringify(args) ?? String(args)
+  } catch {
+    text = String(args)
+  }
+  if (text.length > 160) text = text.slice(0, 157) + '…'
+  return '工具 ' + name + ' 想这样调用：' + text
 }
 
 /**
@@ -276,9 +304,16 @@ export function registerAiAgentCoreIpc(): void {
        * 规则表只认 write / command / tool 三类：'irreversible' 归到 command
        * （它是"改动很大的一种命令"，与命令共用审批弹窗与撤销语义）。
        */
-      const ruleKindOf = (kind: ApprovalRequest['kind']): 'write' | 'command' =>
-        kind === 'write' ? 'write' : 'command'
+      const ruleKindOf = (kind: ApprovalRequest['kind']): 'write' | 'command' | 'tool' => {
+        if (kind === 'write') return 'write'
+        return kind === 'tool' ? 'tool' : 'command'
+      }
       const matchOf = (req: ApprovalRequest): string => {
+        // 工具类：同名 + 同参数才算同一个动作（见 toolRuleMatch 的说明）
+        if (req.kind === 'tool') {
+          const args = (req.detail?.args ?? {}) as Record<string, unknown>
+          return toolRuleMatch(req.tool ?? req.summary, args)
+        }
         if (req.kind !== 'write') return req.summary.trim()
         const rel = relative(projectPath, req.summary)
         return rel && !rel.startsWith('..') && !isAbsolute(rel)
@@ -509,9 +544,10 @@ export function registerAiAgentCoreIpc(): void {
               {
                 projectPath,
                 callId: `agentcore-${seq}-${Date.now()}`,
-                toolName: TOOL_NAME[req.kind],
+                toolName: toolNameOf(req),
                 args: approvalArgs(req),
-                hint: req.summary,
+                // hint 是弹窗正文：工具类说清"哪个工具要动什么"（summary 就是工具名，光它不够）
+                hint: req.kind === 'tool' ? describeToolRequest(req) : req.summary,
               },
               {
                 emit: (channel, payload) => win?.webContents.send(channel, payload),

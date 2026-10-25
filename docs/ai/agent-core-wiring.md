@@ -2192,3 +2192,125 @@ DSH 那边同样是"两套账"：**会话记录**里存的是可回放的块（t
 日志里另有一条主进程 warn：`[ipc/aiAgentCore] 待办队列落盘失败: Error: EPERM … agent-inbox.json`；
 同样的 warn 在本批之前的 `_recovery/dev-agent-ui.log` / `dev-spill.log` / `dev-retry.log` 里都有（开发态文件占用的一过性问题），
 与本批的工具链路无关。
+
+
+## 46. 第九批：审批的单一入口（2026-10-26）
+
+### 46.1 在这之前，闸门有三处，各问各的
+
+| 动作 | 谁问 | 问成什么 |
+| --- | --- | --- |
+| 写文件 | <code>write_file</code> 的 run 里内联 <code>ctx.gate</code> | <code>{kind:"write",path}</code> |
+| 跑命令 | <code>run_command</code> 的 run 里内联 <code>ctx.gate</code> | <code>{kind:"command",command}</code> |
+| **插件 / 宿主注册的工具** | **没有人问** | —— |
+| 旧 27 个工具（适配器） | 不问（提案制） | 但审批那边把它当 <code>command</code>：拿**工具名**冒充命令行 |
+
+前两行的文案逐字留着（模型和历史测试都对得上），问题在后两行：
+
+1. **插件工具标着 mutation 却从不问人**。工具集里 <code>category</code> 一直有，闸门却只看"是不是内置那两件"——
+   新装一个会写盘的工具（市场里那三个示例不走写盘，但协议允许）就是零审批执行。
+2. **策略表分叉**。IPC 那边把审批请求折成 <code>kind: "write" | "command"</code> 两种规则键，
+   工具名冒充 command 后，"以后别再问"记下的是一条**不存在的命令**。
+
+所以本批不是"再加一类审批"，是**把审批从工具里搬出来，只留一个入口**。
+
+### 46.2 入口：<code>toolPipeline.prepare</code>（不在工具里）
+
+第 45 批搭好的 prepare 正好是那个位置 —— 它已经知道"这次调用是哪个工具、参数是什么、有没有被钩子拦"。
+现在它多两段：
+
+| 顺序 | 动作 | 说明 |
+| --- | --- | --- |
+| ① | 未知工具 → <code>settled</code> 失败 | 没变 |
+| ② | <code>beforeExecute</code> 钩子 | <code>deny</code> → 失败；<code>ask</code> → 走 <code>askGate({kind:"tool"})</code> |
+| ③ | <code>approvalRequestOf(tool, args, ctx)</code> | 显式声明优先；没声明按 <code>category</code> 推断（mutation 一律要问） |
+| ④ | <code>if (approval &amp;&amp; ctx.gate) askGate(...)</code> | 拒绝 → <code>settled</code> 失败，**不派发** |
+
+**没有闸门 = 不改变旧行为**（脚本、单测、宿主没接审批的形态：不问人，直接跑）。
+一旦调用方接了闸门，声明要审批的调用就**必须**过 —— 这是本批唯一的语义变化，也是插件工具被补上的那道口子。
+
+<code>askGate</code> 三条纪律（注释里也写了）：
+
+1. **没有闸门 ≠ 放行**。钩子说 <code>ask</code> 而没人可问时 fail-closed：
+   <code>[工具失败] 没有可用的审批通道，这次调用没有执行：工具 x</code>。
+   （工具自己声明的审批在 prepare 里不会走到这条 —— 没闸门直接跳过，见上。）
+2. **闸门抛异常 = 拒绝，但原因要留着**。角色写域就是这么拒的（<code>throw new Error("代码助手不能改 flow.json")</code>），
+   变成 <code>[工具失败] &lt;原因&gt;</code> 回灌给模型，不吞成一句"未通过闸门"。
+3. **拒绝文案按类别固定**：写 / 命令两条与搬之前**逐字相同**（历史断言不用改），工具那条新起：
+   <code>[工具失败] 工具 market_coin 被拒绝（未通过闸门）</code>。
+
+### 46.3 形状：<code>GateRequest</code> 三类 + 工具自己声明"问什么"
+
+<code>GateRequest</code> 加了第三类 <code>tool</code>：
+
+| kind | 谁产生 | 审批标题 / summary | "以后别再问"的匹配键 |
+| --- | --- | --- | --- |
+| <code>write</code> | <code>write_file.approval</code>（路径先过 <code>resolveInWorkspace</code>） | 路径 | 路径规则（<code>writeRuleMatch</code>） |
+| <code>command</code> | <code>run_command.approval</code>（trim 后的命令） | 命令 | 命令规则（<code>commandRuleMatch</code>） |
+| <code>tool</code> | 没声明的 mutation（默认推断）/ 钩子 <code>ask</code> | 工具名 + 参数 JSON（&gt;160 字截断） | 工具名 + 参数（<code>toolRuleMatch</code>） |
+
+工具这边只加一个可选声明（<code>Tool extends ApprovalTool</code>）：
+
+<code>approval?: (args, ctx) =&gt; GateRequest | null</code>
+
+- 返回 <code>null</code> = 这次不用问。**旧 27 个工具全走这条**：它们的 mutation 是提案制
+  （界面点确认才落盘），prepare 再问一遍就是重复审批 —— <code>adaptLegacyTool</code> 里显式
+  <code>approval: () =&gt; null</code>，而不是靠"忘了声明"。
+- 不声明 = 按 <code>category</code> 保守推断。宁可多问一句，不要少问。
+- 声明里抛异常（路径越界）也算拒绝：<code>settled</code> 失败，原因回灌。
+
+### 46.4 新文件 <code>toolGate.ts</code>：不是拆着玩
+
+三个理由叠在一起，正好都在这个文件上：
+
+1. **循环依赖**：<code>toolPipeline.prepare</code> 要 <code>approvalRequestOf</code>，而它要 <code>Tool</code> 类型；
+   <code>core.ts</code> 又要 prepare 的 <code>BatchPipeline</code> 类型。契约（<code>GateRequest</code> / <code>ToolContext</code>）
+   和推断规则有自己的家，prepare 就不必反过来 import core。
+2. **行数红线**：就地加完是 **854 行 &gt; 800**，<code>fileGrowth.test.ts:78</code> 与 <code>fileSize.test.ts:233</code> 两例当场红。
+   搬走 <code>GateRequest</code> + <code>ToolContext</code> + <code>toApprovalRequest</code> + <code>approvalRequestOf</code>
+   之后 **774 行**，两个守卫都绿 —— 不是登记豁免，是真搬走了。
+3. **一个出处**：<code>Tool</code> 改成 <code>extends ApprovalTool</code>，审批字段与它的文档只有一份，不会再"改了一处忘了另一处"。
+
+<code>core.ts</code> 保留 <code>export type { GateRequest, ToolContext } from './toolGate'</code>，其它模块照旧从 core 拿
+（19 处 <code>ToolContext</code> 引用一行没改）。
+
+顺带删掉 <code>src/main/services/ai/legacyToolAdapter.ts</code>：全仓零引用（阶段 1 的旧适配器），
+<code>deadExports</code> 基线里那两条一起撤。
+
+### 46.5 IPC：第四种 kind 要四处登记
+
+<code>ApprovalRequest</code> 的 <code>kind</code> 从 <code>"write" | "command"</code> 变成三值，<code>tool?: string</code> 带上真名。
+
+- <code>TOOL_NAME</code> 加 <code>tool: "tool"</code>；<code>toolNameOf(req)</code> 给弹窗标题用真名（不是工具名冒充的 summary）；
+- <code>describeToolRequest</code>：<code>工具 x 想这样调用：{…}</code>，参数 JSON 超 160 字截断（弹窗不该被一个巨型参数撑爆）；
+- <code>approvalArgs</code> 的 tool 分支：<code>{ tool, ...req.detail }</code> —— 规则匹配与"别再问"存的是同一份；
+- <code>ruleKindOf</code> 返回三值；<code>matchOf</code> 的 tool 分支走 <code>toolRuleMatch(name, args)</code>。
+
+**角色写域闸没动**：它仍是在 <code>write</code> 分支里 <code>throw</code>，靠 <code>askGate</code> 的 catch 变成
+<code>[工具失败] &lt;原因&gt;</code>。也就是说这一次没有新增"能不能做"的判定，只是把"要不要问"收拢了。
+
+### 46.6 测试
+
+- <code>tests/main/services/agent-core/toolPipeline.test.ts</code> **+8 例**（9 → 17）：
+  没声明的 mutation 也要过闸（并断言闸门收到 <code>{kind:"tool",tool,args}</code>）；
+  mutation 被拒 → 不派发、文案逐字；<code>query</code> 不问人；
+  显式声明优先（同是 mutation，报的是 <code>write</code> 而非默认 <code>tool</code>）；
+  <code>approval: () =&gt; null</code> ⇒ 不问；闸门抛错 ⇒ <code>[工具失败] &lt;原因&gt;</code> 且不派发；
+  没有闸门 ⇒ 旧行为照跑；声明自己抛错 ⇒ settled 失败。
+- <code>tests/main/services/ai/legacyToolAdapter.test.ts</code> **+1 例**：适配出来的 query / mutation
+  <code>approval()</code> 都返回 <code>null</code>（提案制已确认，别再问）。
+- <code>tests/main/services/agent-core/core.test.ts</code>：四个闸门用例改走真实循环（<code>runOne</code> 走
+  <code>runAgentLoop</code> + <code>CORE_TOOLS</code>）—— 闸门搬走之后再 <code>tool.run(...,{gate})</code> 已经不经过它，
+  直接调工具断言"被拒"会变成断言空气。helper 返回 <code>{...entry, ok: !entry.failure}</code>，让断言读得懂。
+- 定向：<code>tests/main/services/agent-core</code> + <code>legacyToolAdapter</code> → **24 文件 / 193 例**绿；
+  guards → **15 文件 / 107 例**绿（两例行数红线随 774 行消失）。
+
+### 46.7 闸门
+
+- <code>tsc -p tsconfig.node.json</code> = **0**、<code>tsc -p tsconfig.web.json</code> = **0**（分开跑）。
+- guards **15 文件 / 107 例**绿（§45 之后两例行数红线随 core.ts 回到 774 行自动消失，没登记豁免）。
+- 全量 <code>node node_modules/vitest/vitest.mjs run --maxWorkers=2</code>（日志 <code>_recovery/full-gate-single-entry.log</code>）→
+  **Test Files 271 passed | 2 skipped (273)、Tests 3402 passed | 7 skipped (3409)、FULL_EXIT=0**
+  （基线 3393 → +9：toolPipeline 8 + adapter 1）。
+- prettier 过了 10 个改动文件。
+

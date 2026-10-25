@@ -67,6 +67,13 @@ export function adaptLegacyTool(def: AiToolDefinition, bridge: LegacyToolBridge)
     description: def.description,
     parameters: def.parameters as Record<string, unknown>,
     category: def.category ?? 'mutation',
+    /**
+     * **提案制工具不用再过审批闸门**（2026-10-26）：mutation 的分支只往
+     * `pendingOperations` 里 push，真正的落盘要等用户在界面上点确认 —— 那一步就是审批。
+     * 不显式声明的话，`approvalRequestOf` 会按 category 推断成"mutation 要问"，
+     * 于是同一件事问两遍（先弹一次审批、再弹一次提案确认）。
+     */
+    approval: () => null,
     async run(args) {
       if (isMutation) {
         /**
