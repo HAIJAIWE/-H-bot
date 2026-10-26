@@ -36,7 +36,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityLayer, string> = {
   X: '助手自身或内部管道，不对外开放',
 }
 
-/** 台账：283 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 83） */
+/** 台账：287 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 87） */
 export const CAPABILITY_CATALOG: CapabilityEntry[] = [
   {
     id: 'adapter.current',
@@ -129,6 +129,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     channelKind: 'invoke',
   },
   {
+    id: 'ai.deleteMessageFeedback',
+    ns: 'ai',
+    method: 'deleteMessageFeedback',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:deleteMessageFeedback',
+    channelKind: 'invoke',
+  },
+  {
     id: 'ai.exportPresets',
     ns: 'ai',
     method: 'exportPresets',
@@ -198,6 +207,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:getProjectBotConfig',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.getThreadFeedback',
+    ns: 'ai',
+    method: 'getThreadFeedback',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:getThreadFeedback',
     channelKind: 'invoke',
   },
   {
@@ -414,6 +432,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:previewTurn',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.putMessageFeedback',
+    ns: 'ai',
+    method: 'putMessageFeedback',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:putMessageFeedback',
     channelKind: 'invoke',
   },
   {
@@ -1233,6 +1260,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'P',
     domain: '工程',
     channel: 'file:restoreDevBackup',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'file.searchReferences',
+    ns: 'file',
+    method: 'searchReferences',
+    layer: 'X',
+    domain: '工程',
+    channel: 'file:searchReferences',
     channelKind: 'invoke',
   },
   {

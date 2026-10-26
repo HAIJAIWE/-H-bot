@@ -10,7 +10,8 @@ import {
   writeProjectFile,
   listProjectFiles,
 } from '../services/infra/fileOps'
-import { readFileSchema, writeFileSchema, listFilesSchema } from '../schemas/file'
+import { readFileSchema, writeFileSchema, listFilesSchema, searchReferencesSchema } from '../schemas/file'
+import { searchFileReferences } from '../services/ai/fileReference'
 import { tryIpcAsync } from './_shared'
 import { isWithinProject } from '../services/infra/pathGuard'
 import { activeProjectRegistry } from '../services/project/activeProject'
@@ -159,5 +160,26 @@ export function registerFileIpc(baseDir?: string): void {
     return tryIpcAsync(() =>
       restoreDevBackup(parsed.data.revisionId, parsed.data.relativePath),
     )
+  })
+
+  /**
+   * `@` 引用候选（第 58 批）。
+   *
+   * 只读、**不读文件内容**：给的是路径与类型，选中后插进输入的也只是 `@相对路径`；
+   * 模型要看内容必须自己调 `read_file`（上游硬设计，见设计文档 §58.2）。
+   * 检索范围恒为当前项目 —— 不接受绝对路径查询，越界由服务层的 `resolveDirectory` 兜。
+   */
+  ipcMain.handle('file:searchReferences', async (_event, args: unknown) => {
+    const parsed = searchReferencesSchema.safeParse(args)
+    if (!parsed.success) {
+      return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
+    }
+    return tryIpcAsync(async () => {
+      const { projectPath, query, limit } = parsed.data
+      const base = baseDirFor(projectPath, baseDir)
+      return {
+        references: await searchFileReferences(projectPath, query, limit, base),
+      }
+    })
   })
 }

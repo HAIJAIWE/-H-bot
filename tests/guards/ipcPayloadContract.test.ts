@@ -25,6 +25,9 @@ import {
   aiRenameThreadSchema,
   aiSearchThreadsSchema,
   aiExportThreadSchema,
+  aiThreadFeedbackSchema,
+  aiMessageFeedbackPutSchema,
+  aiMessageFeedbackDeleteSchema,
   aiPresetRosterSchema,
   aiPresetImportSchema,
   aiSetPresetDefaultSchema,
@@ -34,6 +37,7 @@ import {
   approvalDecisionSchema,
   rollbackTurnSchema,
 } from '@main/schemas/ai'
+import { searchReferencesSchema } from '@main/schemas/file'
 
 const PRELOAD = join(process.cwd(), 'src', 'preload', 'index.ts')
 
@@ -116,6 +120,22 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
   'ai:exportThread': {
     shape: aiExportThreadSchema.shape,
     note: '第 57 批：导出一条线程为 Markdown（主进程弹保存框并写盘）',
+  },
+  'ai:getThreadFeedback': {
+    shape: aiThreadFeedbackSchema.shape,
+    note: '第 58 批：读一条线程的消息反馈表（整表；坏文件按空表）',
+  },
+  'ai:putMessageFeedback': {
+    shape: aiMessageFeedbackPutSchema.shape,
+    note: '第 58 批：给一条已落盘的 assistant 消息打好评/差评 + 可选分类与说明',
+  },
+  'ai:deleteMessageFeedback': {
+    shape: aiMessageFeedbackDeleteSchema.shape,
+    note: '第 58 批：撤回一条反馈（不存在时 removed:false，不报错）',
+  },
+  'file:searchReferences': {
+    shape: searchReferencesSchema.shape,
+    note: '第 58 批：@ 文件引用的候选列表（只读；含 / 走实时列目录，否则走有界索引）',
   },
   'ai:listTurns': { shape: aiProjectPathSchema.shape, note: '列出已记录的 AI 轮次（撤回候选）' },
   'ai:rewindTo': {

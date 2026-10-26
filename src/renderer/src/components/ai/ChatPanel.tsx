@@ -45,6 +45,8 @@ import { MODE_OF_ROLE } from '@shared/ai/roleDomains'
 import { AgentPresetMenu } from './AgentPresetMenu'
 import { TurnBoundary } from './TurnBoundary'
 import { TurnOutlineLauncher } from './TurnOutlineLauncher'
+import { AtReferenceMenu } from './AtReferenceMenu'
+import { useAtReference } from '../../hooks/useAtReference'
 import { creatorWorkspaceStatus, useFrameworkDevStore } from '../../stores/frameworkDevStore'
 
 /* 角色按钮表在 ./agentModes（渲染层唯一那处枚举）；选择器是 ./AgentPresetMenu（纯组件）——
@@ -459,6 +461,23 @@ export const ChatPanel = React.memo(function ChatPanel() {
   const rejectProposal = useAiStore(s => s.rejectProposal)
 
   const [input, setInput] = useState('')
+  const [inputCaret, setInputCaret] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const atReference = useAtReference({
+    value: input,
+    caret: inputCaret,
+    projectPath,
+    onApply: ({ text, caret }) => {
+      setInput(text)
+      setInputCaret(caret)
+      setTimeout(() => {
+        const el = textareaRef.current
+        if (!el) return
+        el.focus()
+        el.setSelectionRange(caret, caret)
+      }, 0)
+    },
+  })
   /**
    * 这一轮要贴给模型看的图（data URL）。
    *
@@ -881,6 +900,10 @@ export const ChatPanel = React.memo(function ChatPanel() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (atReference.onKeyDown(e)) {
+      e.preventDefault()
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -1461,13 +1484,30 @@ export const ChatPanel = React.memo(function ChatPanel() {
          * 高频动作（发送/停止）在右侧圆形键；低频开关（循环模式/先计划/完全权限/预设/
          * 清空/撤回）收进左侧「模式」下拉 —— 面板一窄就不再堆成一列按钮。
          */}
-        <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 px-2 pt-1.5 pb-1">
+        <div className="relative rounded-2xl border border-zinc-700/70 bg-zinc-900/50 px-2 pt-1.5 pb-1">
+          {atReference.open && (
+            <AtReferenceMenu
+              items={atReference.items}
+              activeIndex={atReference.activeIndex}
+              loading={atReference.loading}
+              error={atReference.error}
+              unsupported={atReference.unsupported}
+              query={atReference.query}
+              onHover={atReference.hover}
+              onPick={atReference.pick}
+            />
+          )}
           <div className="flex items-end gap-2">
             <textarea
+              ref={textareaRef}
               className="max-h-40 min-h-[32px] flex-1 resize-none bg-transparent px-1 py-1.5 text-sm leading-6 outline-none"
               rows={Math.min(6, Math.max(1, input.split('\n').length))}
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => {
+                setInput(e.target.value)
+                setInputCaret(e.target.selectionStart ?? 0)
+              }}
+              onSelect={e => setInputCaret(e.currentTarget.selectionStart ?? 0)}
               onPaste={e => void handlePaste(e)}
               onKeyDown={handleKeyDown}
               placeholder={

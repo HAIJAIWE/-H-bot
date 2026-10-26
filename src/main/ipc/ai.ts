@@ -24,6 +24,9 @@ import {
   aiRenameThreadSchema,
   aiSearchThreadsSchema,
   aiExportThreadSchema,
+  aiThreadFeedbackSchema,
+  aiMessageFeedbackPutSchema,
+  aiMessageFeedbackDeleteSchema,
   aiThreadSchema,
   approvalDecisionSchema,
   rewindToSchema,
@@ -42,6 +45,12 @@ import { clearThread, listThreads, threadFile } from '../services/ai/threads'
 import { renameThreadTitle } from '../services/ai/threadTitles'
 import { searchProjectThreads } from '../services/ai/threadSearch'
 import { buildThreadMarkdown } from '../services/ai/threadExport'
+import {
+  clearThreadFeedback,
+  deleteMessageFeedback,
+  readThreadFeedback,
+  setMessageFeedback,
+} from '../services/ai/messageFeedback'
 import { clearPresetSession } from '../services/ai/presetLock'
 import {
   appendHistoryEntries,
@@ -537,7 +546,64 @@ function registerAiIpc(projectService) {
       await clearThread(parsed.data.projectPath, parsed.data.threadId)
       // 记忆与预设锁必须一起清：只清记忆会留下"已开始"的锁，用户清空后还是换不了预设
       await clearPresetSession(parsed.data.projectPath, parsed.data.threadId)
+      // 反馈也一起清（第 58 批）：线程清空后消息 id 全换了，留着旧反馈只会指向不存在的回答
+      await clearThreadFeedback(parsed.data.projectPath, parsed.data.threadId)
       return null
+    })
+  })
+  /**
+   * ai:getThreadFeedback —— 某条线程的全部消息反馈（第 58 批）。
+   *
+   * 整表一次拉：界面进线程/切线程时加载，之后靠本地乐观更新。不做逐条查询 ——
+   * 一条线程可能有几十上百条消息，逐条问会把 IPC 变成 N 次往返。
+   */
+  electron.ipcMain.handle('ai:getThreadFeedback', async (_event, args) => {
+    const parsed = aiThreadFeedbackSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败: ${parsed.error.message}`,
+      }
+    return tryIpcAsync(async () => {
+      assertProjectPathAllowed(baseDir, parsed.data.projectPath)
+      return { items: await readThreadFeedback(parsed.data.projectPath, parsed.data.threadId) }
+    })
+  })
+  /**
+   * ai:putMessageFeedback —— 写一条反馈（第 58 批）。
+   *
+   * 三种拒绝都有明确人话：找不到那条回答（`target-not-found`，比如已清空/换了线程）、
+   * 说明太长（`note-too-long`）、参数不对。**不静默截断**说明 —— 用户会以为自己写的都存了。
+   */
+  electron.ipcMain.handle('ai:putMessageFeedback', async (_event, args) => {
+    const parsed = aiMessageFeedbackPutSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败: ${parsed.error.message}`,
+      }
+    return tryIpcAsync(async () => {
+      assertProjectPathAllowed(baseDir, parsed.data.projectPath)
+      const item = await setMessageFeedback(parsed.data)
+      return { item }
+    })
+  })
+  /**
+   * ai:deleteMessageFeedback —— 撤回一条反馈（第 58 批）。
+   *
+   * 「点掉已选中的那档」= 撤回（上游同语义）。不存在时返回 `{removed:false}` 而**不报错**：
+   * 界面刚乐观删掉、又因为别处已删而失败，弹个红字只会让用户困惑。
+   */
+  electron.ipcMain.handle('ai:deleteMessageFeedback', async (_event, args) => {
+    const parsed = aiMessageFeedbackDeleteSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败: ${parsed.error.message}`,
+      }
+    return tryIpcAsync(async () => {
+      assertProjectPathAllowed(baseDir, parsed.data.projectPath)
+      return { removed: await deleteMessageFeedback(parsed.data) }
     })
   })
   /**

@@ -2,6 +2,7 @@
 import { readFile, writeFile, rename, readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { assertWithinProject } from './pathGuard'
+import { invalidateFileReferenceIndex } from './ai/fileReference'
 
 export interface FileInfo {
   name: string
@@ -18,6 +19,14 @@ export async function readProjectFile(projectPath: string, relativePath: string)
 export async function writeProjectFile(projectPath: string, relativePath: string, content: string): Promise<void> {
   const fullPath = joinSafe(projectPath, relativePath)
   await writeFile(fullPath, content, 'utf-8')
+  /**
+   * 第 58 批：写完要让 `@` 候选索引立刻失效。
+   *
+   * 索引有 3 秒 TTL，但那 3 秒里"刚被写出来的文件"搜不到 —— 用户刚让模型建完
+   * 文件、紧接着 `@` 它，菜单却是空的，看起来像没建成功。写盘是这里唯一的口子
+   * （模型写文件与界面保存都走它），所以失效放在这里而不是各调用方。
+   */
+  invalidateFileReferenceIndex(projectPath)
 }
 
 /**

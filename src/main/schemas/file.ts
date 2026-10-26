@@ -16,5 +16,17 @@ var listFilesSchema = z.object({
 	projectPath: z.string().min(1),
 	relativeDir: safeRelativePath.optional()
 });
+/**
+ * `@` 引用的候选检索（第 58 批）。
+ *
+ * `query` 允许空串（刚打 `@` 时就是空 —— 此时给"目录在前、按名字排"的全量前 20 条），
+ * 但 `projectPath` 不能空：检索永远限定在当前项目内，不接受"全盘搜"。
+ * 上限 400 字符只挡明显不是路径的输入（真口径在服务层的按 `/` 分叉）。
+ */
+var searchReferencesSchema = z.object({
+	projectPath: z.string().min(1),
+	query: z.string().max(400),
+	limit: z.number().int().min(1).max(50).optional()
+});
 
-export { safeRelativePath, readFileSchema, writeFileSchema, listFilesSchema };
+export { safeRelativePath, readFileSchema, writeFileSchema, listFilesSchema, searchReferencesSchema };

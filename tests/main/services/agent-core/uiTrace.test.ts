@@ -8,6 +8,7 @@ import { assistantHistoryEntry } from '@main/services/agent-core/uiTrace'
 describe('assistantHistoryEntry：答案 + 界面回看的痕迹', () => {
   it('工具失败按前缀记成 error，成功的记 done', () => {
     const entry = assistantHistoryEntry({
+      id: 'msg-1',
       content: '做完了',
       reasoning: '想了想',
       toolResults: [
@@ -17,6 +18,7 @@ describe('assistantHistoryEntry：答案 + 界面回看的痕迹', () => {
       startedAt: Date.now() - 1500,
     })
     expect(entry.role).toBe('assistant')
+    expect(entry.id).toBe('msg-1')
     expect(entry.content).toBe('做完了')
     expect(entry.reasoning).toBe('想了想')
     expect(entry.trace?.map(t => t.status)).toEqual(['done', 'error'])
@@ -25,6 +27,7 @@ describe('assistantHistoryEntry：答案 + 界面回看的痕迹', () => {
 
   it('没思考、没工具 → 不留那两个字段（空数组会让读侧长出一条空过程行）', () => {
     const entry = assistantHistoryEntry({
+      id: 'msg-2',
       content: '嗯',
       reasoning: '   ',
       toolResults: [],

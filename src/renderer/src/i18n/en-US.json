@@ -626,6 +626,40 @@
       "turn": "Turn {n}",
       "hint": "Click a turn to jump back to that message"
     },
+    "feedback": {
+      "goodAria": "This answer was helpful",
+      "badAria": "This answer was not helpful",
+      "dialogTitle": "Send feedback",
+      "categories": "Feedback categories",
+      "detail": "Feedback details",
+      "detailPlaceholder": "What worked, what didn't (optional)",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "saved": "Thanks for the feedback",
+      "retracted": "Feedback retracted",
+      "failed": "Could not save feedback: {message}",
+      "conflict": "This feedback changed elsewhere. Showing the latest state.",
+      "noteTooLong": "Description is too long. Shorten it and try again.",
+      "loadFailed": "Could not load feedback",
+      "targetMissing": "This message was not saved to disk, so it cannot be rated",
+      "category": {
+        "taskResult": "Task result",
+        "instructionFollowing": "Instruction following",
+        "productInteraction": "Product interaction",
+        "serviceStability": "Stability and speed",
+        "resourceCost": "Resource cost",
+        "securityPrivacy": "Security and permissions",
+        "other": "Other"
+      }
+    },
+    "at": {
+      "title": "Reference a file",
+      "hint": "↑↓ to select · Enter to insert · Esc to close",
+      "empty": "No matching files",
+      "searching": "Searching…",
+      "failed": "Could not load files: {message}",
+      "unsupported": "That path cannot be inserted (quotes or control characters)"
+    },
     "sidebar": {
       "searchAria": "Search chats",
       "searchPlaceholder": "Search chat titles",

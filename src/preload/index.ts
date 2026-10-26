@@ -88,6 +88,12 @@ const api = {
     list: (projectPath: string, relativeDir?: string) =>
       ipcRenderer.invoke('file:list', { projectPath, relativeDir }),
     /**
+     * `@` 引用的候选（第 58 批）：只给路径与类型，**不读文件内容**。
+     * 归位表里是 X 层（用户触发 + 用户可见），模型拿不到这条通道。
+     */
+    searchReferences: (projectPath: string, query: string, limit?: number) =>
+      ipcRenderer.invoke('file:searchReferences', { projectPath, query, limit }),
+    /**
      * **框架开发模式**：读开关 + 框架根 + 现有回退点。
      *
      * 归位表里这一族是 **P 层（用户触发）** —— 模型拿不到。理由见
@@ -451,6 +457,34 @@ const api = {
     /** 把一条线程导出成 Markdown（主进程弹保存对话框并写盘；用户取消 = 明确错误） */
     exportThread: (projectPath: string, threadId: string) =>
       ipcRenderer.invoke('ai:exportThread', { projectPath, threadId }),
+    /**
+     * 消息反馈（第 58 批，对照 DSH `dsh-message-feedback`）。
+     *
+     * 整表读一次、逐条写：一条线程进界面时把反馈表拉下来，之后点赞/点踩/撤回都是
+     * 单条 upsert/delete（`rating` 两档 + 可选 7 档分类与说明）。
+     */
+    getThreadFeedback: (projectPath: string, threadId: string) =>
+      ipcRenderer.invoke('ai:getThreadFeedback', { projectPath, threadId }),
+    putMessageFeedback: (payload: {
+      projectPath: string
+      threadId: string
+      messageId: string
+      rating: 'positive' | 'negative'
+      category?: string
+      note?: string
+    }) =>
+      // 键名摊成字面量：`ipcPayloadContract` 闸门靠静态抠键，传整包会变成「无法核对」
+      ipcRenderer.invoke('ai:putMessageFeedback', {
+        projectPath: payload.projectPath,
+        threadId: payload.threadId,
+        messageId: payload.messageId,
+        rating: payload.rating,
+        category: payload.category,
+        note: payload.note,
+      }),
+    /** 撤回：点掉已选中的那档 = 删掉这条反馈（不存在时 removed:false，不报错） */
+    deleteMessageFeedback: (projectPath: string, threadId: string, messageId: string) =>
+      ipcRenderer.invoke('ai:deleteMessageFeedback', { projectPath, threadId, messageId }),
     /**
      * 列出**已记录的 AI 轮次**（新的在前）—— 「撤回这一轮」的候选列表。
      * 一轮 = 一个可撤销单元（它改过的文件 + 开始时的流程），见主进程 turnJournal.ts。

@@ -12,6 +12,7 @@
 // ⚠️ 这里**不复制任何一处厂商/开源项目的提示词**：结构借鉴（工作区 + 工具纪律 +
 // 收尾要求），措辞与条目是这个项目自己的。
 import { listTools } from './core'
+import { FILE_REFERENCE_PROMPT } from '@shared/ai/fileReference'
 
 export interface PromptContext {
   workspace: string
@@ -103,6 +104,20 @@ registerPromptSection({
       '6. 收尾用两三句话说清：做了什么、改了哪些文件、还剩什么要人决定。',
     ].join('\n')
   },
+})
+
+/**
+ * `@` 引用的说明（第 58 批，对齐 DSH 的条件注入）。
+ *
+ * **只在 `read_file` 真的可用时才出现**：这段的全部意义是"你自己去读那个文件"，
+ * 而这条路不存在时它就是在骗模型 —— 上游为此专门把 render 写成条件返回空串。
+ * 开荒（无工作区）时也不给：没有工作区就没有"相对工作区根"这回事。
+ */
+registerPromptSection({
+  id: 'file-reference',
+  order: 35,
+  render: ({ workspace, toolNames }) =>
+    workspace && toolNames.includes('read_file') ? FILE_REFERENCE_PROMPT : '',
 })
 
 /**

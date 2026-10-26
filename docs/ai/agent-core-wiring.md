@@ -3706,3 +3706,223 @@ threadId.min1.max64}`）。两条都在 `assertProjectPathAllowed(baseDir, proje
 `tests/guards/file-size-baseline.json`、`tests/renderer/components/ai/ThreadRow.test.tsx`、
 `docs/ai/ai-capability-layering-2026-10-08.md`、`docs/ai/dsh-source-adaptation-2026-10-24.md`、
 `docs/ai/dsh-session-view-batch56-design.md`（第 56 批交接清单收口为终态）。
+
+## §58 第 58 批：消息反馈 + @ 文件引用（2026-10-27）
+
+### 58.1 为什么是这两件
+
+选型不是拍脑袋，先把设置页里 18 条插件逐条分诊了一遍
+（`docs/ai/dsh-plugin-porting-survey-2026-10-27.md`，三份子报告在 `_recovery/survey58/`）：
+
+- **能搬 3 条**：持久终端 6 工具（`agent-core/terminal.ts` 的 `ShellSession` 全仓零引用 = 死代码）、
+  会话检索工具（包一层 `threadSearch.ts:53 searchProjectThreads`）、并行工具调用数设置
+  （`core.ts:498 maxParallelToolCalls` 已实现但 `runTurn.ts:210` / `aiAgentCore.ts:633` 没透传）。
+- **部分搬 2 条**：会话检查器（扩 `TrajectoryPanel.tsx`，L）、Git 工作树（要先有会话级 cwd，M）。
+- **已有等价物 2 条**：用户终端（`services/terminal.ts` + `Terminal.tsx` + node-pty/xterm）、插件市场
+  （`services/plugins/market.ts`）。
+- **不搬 11 条**：子智能体、网页搜索、智能体团队、语音输入、CoT 翻译、DSH 徽章、Ralph、Codex /
+  Claude Code 子智能体（两者实体不在 asar 里，只有 `ON_DEMAND_BUNDLES` 元信息）等，理由逐条记在
+  分诊文档。
+
+本批只做用户点名的两件，加一件"其实已经有了"的核对结论：
+
+1. **消息反馈**（`dsh-message-feedback` + `dsh-command-feedback` + `dsh-client-ui-message-feedback`）：
+   上游是 Cordis 服务 + Typert 远程调用，代码搬不动，搬语义 —— 7 档分类、说明上限、同档再点撤回、
+   目标是"已落盘的 assistant 消息"。
+2. **@ 文件引用**（`dsh-file-reference` + `-local`）：搬两条正则、`{path, kind}` 两字段契约、5 档打分、
+   一段系统提示词。**不搬** 1951 行的 `client-ui-input-trigger` 浮层框架与 `dsh-resource://` 协议。
+3. **工具审批白名单记忆**：核对结论是**本项目已经有**（`toolApproval.ts` 三值决策 + `allowRules.ts`
+   可撤销规则表 + 5 分钟超时），比上游强；上游 `OUTCOMES` 只有 `allowed-once` 一个"准"，而且**没有
+   白名单落盘、没有审批超时**。本批不动它，缺口（策略句注入 / 四结局区分 / 审计对 / auto-review）
+   记在第 60 批候选里。
+
+### 58.2 消息反馈：稳定 id 是地基
+
+反馈要指向"某一条 assistant 消息"，而这一层原来根本没有 id：
+
+- `HistoryEntry` 只有 `{ts, role, content}`，渲染层的历史消息 id 是**位置派生**的
+  （`hist-${i}-${k}`）—— 重启、压缩、截断都会变，拿它当反馈的 key 会指向另一条消息。
+- 所以先把 id 打通，四处一起改：
+  1. `src/main/services/ai/historyStore.ts`：`appendHistoryEntries` 生成/沿用 `id` 并**返回 ids 数组**，
+     落盘行是 `{id, ts, role, content}`；读侧 `loadHistory` 只认落盘里真有的 `id`（**读侧不编造**）；
+     `truncateHistoryAt` 重写行时保留 `id`（截断改了 id 就等于把反馈指到别人身上）。
+  2. `src/main/services/agent-core/uiTrace.ts`：`assistantHistoryEntry` 入参加必填 `id`。
+  3. `src/main/ipc/aiAgentCore.ts`：每轮 `const assistantMessageId = randomUUID()`，落盘与事件共用。
+  4. 渲染层 `ChatMessageWithTrace.messageId`：`ai:response` 带回来就挂上，`loadHistoryFromDisk` 用
+     落盘的 `id`，缺省（老历史）就**不显示**反馈按钮 —— 这是刻意的：宁可没有按钮，也不要存一条
+     指向不存在消息的反馈。
+- 真机第一次跑就抓到一个真 bug：`ai:response` 与 invoke 回执**谁先到没有保证**（这句注释在
+  `aiStore.ts` 早就写着），回执先到时走 `runAgentCoreTurn` 的兜底分支自己收尾，而那条路径**没带
+  messageId** → 界面拿不到 id，按钮不出现。修法是让 `ai:agentCoreRun` 的回执也带 `messageId`
+  （`lastMessageId` 在 main 里生成后就留着），兜底分支用它。这个 bug 只有"真的在界面上发一句话"
+  才能暴露，单测两条路分开测都会绿。
+
+### 58.3 反馈落盘形状与并发
+
+- 文件 `<project>/.qqbat/ai-feedback/<sanitizeThreadId>.json`，形状
+  `{version: 1, items: {[messageId]: {rating, category?, note?, createdAt, updatedAt}}}`，走
+  `infra/fileOps.atomicWrite`（所以不进 `projectWritesViaFileOps` 的直写登记表）。
+- 上限 500 条/线程，超了按 `updatedAt` 丢最旧；坏文件/坏版本读成空表，不抛、不删。
+- `setMessageFeedback` 的校验顺序：评分/分类合法 → `hasAssistantMessage` 必须命中
+  （`role === 'assistant' && entry.id === messageId`，否则 `target-not-found`）→ note 超 4×500 直接
+  `note-too-long`（**拒绝而不截断**，悄悄截断等于骗人）→ `normalizeFeedbackNote` 归一
+  （剥 C0/C1、折叠空白、trim、按码点截 500）→ **内容没变就直接返回现有条目、不写盘**
+  （把磁盘上的 `updatedAt` 改成 2020 再写一次，仍然是 2020 —— 这条有测试）。
+- 改评分保留 `createdAt`、只换 `updatedAt`；撤回（`deleteMessageFeedback`）不存在时返回 false
+  且**不写盘**；`ai:clearThread` 顺带 `clearThreadFeedback`（删对话不能留一堆指向不存在消息的反馈）。
+- 上游还做了乐观并发的 `version` 冲突（`version-conflict`）。本项目是**单窗口桌面应用 + 每次改动
+  重读重写整表**，不存在两个客户端抢同一条的场景，所以没搬 `version` 字段 —— 搬一个用不上的
+  UUID 比不搬更糟。
+
+### 58.4 反馈界面：一个动作两种结局
+
+- 每条**有 id 的** assistant 消息，动作行里在"复制"和"重新生成"之间多一对 👍/👎
+  （`MessageActions` 加 `feedback` / `feedbackEnabled` / `onFeedback`），`aria-pressed` +
+  `data-active`，选中态是 emerald / rose 实心。
+- 点未选中的那一档 = **打开弹层**（不是直接落库）；点已选中的那一档 = **撤回**。上游也是这个语义
+  （"任一评分都会打开反馈弹层"，再点同一个 = retract）—— 照抄它，因为避免"误点即写盘"。
+- 弹层 `MessageFeedbackDialog`：`role="dialog"` + `useDialogFocus`、7 个分类 chip（`aria-pressed`）、
+  说明 `maxLength=500` 带字数、提交中禁用、失败**保留弹层**用 `role="alert"` 说原因、Esc / 遮罩 /
+  取消三条关闭路径。**没有**右上角 X —— 它会和「取消」撞同一个无障碍名。
+- 失败文案分工（`feedbackFailureText`）：`ipc-missing` → 「界面与主进程版本不一致，重启应用再试」、
+  `note-too-long` → 「描述太长」、`conflict` → 「这条反馈已在别处改动」、其余透传原文。
+- 反馈状态在渲染层是 `threadFeedback: Record<messageId, MessageFeedbackItem>`，`putMessageFeedback`
+  乐观写、失败回滚，`retractMessageFeedback` 同理；切线程/新建/清空都重置这张表，加载历史后
+  `loadThreadFeedback` 再补。
+
+### 58.5 @ 文件引用：路径即提示词，不塞文件内容
+
+上游最反直觉的一条：插入的是**工作区相对路径纯文本**，不是文件内容。
+
+- 触发两条正则（只看光标左侧）：引号态 `/(?:^|\s)@"([^"]*)$/u`、裸态 `/(?:^|\s)@([^\s]*)$/u`。
+  `@` 必须在行首或空白之后 —— 所以邮箱 `a@b` 不弹菜单；光标后面还有字符时不弹（`@src/fo|o/bar.ts`
+  这种中间落点弹出来会盖住后半截路径）。
+- 插入形态 `formatFileReferenceMention`：文件无空格 `@src/a.ts`、有空格 `@"a b.ts"`；目录
+  `@dir/`（引号态故意**不闭合** `@"dir/`，方便接着往下钻）；含引号/控制字符的路径返回 null，
+  界面显示「这个路径没法用 @ 表达」，原文一个字都不动。
+- 候选来自两条路径：查询里含 `/` 或为空 → **live 列目录**（不建索引，永远新鲜）；否则 → **有界索引**
+  （`MAX_INDEX_ENTRIES=20000`，BFS 跳过 `ALWAYS_FORBIDDEN_SEGMENT_NAMES` 与构建产物目录，
+  `INDEX_TTL_MS=3000`）。打分 5 档（basename 全等 1000 / 前缀 900 / 包含 700 / 全路径包含 500 /
+  子序列 300），目录 +25，同分目录优先 → 短路径优先 → 字典序。
+- 隐藏项只在 fragment 以 `.` 开头时出现（真机 `@.env` 能查到 `.env`，`@` 查不到 —— 否则每个
+  项目都会被 `.git`、`.qqbat` 刷屏）。
+- 写盘立刻失效索引：`services/fileOps.ts` 的 `writeProjectFile` 写完就
+  `invalidateFileReferenceIndex(projectPath)` —— 否则 3 秒 TTL 内刚写出的文件搜不到，看起来像没建成。
+- 提示词 `FILE_REFERENCE_PROMPT`（上游原文，`read` 换成我们的 `read_file`）注册在
+  `agent-core/prompt.ts` 的 `order: 35`，**条件注入**：工作区为空或工具白名单里没有 `read_file` 时
+  给空串（没有读文件的能力却告诉模型"去读那个路径"是纯坑）。
+- 额外一件上游没做的：`describeMissingFileReferences` —— 用户这句话里 `@` 到的路径在工作区真不存在时，
+  在系统提示里直接告诉模型"这些路径不存在，先说清找不到再问他要哪个"。真机上 `@src/rend` 那一轮，
+  模型先列 `src/` 确认只有 `plugins/` 再追问，没有瞎编一个文件读（`trace` 里只有一次 `list_dir`）。
+
+### 58.6 IPC 与能力账
+
+4 条新通道（全部 `assertProjectPathAllowed` + `tryIpcAsync`，并登记进
+`tests/guards/ipcPayloadContract.test.ts`）：
+
+- `ai:getThreadFeedback`（读整表）、`ai:putMessageFeedback`（已落盘 assistant 消息打评价）、
+  `ai:deleteMessageFeedback`（撤回）—— 载荷 schema 在 `src/main/schemas/ai.ts`。
+  preload 的 `putMessageFeedback` 刻意写成**字面量载荷**，因为契约闸门是静态抠
+  `invoke('x', { ... })` 的键名，传整包 `payload` 会被判"无法静态核对"。
+- `file:searchReferences`（候选列表）—— schema 在 `src/main/schemas/file.ts`，服务在
+  `src/main/services/ai/fileReference.ts`，`baseDir` 有值时先 `assertWithinProject`。
+
+能力账（`docs/ai/ai-capability-layering-2026-10-08.md`）：`ai` 58 → **61**、`file` 6 → **7**，
+合计 283 → **287**、X + ⛔ 86 → **90**；`node scripts/gen-capability-catalog.mjs` 重生成两份
+generated（287 条）。顺手把附录小计的存量错账改了（改前写 `X 79 = 279`，与附录 A 的 281 条不符）。
+
+### 58.7 测试与闸门
+
+新增 9 个测试文件、改动 2 个：
+
+- `tests/shared/ai/messageFeedback.test.ts`(8)：7 档分类顺序、归一剥 C0/C1、折叠空白、按码点截 500
+  不切碎 emoji、刚好 500。
+- `tests/shared/ai/fileReference.test.ts`(24)：行首/空白后触发、邮箱不触发、**中间光标不触发**
+  （含引号态）、越界/非整数 caret、`formatFileReferenceMention` 四种形态 + 不可表达返回 null、
+  `applyFileReferencePick` 的 settle/drill/已跟空白不补第二个空格/引号态整体替换、
+  `parseFileReferenceMentions` 剥尾随中英标点、提示词含 `use the read_file tool`。
+- `tests/main/services/ai/messageFeedback.test.ts`(12)：落盘路径与 `version`、`target-not-found`、
+  user 消息不能打反馈、未知分类/评分、纯控制字符等于没写、2001 字拒绝不截断、**内容没变不写盘**、
+  改评分保留 `createdAt`、撤回幂等、`clearThreadFeedback`、两线程互不影响、坏文件读成空表。
+- `tests/main/services/ai/fileReference.test.ts`(21)：空 query 列根、`src/` 排序、隐藏项规则、
+  `../` 越界返回 `[]`、limit 夹取、basename 全等优先、确定性、同分目录优先、排除目录不参与、
+  子序列命中、3 秒缓存需失效、baseDir 越界抛错、`writeProjectFile` 立刻失效索引、
+  `describeMissingFileReferences` 五例。
+- 渲染层：`MessageActions.feedback`(6)、`MessageFeedbackDialog`(14)、`AgentTranscript.feedback`(9)、
+  `AtReferenceMenu`(7)、`ChatPanelAtReference`(11，含"搜索还没回来时按 Enter 不插旧候选、也不发送")。
+- 改动：`tests/main/ipc/aiAgentCore-ipc.test.ts` 34 → **36**（"`ai:response` 与历史落盘共用同一个
+  messageId" + 回执也带 messageId；"`@` 了不存在的路径 → 系统提示带 mentionNote"）、
+  `tests/main/services/agent-core/uiTrace.test.ts` 补 `id` 断言。
+
+闸门实测：`tsc -p tsconfig.node.json` = **0**、`tsc -p tsconfig.web.json` = **0**；
+`vitest run tests/guards` = **15 文件 / 107 例全绿**；全量 `vitest run` = **302 passed | 2 skipped
+（304 文件）/ 3788 passed | 7 skipped（3795 例）**、185.69s（第 57 批 295 文件 / 3681 例 →
++9 文件 / +114 例）；`electron-vite build` = **EXIT 0**。日志：`_recovery/full-gate-batch58.log`、
+`_recovery/gate-batch58-vitest-exit.txt`、`_recovery/build-batch58.log`。
+
+prettier：本批新写的 6 个文件先 `--write` 再 `--check` 全过。4 个"存量就不干净"的文件
+（`src/main/ipc/file.ts`、`src/main/schemas/file.ts`、`src/main/services/fileOps.ts`、
+`src/main/services/ai/historyStore.ts`）用 `git show HEAD:<path>` 取 HEAD 版本单独 check 证实
+本来就不过 —— 按第 55/56/57 批先例不动整文件，避免把两百行无意义 diff 混进功能提交。
+
+### 58.8 真机（dev + CDP 43191）
+
+1. **起 dev**：`Remove-Item Env:ELECTRON_RUN_AS_NODE`、`$env:QQBAT_CDP_PORT='1'`、
+   `node node_modules/electron-vite/bin/electron-vite.js dev`，等 `CDP 已开启：127.0.0.1:43191` +
+   `[bootstrap] SQLite 引擎：better-sqlite3`。
+2. **老历史不显示反馈按钮**：项目「还原验证项目」41 条历史消息，`button[aria-label="这条回答有帮助"]`
+   数 = **0**（老条目没有 id，符合设计）。
+3. **第一次跑就红**：界面上发一句"只回复两个字：好的"，新 assistant 只有 复制/重新生成/撤回，
+   没有 👍/👎；同一条在 `.qqbat/ai-history.jsonl` 里**有 id**（`fb75815c-…`），`ai:response` 事件
+   也带 `messageId`，但界面没有 → 定位到 `runAgentCoreTurn` 兜底分支丢 id（见 58.2）。修完重启，
+   同一探针 → **3 对** 👍/👎 出现。
+4. **点赞 → 弹层**：点 👍 **不落库**，`[role="dialog"]` 文本是 `提交反馈 / 反馈分类（7 chip）/
+反馈详情 / 0 / 500 / 取消 / 提交`，`textarea` 的 `maxlength="500"`。
+5. **提交**：选「任务结果」→ `aria-pressed="true"`；填 16 字说明（计数 `16 / 500`）→ 提交 → 弹层关、
+   目标消息 `good aria-pressed="true" data-active="true"`、行下 `role="status"`「感谢你的反馈」、
+   `getThreadFeedback` 回 `{rating:'positive', category:'task-result', note:'真机探针：回复准确、
+没有多余动作'}`。
+6. **撤回**：再点同一个 👍 → `aria-pressed="false"`、状态「已撤回反馈」、条目数 **0**。
+7. **点踩**：👎 打开同一个弹层 → 选「稳定性和速度」→ 提交 → `bad aria-pressed="true"`、
+   条目 `{rating:'negative', category:'service-stability'}`；好按钮仍 false（互斥）。
+8. **重启后仍在**：杀 electron 重启，`messageCount=49`、带反馈按钮的 **4** 条、
+   `{id:'ai-msg-46', good:'false', bad:'true'}`、`feedbackItemCount=1` —— 从磁盘恢复成功。
+9. **@ 菜单（真实键盘路径，`_recovery/cdp-at.mjs`：`Input.insertText` + `Input.dispatchKeyEvent`）**：
+   输入 `@` → `[role="listbox"]` 文本 `引用文件↑↓ 选择 · Enter 插入 · Esc 关闭` + 候选 `data/`、`src/`；
+   再输 `src/` → 只剩 `src/plugins/`；`ArrowDown` + `Enter`（目录）→ 输入框变 `@src/plugins/`、
+   caret 13、菜单**保持打开**（下钻）。
+10. **隐藏项与文件补空格**：`@.env` → 候选 `.env`；`Enter` → 文本 `@.env `（文件后补**一个**空格）、
+    caret 6、菜单关闭。
+11. **顺带发现的 UX bug**：搜索还没回来时菜单里挂着上一轮候选，此时 Enter 会插入**过期路径**
+    （菜单同时显示「正在查找…」和旧结论）。修法：`useAtReference.onKeyDown` 在 `loading` 期间把
+    Enter/Tab 吞掉（不插、也不落到"发送"），并补一条用例钉住。
+
+诚实边界（没真机跑的）：
+
+- 中文输入法的组合事件（`compositionstart/end`）在 @ 菜单里没测；真机输入走 `Input.insertText`。
+- 「含空格路径」的引号形态没在真机验（验证项目里没有带空格的文件），只有单测覆盖。
+- 多窗口/多客户端同时改同一条消息的反馈没测（本批没搬 `version` 乐观并发，见 58.3）。
+- 反馈弹层的分类 chip 键盘 Tab 顺序没逐步验；Esc 与遮罩两条关闭路径验过。
+- 探针在 default 线程里误发的两条消息（`@src/rend` 与一次失控的 Enter）已从历史里清掉，
+  备份在 `_recovery/probe58/ai-history-default.bak.jsonl`；`ai-msg-46` 的负反馈保留作持久化证据。
+
+### 58.9 涉及文件
+
+新增 `src/shared/ai/messageFeedback.ts`(73)、`src/shared/ai/fileReference.ts`(160)、
+`src/main/services/ai/messageFeedback.ts`(218)、`src/main/services/ai/fileReference.ts`(287)、
+`src/renderer/src/components/ai/MessageFeedbackDialog.tsx`(192)、`AtReferenceMenu.tsx`(152)、
+`src/renderer/src/hooks/useAtReference.ts`(204)、9 个测试文件、
+`docs/ai/dsh-plugin-porting-survey-2026-10-27.md`、`_recovery/cdp-at.mjs`（真机驱动）。
+
+改动 `src/main/ipc/ai.ts`(906，三条 handler)、`src/main/ipc/aiAgentCore.ts`(1046，messageId 生成/
+透传/mentionNote)、`src/main/ipc/file.ts`(185，`file:searchReferences`)、
+`src/main/schemas/{ai,file}.ts`、`src/main/services/ai/historyStore.ts`(419，id 进出)、
+`src/main/services/agent-core/{runTurn,prompt,uiTrace}.ts`、`src/main/services/fileOps.ts`(63，写盘
+失效索引)、`src/preload/index.ts`(1141)、`src/renderer/src/types/ipc.ts`(1773)、
+`src/renderer/src/stores/aiStore.ts`(2524，`threadFeedback` + 三个 action + 兜底 messageId)、
+`src/renderer/src/components/ai/ChatPanel.tsx`(1717，@ 菜单接线净 +40)、`AgentTranscript.tsx`(213)、
+`MessageActions.tsx`(149)、`src/renderer/src/i18n/{zh-CN,en-US}.json`（`ai.feedback.*` 17 键 +
+`ai.at.*` 6 键）、`capabilityCatalog.generated.ts`、`capabilityPolicy.generated.ts`、
+`tests/guards/ipcPayloadContract.test.ts`、`tests/main/ipc/aiAgentCore-ipc.test.ts`、
+`tests/main/services/agent-core/uiTrace.test.ts`、`docs/ai/ai-capability-layering-2026-10-08.md`、
+`docs/ai/dsh-source-adaptation-2026-10-24.md`、`README.md`。

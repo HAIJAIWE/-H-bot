@@ -15,6 +15,8 @@ export interface UiTraceEntry {
 
 /** 历史 JSONL 里一条 assistant 记录（role/content 之外的字段全部可选） */
 export interface AssistantHistoryEntry {
+  /** 稳定 id（第 58 批，消息反作用在它上面）；由调用方生成，append 原样落盘 */
+  id?: string
   ts: string
   role: 'assistant'
   content: string
@@ -35,12 +37,15 @@ function traceOfToolResults(rows: RunTurnResult['toolResults']): UiTraceEntry[] 
 
 /** 一轮的答案 + 痕迹。空思考不给字段（写进 JSONL 的空串会让读侧以为有内容） */
 export function assistantHistoryEntry(input: {
+  /** 稳定 id：收尾时会随 `ai:response` 发给渲染层，界面靠它把反馈挂到这条回答上 */
+  id: string
   content: string
   reasoning: string
   toolResults: RunTurnResult['toolResults']
   startedAt: number
 }): AssistantHistoryEntry {
   return {
+    id: input.id,
     ts: new Date().toISOString(),
     role: 'assistant',
     content: input.content,

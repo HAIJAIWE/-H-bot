@@ -7,6 +7,7 @@ import { CONVERSATION_TOKEN_BUDGET, estimateTokens } from './tokenBudget';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as fs_promises from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 /**
 * 记忆的 token 预算 —— **不再是写死的 6,000**（2026-10-15 审计）。
 *
@@ -174,6 +175,9 @@ async function loadHistory(projectPath, file = historyFilePath(projectPath), opt
 					role: parsed.role,
 					content: parsed.content
 				};
+				// 稳定 id（第 58 批）：消息反馈要挂在这条记录上。老文件没有 id，
+				// 读侧**不编造**（编出来重启一次就变），由渲染层退回位置派生 id 且反馈按钮禁用。
+				if (typeof parsed.id === "string" && parsed.id) entry.id = parsed.id;
 				// attempt 的诊断字段原样带回：读侧以前只认 user/assistant，把写侧（aiAgentCore）
 				// 落盘的失败原因整行丢掉了 —— 于是"重启后查不到上次为什么没做完"。
 				if (isAttempt) {
@@ -225,12 +229,22 @@ async function ensureTrailingNewline(file) {
 		}
 	} catch {}
 }
-/** 追加若干条记录（追加式：不重写已有内容） */
+/** 追加若干条记录（追加式：不重写已有内容）。
+*
+* 返回**每条落盘记录最终用的 id**（第 58 批）：调用方（aiAgentCore 收尾）要把 assistant 记录的
+* id 随 `ai:response` 发给渲染层，界面才知道"这条回答的反馈该挂给谁"。
+* 没带 id 的条目在这里补一个 uuid —— id 由**写侧**生成而不是读侧推导，是因为位置派生 id
+* 在压缩/重读后会变，反馈就指向了另一条消息。
+*/
 async function appendHistoryEntries(projectPath, entries, file = historyFilePath(projectPath)) {
-	if (entries.length === 0) return;
+	if (entries.length === 0) return [];
 	await (0, fs_promises.mkdir)((0, path.dirname)(file), { recursive: true });
+	const ids = [];
 	const lines = entries.filter((e) => e.content.trim().length > 0).map((e) => {
+		const id = typeof e.id === "string" && e.id ? e.id : randomUUID();
+		ids.push(id);
 		const line = {
+			id,
 			ts: e.ts,
 			role: e.role,
 			content: e.content.length > MAX_ENTRY_CHARS ? `${e.content.slice(0, MAX_ENTRY_CHARS)}…` : e.content
@@ -252,7 +266,7 @@ async function appendHistoryEntries(projectPath, entries, file = historyFilePath
 		if (typeof e.turnMs === "number" && e.turnMs > 0) line.turnMs = e.turnMs;
 		return JSON.stringify(line);
 	});
-	if (lines.length === 0) return;
+	if (lines.length === 0) return [];
 	let needsHeader = false;
 	try {
 		needsHeader = (await (0, fs_promises.stat)(file)).size === 0;
@@ -263,6 +277,7 @@ async function appendHistoryEntries(projectPath, entries, file = historyFilePath
 	const payload = needsHeader ? `${historyHeaderLine()}\n${lines.join("\n")}\n` : `${lines.join("\n")}\n`;
 	await (0, fs_promises.appendFile)(file, payload, "utf-8");
 	await compactFileIfNeeded(projectPath, file);
+	return ids;
 }
 /**
 * 文件太大时重写成"最近若干条"。
@@ -313,6 +328,9 @@ async function truncateHistoryAt(projectPath, keepCount, file = historyFilePath(
 	const kept = all.slice(0, Math.max(0, keepCount));
 	await (0, fs_promises.mkdir)((0, path.dirname)(file), { recursive: true });
 	const lines = kept.filter((e) => e.content.trim().length > 0).map((e) => JSON.stringify({
+		// 重写整份文件时必须带 id（第 58 批）：截断是"删后半截"，留下的那几条 id 不能变，
+		// 否则已挂上的消息反馈会在截断后集体指向不存在的消息。
+		...(e.id ? { id: e.id } : {}),
 		ts: e.ts,
 		role: e.role,
 		content: e.content.length > MAX_ENTRY_CHARS ? e.content.slice(0, MAX_ENTRY_CHARS) + "…" : e.content
@@ -387,6 +405,8 @@ function describeDropped(retention) {
  * 读侧必须原样带回，否则"重启后查不到上次为什么没做完"。ts 落盘必写，读回缺失按纪元补。
  */
 export interface HistoryEntry {
+  /** 稳定 id（第 58 批）：消息反馈挂在它上面。老文件可能没有 —— 读侧不编造。 */
+  id?: string;
   ts: string;
   role: 'user' | 'assistant' | 'attempt';
   content: string;

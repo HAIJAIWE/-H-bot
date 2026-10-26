@@ -783,4 +783,74 @@ describe('ai:agentCoreRun 接线', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  /**
+   * 第 58 批：消息反馈要能指认"哪一条回答"。
+   *
+   * 反馈是按 messageId 落盘的，而这个 id 必须同时出现在**两处**才成立：
+   * 落盘的那行 JSONL（重启后按 id 认回来）与 `ai:response` 事件（当场给按钮）。
+   * 只测其中一边都会漏：只测落盘 → 事件里没有 id，界面拿不到；
+   * 只测事件 → 磁盘上没这个 id，重启后反馈无处附着。
+   */
+  it('★ 第 58 批：ai:response 与历史落盘共用同一个 messageId', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-msgid-'))
+    try {
+      const reply = (await invoke({ projectPath: dir, requirement: '给机器人加定时提醒' })) as {
+        messageId?: unknown
+      }
+
+      const response = h.send.mock.calls.find(c => c[0] === 'ai:response')?.[1] as {
+        messageId?: unknown
+      }
+      expect(typeof response?.messageId).toBe('string')
+      const messageId = response.messageId as string
+      expect(messageId.length).toBeGreaterThan(0)
+
+      // 第三条路：invoke 的回执也要带同一个 id。
+      // `ai:response` 与回执是两条独立消息，谁先到没有保证；回执先到时渲染层
+      // 自己收尾（runAgentCoreTurn 的兜底），没有 id 就挂不出反馈按钮。
+      expect(reply.messageId).toBe(messageId)
+
+      // 落盘的那行必须带着同一个 id，且是 assistant 那条
+      const lines = readFileSync(join(dir, '.qqbat', 'ai-history.jsonl'), 'utf-8')
+        .split('\n')
+        .filter(Boolean)
+        .map(line => JSON.parse(line) as { id?: string; role: string; content: string })
+      const assistant = lines.find(entry => entry.role === 'assistant')
+      expect(assistant?.id).toBe(messageId)
+
+      // 第二轮是另一条回答：id 必须换新（不能两条反馈抢一个 id）
+      h.send.mockClear()
+      await invoke({ projectPath: dir, requirement: '再加一个' })
+      const second = h.send.mock.calls.find(c => c[0] === 'ai:response')?.[1] as {
+        messageId?: unknown
+      }
+      expect(typeof second?.messageId).toBe('string')
+      expect(second.messageId).not.toBe(messageId)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  /**
+   * 第 58 批：`@` 只是把路径写进句子，模型会直接去读。拼错的路径这边就知道，
+   * 所以要在系统提示里先交代一句 —— 一次"文件不存在"就是一轮白跑。
+   */
+  it('★ 第 58 批：用户 @ 了不存在的路径 → 系统提示带 mentionNote', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-mention-'))
+    try {
+      await invoke({ projectPath: dir, requirement: '照着 @src/utl.ts 改一下' })
+      const passed = h.runAgentTurn.mock.calls[0][0] as { mentionNote?: string }
+      expect(passed.mentionNote).toContain('- src/utl.ts')
+      expect(passed.mentionNote).toContain('不存在')
+
+      // 没有 @ 的那一轮不该多出这一段（否则每轮都在提示里说一遍空话）
+      h.runAgentTurn.mockClear()
+      await invoke({ projectPath: dir, requirement: '给机器人加个定时提醒' })
+      const plain = h.runAgentTurn.mock.calls[0][0] as { mentionNote?: string }
+      expect(plain.mentionNote).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

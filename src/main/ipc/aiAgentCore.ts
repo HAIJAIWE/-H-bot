@@ -17,6 +17,7 @@
 // `ai:resolveApproval`），不新开一套：同一个动作在两条路径上必须问同一个问题。
 // 语义保持**默认拒绝** —— 没弹窗、没点同意、超时、取消，都不写盘。
 import { ipcMain, BrowserWindow } from 'electron'
+import { randomUUID } from 'node:crypto'
 import {
   aiAgentCoreRunSchema,
   aiAgentCoreSteerSchema,
@@ -26,6 +27,7 @@ import {
 } from '../schemas/ai'
 import { resolveAuthorAiConfig } from '../services/ai/appAiConfig'
 import { maybeGenerateThreadTitle } from '../services/ai/threadTitles'
+import { describeMissingFileReferences } from '../services/ai/fileReference'
 import { appendTrace } from '../services/ai/trace'
 import { requestApproval } from '../services/ai/toolApproval'
 import {
@@ -572,12 +574,27 @@ export function registerAiAgentCoreIpc(): void {
           : scoped
       let currentRequirement = requirement
       /**
+       * 第 58 批：`@` 引用只写进句子、不塞文件内容（见 prompt 里的 file-reference 段），
+       * 所以"这个路径根本不存在"只能由模型自己去试。我们这边**已经知道**它不存在，
+       * 就在系统提示里先说一句 —— 一次不存在就是一轮白跑。
+       */
+      const mentionNote = describeMissingFileReferences(projectPath, currentRequirement)
+      /**
        * 贴图只属于**这一句**（用户说"你看这是怎么回事"附的图）：
        * 排队进来的下一句、或者插话续跑的那一轮，都不该把上一张图再发一遍 ——
        * 既贵（一张按 1000 token 估）又会让模型以为新问题也带着同一张图。
        */
       let pendingImages = images
       let last: RunTurnResult | null = null
+      /**
+       * 最后一次**落了盘**的 assistant 消息 id（第 58 批）。
+       *
+       * 为什么要从回执里也带一份：`ai:response` 与 invoke 的回执是两条独立消息，
+       * 谁先到没有保证（见下面 runAgentCoreTurn 的兜底注释）。回执先到、渲染层
+       * 自己收尾时，界面手上没有 id 就挂不出反馈按钮 —— 同一条回答于是"有时能反馈、
+       * 有时不能"。带上它，两条路都能拿到同一个 id。
+       */
+      let lastMessageId: string | null = null
       /** 当前轮次 id（trace 带它，轮次投影才归得了组；beginTurn 之前是 undefined） */
       let traceTurnId: string | undefined
       for (;;) {
@@ -718,6 +735,11 @@ export function registerAiAgentCoreIpc(): void {
           ...(turnImages && turnImages.length > 0 ? { images: turnImages } : {}),
           ...(roleNote ? { roleNote } : {}),
           ...(historyNote ? { historyNote } : {}),
+          /**
+           * 第 58 批：用户 `@` 了不存在的路径时先告诉他，别让模型自己去踩。
+           * 空串（绝大多数情况）不传，系统提示里不会多出一个空段。
+           */
+          ...(mentionNote ? { mentionNote } : {}),
           // 第 55 批：时间上下文（每轮一次采样）与文件观察门（覆盖既有文件前必须读过）
           timeNote,
           fsObservation: true,
@@ -821,12 +843,17 @@ export function registerAiAgentCoreIpc(): void {
         /**
          * 答案也写进记忆（下一轮才"记得"）。没给出文字就不写 ——
          * 存一条空 assistant 只会让模型下一轮看到一段莫名其妙的白。
+         *
+         * `assistantMessageId`（第 58 批）：这条回答的**稳定 id**，随 `ai:response` 一起发出去，
+         * 界面靠它把 👍/👎 反馈挂到正确的消息上（位置派生 id 在压缩/重读后会变）。
          */
+        const assistantMessageId = randomUUID()
         if (result.finalText.trim()) {
           await appendHistoryEntries(
             projectPath,
             [
               assistantHistoryEntry({
+                id: assistantMessageId,
                 content: result.finalText,
                 reasoning: reasoningForUi,
                 toolResults: result.toolResults,
@@ -835,6 +862,8 @@ export function registerAiAgentCoreIpc(): void {
             ],
             memoryFile,
           )
+          // 落盘成功才记：回执里的 id 必须能在历史里找到（渲染层拿它反馈）
+          lastMessageId = assistantMessageId
         }
         // **成功的**写/命令才算改动：审批被拒的那次输出是 "[工具失败] …"，
         // 记成"改过"会在撤回列表里多出一轮什么都没变的空记录。
@@ -887,7 +916,14 @@ export function registerAiAgentCoreIpc(): void {
          * 收尾交给渲染层那套现有逻辑（它会把正文 + 本轮工具行合成一条消息）。
          * 顺序：先 response（提交正文与工具），再 idle（状态栏回"就绪"）。
          */
-        if (!proposalSent) emit('ai:response', { projectPath, message: result.finalText })
+        if (!proposalSent)
+          emit('ai:response', {
+            projectPath,
+            message: result.finalText,
+            // 只有真正落了盘的 assistant 记录才有 id：提案路径没落这条正文，
+            // 渲染层拿到 undefined 就不显示反馈按钮（不给"点了也存不下"的入口）
+            ...(result.finalText.trim() ? { messageId: assistantMessageId } : {}),
+          })
         emit('ai:agentState', { projectPath, state: 'idle' })
         /**
          * 会话自动标题（第 56 批）：**只在线程的第一轮**试一次。
@@ -942,7 +978,12 @@ export function registerAiAgentCoreIpc(): void {
             '。请重新发送。',
         })
       }
-      return { ok: true, ...(last as RunTurnResult) }
+      return {
+        ok: true,
+        ...(last as RunTurnResult),
+        // 落盘 id 也走回执（第 58 批）：回执可能比 ai:response 先到，渲染层兜底收尾时要它
+        ...(lastMessageId ? { messageId: lastMessageId } : {}),
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       logger.warn('[ipc/aiAgentCore] 运行失败:', message)

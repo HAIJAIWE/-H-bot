@@ -425,6 +425,15 @@ export interface QqbatApi {
     ) => Promise<
       ApiResult<Array<{ name: string; path: string; isDirectory: boolean; size: number }>>
     >
+    /**
+     * `@` 引用的候选（第 58 批）。**只给路径与类型，不读内容** ——
+     * 选中后插进输入的也只是 `@相对路径`，模型要看内容得自己调 `read_file`。
+     */
+    searchReferences: (
+      projectPath: string,
+      query: string,
+      limit?: number,
+    ) => Promise<ApiResult<{ references: Array<{ path: string; kind: 'file' | 'directory' }> }>>
     /** 框架开发模式：开关 + 框架根 + 现有回退点（**默认关**，主进程持有） */
     getDevMode: () => Promise<ApiResult<FrameworkDevState>>
     /**
@@ -550,6 +559,11 @@ export interface QqbatApi {
             | { kind: 'finished'; reason: 'completed' | 'max-rounds' | 'cancelled' }
           /** 每个工具调用：名字 + 参数 + 输出（界面把它映射成工具行） */
           toolResults: Array<{ name: string; args: Record<string, unknown>; output: string }>
+          /**
+           * 这条回答落盘的稳定 id（第 58 批）：消息反馈（👍/👎）挂在它上面。
+           * 提案路径、空正文都没有（那时没有可反馈的落盘消息）。
+           */
+          messageId?: string
         }
       | { ok: false; error: string }
     >
@@ -672,6 +686,11 @@ export interface QqbatApi {
     ) => Promise<
       ApiResult<{
         entries: Array<{
+          /**
+           * 稳定 id（第 58 批）：消息反馈挂在它上面。
+           * 老历史文件没有这个字段 → 界面不给反馈按钮（存不下就别给入口）。
+           */
+          id?: string
           role: 'user' | 'assistant' | 'attempt'
           content: string
           ts: string
@@ -757,6 +776,53 @@ export interface QqbatApi {
       projectPath: string,
       threadId: string,
     ) => Promise<ApiResult<{ filePath: string; bytes: number; entries: number }>>
+    /**
+     * 消息反馈（第 58 批）：整表读、逐条写。
+     *
+     * `items` 以**消息 id** 为键 —— 这个 id 由主进程在落盘时生成并随 `ai:response` 下发，
+     * 位置派生的 `hist-i-k` **不能**用来挂反馈（压缩/重读后会变）。
+     */
+    getThreadFeedback: (
+      projectPath: string,
+      threadId: string,
+    ) => Promise<
+      ApiResult<{
+        items: Record<
+          string,
+          {
+            rating: 'positive' | 'negative'
+            category?: string
+            note?: string
+            createdAt: string
+            updatedAt: string
+          }
+        >
+      }>
+    >
+    putMessageFeedback: (payload: {
+      projectPath: string
+      threadId: string
+      messageId: string
+      rating: 'positive' | 'negative'
+      category?: string
+      note?: string
+    }) => Promise<
+      ApiResult<{
+        item: {
+          rating: 'positive' | 'negative'
+          category?: string
+          note?: string
+          createdAt: string
+          updatedAt: string
+        }
+      }>
+    >
+    /** 撤回：点掉已选中的那档 = 删掉这条反馈（不存在时 removed:false，不报错） */
+    deleteMessageFeedback: (
+      projectPath: string,
+      threadId: string,
+      messageId: string,
+    ) => Promise<ApiResult<{ removed: boolean }>>
     /** 已记录的 AI 轮次（新的在前）—— 「撤回这一轮」的候选 */
     /** 回工具批准决定（主进程在 ask 时会停下来等它） */
     resolveApproval: (
@@ -949,7 +1015,16 @@ export interface QqbatApi {
       }) => void,
     ) => () => void
     onResponse: (
-      callback: (data: { projectPath?: string; message: string; toolCalls?: unknown[] }) => void,
+      callback: (data: {
+        projectPath?: string
+        message: string
+        /**
+         * 这条回答在主进程落盘时的**稳定 id**（第 58 批）。
+         * 只有真正写进记忆的正文才有；提案路径/空正文没有 → 界面不给反馈按钮。
+         */
+        messageId?: string
+        toolCalls?: unknown[]
+      }) => void,
     ) => () => void
     /**
      * 会话自动标题生成完成（第 56 批）：只在线程首轮成功后可能来一次，

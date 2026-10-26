@@ -126,6 +126,12 @@ export interface RunTurnInput {
    */
   timeNote?: string
   /**
+   * **`@` 引用的交代**（第 58 批）：用户这一句里 `@` 到、但工作区里不存在的路径。
+   * 拼在系统提示尾部（historyNote 之后、timeNote 之前）："文件不存在"这边就知道，
+   * 不必让模型去 `read_file` 试一遍再回来问。不传 = 不加（脚本/测试的默认）。
+   */
+  mentionNote?: string
+  /**
    * **文件观察门**（第 55 批，语义对齐上游 fs/fs-observation-policy）：开了之后
    * `write_file` 覆盖既有文件前必须"这一轮读过且读完没变"。默认关；生产入口显式传 true。
    */
@@ -226,6 +232,8 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
           (input.planOnly ? '\n\n' + PLAN_ONLY_NOTE : '') +
           (input.roleNote ? '\n\n' + input.roleNote : '') +
           (input.historyNote ? '\n\n' + input.historyNote : '') +
+          // 第 58 批：用户 @ 了不存在的路径 —— 让它先说话，别去试读
+          (input.mentionNote ? '\n\n' + input.mentionNote : '') +
           // 第 55 批：时间上下文放在最后（离"现在"最近；不改变上面各段的位置）
           (input.timeNote ? '\n\n' + input.timeNote : ''),
       },

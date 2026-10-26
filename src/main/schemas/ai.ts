@@ -133,6 +133,47 @@ var aiExportThreadSchema = z.object({
   projectPath: z.string().min(1),
   threadId: z.string().min(1).max(64),
 })
+/**
+ * 写一条消息反馈（第 58 批）。
+ *
+ * `rating` 只有两档（上游同口径）；`category` 是 7 个固定分类之一；`note` 的**真上限**
+ * 在 `normalizeFeedbackNote`（500 码点，超了由服务层拒绝而不是悄悄截断），
+ * 这里给 4000 字符只是挡住"整篇日志当说明提交"这种明显不是反馈的输入。
+ */
+var aiMessageFeedbackPutSchema = z.object({
+  projectPath: z.string().min(1),
+  threadId: z.string().min(1).max(64),
+  messageId: z.string().min(1).max(64),
+  rating: z.enum(['positive', 'negative']),
+  category: z
+    .enum([
+      'task-result',
+      'instruction-following',
+      'product-interaction',
+      'service-stability',
+      'resource-cost',
+      'security-privacy-permission',
+      'other',
+    ])
+    .optional(),
+  note: z.string().max(4000).optional(),
+})
+/** 撤回一条消息反馈（第 58 批）：点掉已选中的 👍/👎 = 删掉这条反馈 */
+var aiMessageFeedbackDeleteSchema = z.object({
+  projectPath: z.string().min(1),
+  threadId: z.string().min(1).max(64),
+  messageId: z.string().min(1).max(64),
+})
+/**
+ * 读某条线程的全部反馈（第 58 批）。
+ *
+ * 一份线程一个文件（`.qqbat/ai-feedback/<threadId>.json`），界面进线程时整表拉一次，
+ * 之后靠本地乐观更新 —— 不做"逐条问"，因为一轮里可能几十条消息。
+ */
+var aiThreadFeedbackSchema = z.object({
+  projectPath: z.string().min(1),
+  threadId: z.string().min(1).max(64),
+})
 /** 设置项目默认预设（`null` = 跟页面，删掉记录） */
 var aiSetPresetDefaultSchema = z.object({
   projectPath: z.string().min(1),
@@ -270,6 +311,9 @@ export {
   aiRenameThreadSchema,
   aiSearchThreadsSchema,
   aiExportThreadSchema,
+  aiThreadFeedbackSchema,
+  aiMessageFeedbackPutSchema,
+  aiMessageFeedbackDeleteSchema,
   aiSetPresetDefaultSchema,
   aiPresetImportSchema,
   aiPresetRosterSchema,

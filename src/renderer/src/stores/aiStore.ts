@@ -2,6 +2,11 @@
 import { create } from 'zustand'
 import type { AiAllowRule, AiRunStats, ChatMessage } from '@shared/types/ai'
 import type { AgentMode } from '@shared/ai/roleDomains'
+import {
+  isFeedbackCategory,
+  type FeedbackCategory,
+  type MessageFeedbackItem,
+} from '@shared/ai/messageFeedback'
 import { classifyAiError } from '../components/ai/errorMessage'
 import type { Proposal, ProposalOperation } from '@shared/types/proposal'
 import type { FlowSnapshot } from './flowStore'
@@ -73,6 +78,13 @@ export interface ToolTraceEntry {
 
 /** 渲染层自己的消息类型：比 `ChatMessage` 多一个"这一轮干了什么"的痕迹 */
 export interface ChatMessageWithTrace extends ChatMessage {
+  /**
+   * 主进程给这条消息的**稳定 id**（第 58 批）：消息反馈挂在它上面。
+   *
+   * 缺省 = 这条消息不在磁盘上（提案路径的答案、乐观渲染的占位、或者老历史文件里没有 id），
+   * 此时**不显示**反馈按钮 —— 给了入口也存不下（主进程会回 `target-not-found`）。
+   */
+  messageId?: string
   trace?: ToolTraceEntry[]
   /** 这一轮从发起到收尾的墙钟时长（毫秒）；缺省 = 不知道（老历史没有） */
   turnMs?: number
@@ -133,6 +145,28 @@ export interface ThreadSearchHit {
 /** 一条命中的线程 = 线程列表项 + 命中片段（形状来自主进程 `searchProjectThreads`） */
 export interface ThreadSearchMatch extends ThreadInfo {
   hits: ThreadSearchHit[]
+}
+
+/**
+ * IPC 回来的反馈条目 → 界面这一份（第 58 批）。
+ *
+ * IPC 是 JSON，`category` 在类型上只能声明成 string；认不出的值当作"没选分类"
+ * 丢掉，别把脏值塞进界面再让下游去猜。`rating` 已经在主进程按 schema 验过。
+ */
+function toFeedbackItem(raw: {
+  rating: 'positive' | 'negative'
+  category?: string
+  note?: string
+  createdAt: string
+  updatedAt: string
+}): MessageFeedbackItem {
+  return {
+    rating: raw.rating,
+    ...(isFeedbackCategory(raw.category) ? { category: raw.category } : {}),
+    ...(raw.note ? { note: raw.note } : {}),
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  }
 }
 
 /** 把"这一刻的工具记录"压成可长期保存的痕迹（只留展示需要的字段） */
@@ -453,6 +487,32 @@ interface AiState {
   deleteThread: (
     projectPath: string,
     threadId: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
+  /**
+   * 当前线程的**消息反馈表**（第 58 批）：`messageId → { rating, category?, note? }`。
+   *
+   * 键是主进程落盘时生成的稳定 id（随 `ai:response` 下发的 `messageId`），
+   * 不是 `hist-i-k` 那种位置派生 id —— 后者在压缩/重读后会指向另一条消息。
+   */
+  threadFeedback: Record<string, MessageFeedbackItem>
+  /** 拉当前线程的反馈表（进线程 / 切线程时） */
+  loadThreadFeedback: (projectPath: string) => Promise<void>
+  /**
+   * 点赞 / 点踩（第 58 批，upsert）。
+   *
+   * **已选中的那一档再点一次 = 撤回**（上游同语义）：由调用层判断后调 `retractMessageFeedback`，
+   * 这里只管写。写失败要回滚乐观更新并把人话错误返回给界面。
+   */
+  putMessageFeedback: (
+    projectPath: string,
+    messageId: string,
+    rating: 'positive' | 'negative',
+    extra?: { category?: FeedbackCategory; note?: string },
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
+  /** 撤回一条反馈（乐观删掉；失败时把原值放回） */
+  retractMessageFeedback: (
+    projectPath: string,
+    messageId: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   /** images = 这一轮贴的图（data URL）；只作用于这一轮，不进记忆 */
   sendMessage: (
@@ -790,6 +850,9 @@ async function runAgentCoreTurn(
         res.finalText.trim() ||
         s.currentChunk.trim() ||
         t('ai.agentCore.emptyReply', { rounds: String(res.rounds) }),
+      // 兜底这条路也要带稳定 id（第 58 批）：回执可能比 ai:response 先到，
+      // 少了它同一条回答会因为时序不同而"有时能反馈、有时不能"。
+      ...(res.messageId ? { messageId: res.messageId } : {}),
       ...(s.currentReasoning ? { reasoning: s.currentReasoning } : {}),
       ...(trace.length > 0 ? { trace } : {}),
       ...(turnMs ? { turnMs } : {}),
@@ -939,6 +1002,7 @@ export const useAiStore = create<AiState>((set, get) => {
     conversationPath: '',
     threads: [],
     activeThreadId: 'default',
+    threadFeedback: {},
     agentModeOverride: null,
     planFirst: false,
     preset: null,
@@ -986,6 +1050,11 @@ export const useAiStore = create<AiState>((set, get) => {
         const res = await window.qqbat.ai.getHistory(projectPath, get().activeThreadId)
         if (!res.ok || !res.data) return
         const entries: Array<{
+          /**
+           * 落盘时的稳定 id（第 58 批）：消息反馈按它挂。老历史没有这一列，
+           * 所以是可选的 —— 缺了就退回位置派生 id 且不显示反馈按钮。
+           */
+          id?: string
           role: 'user' | 'assistant' | 'attempt'
           content: string
           ts: string
@@ -1029,6 +1098,8 @@ export const useAiStore = create<AiState>((set, get) => {
           .filter(e => e.role !== 'attempt' && !e.content.startsWith(AI_TURN_NOTE_PREFIX))
           .map((e, i): ChatMessageWithTrace => ({
             role: e.role === 'assistant' ? 'assistant' : 'user',
+            // 稳定 id（第 58 批）：反馈按它挂。老历史没有 id → 界面不给反馈按钮
+            ...(e.id ? { messageId: e.id } : {}),
             // 记忆文件里那条 `[本轮提出的操作] N 个待确认操作` 是**给模型看的元信息**
             // （预算裁剪时它必须活下来）。显示在聊天气泡里像乱码，所以读回界面时去掉。
             content: e.content.replace(/\n*\[本轮提出的操作\][^\n]*/g, '').trim(),
@@ -1050,6 +1121,8 @@ export const useAiStore = create<AiState>((set, get) => {
           .filter(m => m.content.length > 0)
         if (loaded.length === 0) return
         routeTo(projectPath, c => ({ ...c, messages: loaded }))
+        // 反馈表跟着消息一起回来（第 58 批）：只有磁盘上那些消息才可能有反馈
+        void get().loadThreadFeedback(projectPath)
       } catch (e) {
         // 读不回来就当"这次没有历史"：不该因为记忆读失败而挡住用户提问。
         // 日志用英文：这一层所在目录有"不许硬编码中文界面文案"的闸门（同 refreshMainRunning）
@@ -1394,6 +1467,118 @@ export const useAiStore = create<AiState>((set, get) => {
     },
 
     /**
+     * 拉当前线程的反馈表（第 58 批）。
+     *
+     * 进/切线程时整表拉一次；失败**不清空**已有表（老表还在界面里，清掉会让刚点的赞闪没）。
+     */
+    loadThreadFeedback: async projectPath => {
+      if (!projectPath) return
+      const threadId = get().activeThreadId
+      const bridge = window.qqbat?.ai?.getThreadFeedback
+      if (typeof bridge !== 'function') return
+      try {
+        const res = await bridge(projectPath, threadId)
+        // 拉回来时线程可能已经切走了：这份表属于旧线程，别覆盖新的
+        if (get().activeThreadId !== threadId) return
+        if (!res.ok) return
+        /**
+         * 线上回来的 `category` 只是 string（IPC 是 JSON）：**在这里收窄**，
+         * 认不出的分类当作"没选分类"丢掉 —— 别把脏值塞进界面再让下游去猜。
+         */
+        const clean: Record<string, MessageFeedbackItem> = {}
+        for (const [id, item] of Object.entries(res.data?.items ?? {})) {
+          clean[id] = toFeedbackItem(item)
+        }
+        set({ threadFeedback: clean })
+      } catch (e) {
+        console.error('[aiStore] loadThreadFeedback failed', e)
+      }
+    },
+
+    /**
+     * 点赞 / 点踩（第 58 批）：**乐观更新**，失败回滚并把错误给人看。
+     *
+     * 乐观是因为这两个按钮要"点了立刻变实心"；回滚是因为主进程会拒（比如那条消息
+     * 已不在记忆里）——回滚后界面显示的是磁盘真相，不是用户以为的。
+     */
+    putMessageFeedback: async (projectPath, messageId, rating, extra) => {
+      const threadId = get().activeThreadId
+      const bridge = window.qqbat?.ai?.putMessageFeedback
+      if (typeof bridge !== 'function') return { ok: false, error: 'ipc-missing' }
+      const previous = get().threadFeedback[messageId]
+      const now = new Date().toISOString()
+      const optimistic: MessageFeedbackItem = {
+        rating,
+        ...(extra?.category ? { category: extra.category as MessageFeedbackItem['category'] } : {}),
+        ...(extra?.note ? { note: extra.note } : {}),
+        createdAt: previous?.createdAt ?? now,
+        updatedAt: now,
+      }
+      set(st => ({ threadFeedback: { ...st.threadFeedback, [messageId]: optimistic } }))
+      try {
+        const res = await bridge({
+          projectPath,
+          threadId,
+          messageId,
+          rating,
+          ...(extra?.category ? { category: extra.category } : {}),
+          ...(extra?.note ? { note: extra.note } : {}),
+        })
+        if (!res.ok) {
+          set(st => {
+            const next = { ...st.threadFeedback }
+            if (previous) next[messageId] = previous
+            else delete next[messageId]
+            return { threadFeedback: next }
+          })
+          return { ok: false, error: res.error ?? 'unknown' }
+        }
+        const item = res.data?.item
+        if (item) {
+          const saved = toFeedbackItem(item)
+          set(st => ({ threadFeedback: { ...st.threadFeedback, [messageId]: saved } }))
+        }
+        return { ok: true }
+      } catch (e) {
+        set(st => {
+          const next = { ...st.threadFeedback }
+          if (previous) next[messageId] = previous
+          else delete next[messageId]
+          return { threadFeedback: next }
+        })
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+
+    /** 撤回一条反馈（第 58 批）：乐观删掉，失败把原值放回 */
+    retractMessageFeedback: async (projectPath, messageId) => {
+      const threadId = get().activeThreadId
+      const bridge = window.qqbat?.ai?.deleteMessageFeedback
+      if (typeof bridge !== 'function') return { ok: false, error: 'ipc-missing' }
+      const previous = get().threadFeedback[messageId]
+      set(st => {
+        const next = { ...st.threadFeedback }
+        delete next[messageId]
+        return { threadFeedback: next }
+      })
+      try {
+        const res = await bridge(projectPath, threadId, messageId)
+        if (!res.ok) {
+          if (previous) {
+            set(st => ({ threadFeedback: { ...st.threadFeedback, [messageId]: previous } }))
+          }
+          return { ok: false, error: res.error ?? 'unknown' }
+        }
+        return { ok: true }
+      } catch (e) {
+        if (previous) {
+          set(st => ({ threadFeedback: { ...st.threadFeedback, [messageId]: previous } }))
+        }
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+
+    /**
      * 开一条**新任务**。
      *
      * 换任务 = 换线程：界面清空、后续消息写进新文件；**老线程留在磁盘上**，
@@ -1404,6 +1589,8 @@ export const useAiStore = create<AiState>((set, get) => {
       // 走 setActiveThread 而不是直接 set：新线程的预设槽位也要跟着切（第 50 批）
       get().setActiveThread(id)
       get().clearMessages()
+      // 新线程没有反馈表（第 58 批）：不清会让上一条线程的👍显示在新对话里
+      set({ threadFeedback: {} })
       if (projectPath) {
         set(st => ({
           conversations: { ...st.conversations, [projectPath]: emptyConversation() },
@@ -1417,6 +1604,8 @@ export const useAiStore = create<AiState>((set, get) => {
       // 同上：切换线程时恢复该线程的预设（第 50 批修掉"切线程后 preset 不跟"）
       get().setActiveThread(threadId)
       get().clearMessages()
+      // 先清反馈表再读（第 58 批）：读失败时也不能留着上一条线程的👍
+      set({ threadFeedback: {} })
       set(st => ({
         conversations: { ...st.conversations, [projectPath]: emptyConversation() },
       }))
@@ -1443,6 +1632,7 @@ export const useAiStore = create<AiState>((set, get) => {
       get().clearMessages()
       set(st => ({
         conversations: { ...st.conversations, [projectPath]: emptyConversation() },
+        threadFeedback: {},
       }))
       await get().loadThreads(projectPath)
     },
@@ -2152,12 +2342,16 @@ export const useAiStore = create<AiState>((set, get) => {
           if (!c.streaming) return c
           const trace = traceOf(c.toolCalls)
           const turnMs = c.runStartedAt ? Date.now() - c.runStartedAt : 0
+          // 稳定 id（第 58 批）：主进程落盘时生成、随这次 response 下发。
+          // 没有它（提案路径 / 空正文）就不挂反馈按钮 —— 挂了也存不下。
+          const messageId = typeof data.messageId === 'string' ? data.messageId : undefined
           const messages = c.currentChunk
             ? [
                 ...c.messages,
                 {
                   role: 'assistant' as const,
                   content: c.currentChunk,
+                  ...(messageId ? { messageId } : {}),
                   ...(c.currentReasoning ? { reasoning: c.currentReasoning } : {}),
                   ...(trace.length ? { trace } : {}),
                   ...(turnMs ? { turnMs } : {}),
