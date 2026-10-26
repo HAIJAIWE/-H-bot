@@ -714,6 +714,49 @@ export interface QqbatApi {
       threadId: string,
       title: string,
     ) => Promise<ApiResult<{ title: string; source: 'user'; updatedAt: string }>>
+    /**
+     * 在**本项目**的线程里搜正文（第 57 批）。
+     * 返回里每条线程都带 `hits`（片段前后文），界面拿到就能渲染，不用再查一次列表。
+     */
+    searchThreads: (
+      projectPath: string,
+      query: string,
+      limit?: number,
+    ) => Promise<
+      ApiResult<{
+        /** 归一后的查询（回显用） */
+        query: string
+        results: Array<{
+          id: string
+          title: string
+          titleSource: 'fallback' | 'provider' | 'user'
+          messageCount: number
+          updatedAt: number
+          stats: {
+            turns: number
+            messages: number
+            assistantMessages: number
+            chars: number
+            estimatedTokens: number
+            durationMs: number
+          }
+          hits: Array<{
+            index: number
+            role: 'user' | 'assistant'
+            before: string
+            match: string
+            after: string
+            moreBefore: boolean
+            moreAfter: boolean
+          }>
+        }>
+      }>
+    >
+    /** 导出某条线程为 Markdown（主进程弹保存对话框并写盘；用户取消 = 明确错误） */
+    exportThread: (
+      projectPath: string,
+      threadId: string,
+    ) => Promise<ApiResult<{ filePath: string; bytes: number; entries: number }>>
     /** 已记录的 AI 轮次（新的在前）—— 「撤回这一轮」的候选 */
     /** 回工具批准决定（主进程在 ask 时会停下来等它） */
     resolveApproval: (

@@ -646,7 +646,19 @@
       "renameCancel": "Cancel rename",
       "renameEmpty": "Title cannot be empty",
       "renameFailed": "Failed to rename: {message}",
-      "stats": "{turns} turns · ~{tokens} tokens"
+      "stats": "{turns} turns · ~{tokens} tokens",
+      "bodySearchTitle": "Found in messages ({count})",
+      "bodySearchEmpty": "No matches in message text",
+      "bodySearching": "Searching message text…",
+      "bodySearchFailed": "Message search failed: {message}",
+      "exportAria": "Export as Markdown",
+      "exported": "Exported {file}",
+      "exportFailed": "Export failed: {message}",
+      "deleteAria": "Delete chat",
+      "deleteConfirm": "Delete this chat?",
+      "deleteConfirmAria": "Confirm delete",
+      "deleteCancelAria": "Cancel delete",
+      "deleteFailed": "Delete failed: {message}"
     },
     "mode": {
       "builder": "Flow assistant",

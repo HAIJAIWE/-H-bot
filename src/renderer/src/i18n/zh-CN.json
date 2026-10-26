@@ -646,7 +646,19 @@
       "renameCancel": "取消重命名",
       "renameEmpty": "标题不能为空",
       "renameFailed": "重命名失败：{message}",
-      "stats": "{turns} 轮 · 约 {tokens} tokens"
+      "stats": "{turns} 轮 · 约 {tokens} tokens",
+      "bodySearchTitle": "正文命中（{count}）",
+      "bodySearchEmpty": "正文里没有命中",
+      "bodySearching": "搜索正文中…",
+      "bodySearchFailed": "正文搜索失败：{message}",
+      "exportAria": "导出为 Markdown",
+      "exported": "已导出 {file}",
+      "exportFailed": "导出失败：{message}",
+      "deleteAria": "删除对话",
+      "deleteConfirm": "确定删除？",
+      "deleteConfirmAria": "确认删除",
+      "deleteCancelAria": "取消删除",
+      "deleteFailed": "删除失败：{message}"
     },
     "mode": {
       "builder": "流程助手",

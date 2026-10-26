@@ -113,6 +113,28 @@ export interface ThreadInfo {
   stats: ThreadStats
 }
 
+/**
+ * 一处正文命中（第 57 批）。
+ *
+ * 片段是**原文**（不是小写副本），`before`/`after` 已按码点裁到半径内；
+ * 要不要加省略号看 `moreBefore`/`moreAfter` —— 这里不提前拼字符串，
+ * 否则界面就没法把 `match` 单独高亮了。
+ */
+export interface ThreadSearchHit {
+  index: number
+  role: 'user' | 'assistant'
+  before: string
+  match: string
+  after: string
+  moreBefore: boolean
+  moreAfter: boolean
+}
+
+/** 一条命中的线程 = 线程列表项 + 命中片段（形状来自主进程 `searchProjectThreads`） */
+export interface ThreadSearchMatch extends ThreadInfo {
+  hits: ThreadSearchHit[]
+}
+
 /** 把"这一刻的工具记录"压成可长期保存的痕迹（只留展示需要的字段） */
 function traceOf(records: readonly ToolCallRecord[]): ToolTraceEntry[] {
   return records.map(tc => ({
@@ -411,6 +433,26 @@ interface AiState {
     projectPath: string,
     threadId: string,
     title: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
+  /**
+   * 搜某个项目的线程**正文**（第 57 批）。
+   *
+   * 标题过滤不在这里 —— 标题就在 `threads`/`allThreads` 里，本地 `includes` 零延迟。
+   * 这条只补"别的线程正文不在内存里"的那一半：结果带命中片段，界面直接渲染。
+   */
+  searchThreads: (
+    projectPath: string,
+    query: string,
+  ) => Promise<{ ok: true; results: ThreadSearchMatch[] } | { ok: false; error: string }>
+  /**
+   * 删除一条线程（= `ai:clearThread`，删的是记忆文件；第 57 批把入口接上界面）。
+   *
+   * 删**当前**线程时切回该项目的 `default`（老记忆文件）并清空界面；
+   * 删别的线程只刷列表 —— 别顺手把用户正在看的对话清掉。
+   */
+  deleteThread: (
+    projectPath: string,
+    threadId: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   /** images = 这一轮贴的图（data URL）；只作用于这一轮，不进记忆 */
   sendMessage: (
@@ -1306,6 +1348,49 @@ export const useAiStore = create<AiState>((set, get) => {
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
+    },
+
+    /**
+     * 搜线程正文（第 57 批）。
+     *
+     * 为什么不把结果塞进 `threads`：搜索结果带"命中片段"，与列表项不是同一种东西
+     * （列表项没有片段、也不该被搜索临时改写）。调用方自己持有结果，关掉搜索就丢掉。
+     */
+    searchThreads: async (projectPath, query) => {
+      if (typeof window.qqbat?.ai?.searchThreads !== 'function') {
+        return { ok: false, error: 'ipc-missing' }
+      }
+      try {
+        const res = await window.qqbat.ai.searchThreads(projectPath, query)
+        if (!res.ok || !res.data) return { ok: false, error: res.error ?? 'unknown' }
+        return { ok: true, results: res.data.results as ThreadSearchMatch[] }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+
+    /**
+     * 删一条线程（第 57 批：把一直没入口的 `ai:clearThread` 接上界面）。
+     *
+     * 删的是记忆文件，不可撤销 —— 界面上必须先问一次（行内二次确认），这里只负责删。
+     * 删**当前**线程时切回 `default`：界面还停在一条已经不存在的线上，下一步发消息
+     * 就会"接着一段已经被删掉的记忆"继续说，那是最难解释的状态。
+     */
+    deleteThread: async (projectPath, threadId) => {
+      if (typeof window.qqbat?.ai?.clearThread !== 'function') {
+        return { ok: false, error: 'ipc-missing' }
+      }
+      try {
+        const res = await window.qqbat.ai.clearThread(projectPath, threadId)
+        if (!res.ok) return { ok: false, error: res.error ?? 'unknown' }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+      if (projectPath && get().activeThreadId === threadId) {
+        await get().switchThread(projectPath, 'default')
+      }
+      if (projectPath) await get().loadThreads(projectPath)
+      return { ok: true }
     },
 
     /**

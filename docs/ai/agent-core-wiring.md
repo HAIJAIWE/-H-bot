@@ -3541,3 +3541,168 @@ abort 语义要单独说清：`finally` 只清 `RUNNING` / `STEER`，**不 abort
 `src/renderer/src/components/ai/ChatPanel.tsx`、`AiSidebar.tsx`、`AgentTranscript.tsx`、
 `src/renderer/src/i18n/{zh-CN,en-US}.json`、`capabilityCatalog.generated.ts`、`capabilityPolicy.generated.ts`、
 `docs/ai/ai-capability-layering-2026-10-08.md`、三份守卫/主进程测试、`docs/ai/dsh-source-adaptation-2026-10-24.md` §14。
+
+## §57 第 57 批：会话管理三件套（正文搜索 / 导出 Markdown / 删除）（2026-10-27）
+
+### 57.1 为什么是这三件
+
+对标上游三包：`dsh-session-query`（49 KB）、`dsh-session-log-export`（index 23.7 KB + client 12.5 KB）、
+以及会话删除/清理。它们都挂在 Cordis 服务 + Typert 远程调用上，代码搬不动，搬的是语义。
+
+本项目缺的不是能力，是**入口**：`ai:clearThread` 主进程 handler（`src/main/ipc/ai.ts:519`）、preload
+`:437`、`src/renderer/src/types/ipc.ts:707`、`aiStore.clearActiveThread:1351` 四层早就通了，但渲染层
+**零调用者**（grep `clearThread(` 只命中 aiStore 自己）—— 用户根本没有办法删掉一条对话。
+
+第二件：侧栏搜索框已经存在（`searching`/`query`/`onlyCurrent`），但过滤只匹配标题
+（`th.title.toLowerCase().includes(q)`），而标题只取**第一条用户消息**的首行（截 28 字符）——
+聊到第 20 轮时用户记得的那句话永远搜不到。
+
+第三件：会话在磁盘上是 `<id>.jsonl` 的 append-only 碎片，用户想把一段对话贴给别人只能手工复制。
+导出成人读 Markdown 是"拿得出去"的最后一环。
+
+明确不搬：跨项目搜索（上游按 session 目录扫，本项目 `listThreads` 已按项目分组）、正则/模糊打分
+（上游有自己的 query 语法，本项目只做子串）、导入（与 append-only 历史、`selectWithinBudget` 裁剪
+冲突）、图片/附件导出（历史里没有图片条目）、消息反馈（`dsh-message-feedback` 属另一批，形状已调研，
+见设计文档 §五）。
+
+### 57.2 搜索口径：标题本地过滤 + 正文主进程扫描
+
+- 查询归一 `normalizeThreadSearchQuery`：`/\s+/gu` 折叠成单空格、trim、`toLowerCase()`、按码点截 120。
+- 正文**逐字**比、不折叠空白：`'A  B  C'` 不能被 `'a b c'` 搜到 —— 折叠查询是为了"用户多打了空格
+  也认"，折叠正文会制造假命中。这条我一开始写反了（用例断言成"能搜到"），测试当场红，改口径后
+  9/9 绿。
+- 只搜 `role === 'user' | 'assistant'` 的 `content`；不搜 `reasoning`、不搜 `trace`（工具名/参数/
+  结果）、不搜角色名。真机上搜「失败」得 0 条正是这条口径的直接证据 —— 那个词只出现在 trace 里。
+- 一处命中 = 一个条目的**第一处**出现；每线程最多 3 处、最多 12 条线程、片段半径 24 码点。按码点
+  切而不是 UTF-16 码元，emoji 不会被切成半个。
+- `foldChar` 逐码点 `toLowerCase()` 取首码点：`İ`（U+0130）小写会展开成两个码点，直接
+  `toLowerCase()` 会让 match 下标与原文错位。
+- 线程顺序沿用 `listThreads` 的"最后活动在前"；单条线程读失败 `continue`，不因一个坏文件吞掉
+  整次搜索。
+
+### 57.3 导出：人读 Markdown，不是可再导入的日志
+
+- 形状：`# 标题` / `- 会话：id` / `- 项目：` / `- 导出时间：`（本地 `YYYY-MM-DD HH:mm:ss`）/
+  `- 规模：N 轮 · M 条消息` / `---`，然后每轮 `## 第 N 轮`、`**你**`、`**助手**（用时 X.X 秒）`。
+- 正文逐行加 `> `（空行给一个 `>`），用户原文里的 `##`、`- ` 不会顶破结构。
+- 工具行 `- 工具：name ✓ · name ✗`；`attempt` 条目导成 `> ⚠️ 这一轮没有跑完：reason` ——
+  失败轮也留在文件里，删掉才是不诚实。
+- 不导 reasoning、不导工具参数与结果（`loadHistory` 带 `includeUi` 拿 trace 只为取名字与成败）。
+  真机导出的 12782 字节里 grep 不到 `reasoning`。
+- 单条正文截 4000 字符（`THREAD_EXPORT_MAX_ENTRY_CHARS`）、最多 2000 条（超了写尾注）；文件名
+  `<安全标题>-<id 前 6>对话记录.md`，非法字符替 `_`、去尾部点/空格、标题截 40 码点、空标题给「对话」。
+- 保存框在主进程（与 `src/main/ipc/aiPresets.ts` 的 `ai:exportPresets` 同构）：
+  `BrowserWindow.fromWebContents(event.sender)` 有窗口就挂父窗口，`canceled` 时抛「用户取消」，
+  然后 `writeFile(path, text, 'utf-8')`。
+
+### 57.4 删除：复用 `ai:clearThread`，不新增通道
+
+- 那四层已经通了，缺的只是入口 —— 再加一条 `ai:deleteThread` 只会让能力账多一条、语义多一份。
+- `aiStore.deleteThread` 的语义：删的若是当前线程，先 `switchThread(project, 'default')` 再
+  `loadThreads`；删别的只刷列表。`default` 线程（老的 `ai-history.jsonl`）也能删 —— 删掉就是清空
+  历史文件，下次进入还是 `default` 的空壳。
+- 二次确认做在行内（本项目没有 toast 基建，为一个删除弹模态框太重）：点垃圾桶 → 该行变成
+  `确定删除？` + ✓/✕，Esc 取消，流式输出中三个图标全隐藏。
+- 所以 UI 上「删除对话」与「清空当前对话」落到同一条通道 `ai:clearThread`，能力账只登记它。
+
+### 57.5 界面
+
+- 正文命中区（`ThreadSearchResults.tsx`）插在标题匹配列表**上方**：250ms 防抖、
+  `query.trim().length < 2` 不发请求（一个字符的正文搜索等于把全项目翻一遍）、旧查询用 cancelled
+  标记 + `clearTimeout` 丢弃、三态（搜索中 / 没有命中 / 失败 `role="alert"`）、`<mark>` 高亮、
+  行 `title` 用 `formatThreadSearchSnippet` 拼 `…`。点命中 → `openThread` 打开该线程并收起搜索。
+- `ThreadRow` 加 `onExport`/`onDelete`：hover 出 `Download`/`Trash2` 两个绝对定位小图标（行本身是
+  button，不能嵌按钮，沿用第 56 批铅笔那套）；导出成功在行下 `role="status"` 给出文件名、
+  `用户取消` 静默、其他失败 `role="alert"`。
+- 顺手修两处**只有真机截图才看得见**的：①搜索时标题一条不命中会误显示「还没有对话」（对话明明
+  都在）②搜索中不再显示「发出第一条消息后…才会保存进列表」—— 那说的是新建的空对话，摆在命中了
+  的正文旁边像在说对话丢了。
+- `fileGrowth` 逼出的拆分：接完搜索 + 导出/删除后 AiSidebar 831 行 ≥ 800 且未登记基线 →
+  `RailButton` 搬成 `AiRailButton.tsx`（40 行）、上下文洞察浮层搬成 `AiContextFlyout.tsx`（70 行），
+  `AiSidebar.tsx` 落回 737 行。两个新文件都被 AiSidebar 真引用（`deadExports` 绿），没跑 baseline
+  脚本、没改 `tests/guards/`。
+
+### 57.6 IPC 与能力账
+
+- 两条新通道：`ai:searchThreads`（invoke，`aiSearchThreadsSchema{projectPath.min1, query.max400,
+limit.int.min1.max50.optional}`）、`ai:exportThread`（invoke，`aiExportThreadSchema{projectPath.min1,
+threadId.min1.max64}`）。两条都在 `assertProjectPathAllowed(baseDir, projectPath)` 之后才动手。
+- 能力账：`ai` 域 56→58、`X` 81→83、合计 281→283、`X + ⛔` 84→86；附录 A 加
+  `ai.searchThreads = X`、`ai.exportThread = X`；`node scripts/gen-capability-catalog.mjs` 重生成两份
+  （283 条）。顺手修了存量错账：附录小计那行原写 `X 79 = 279`，而附录 A 代码块是 281 条 / X 81
+  （第 56 批漏改）。
+- 守卫：`ipcPayloadContract` 注册两条新通道；`projectWritesViaFileOps` 把 `src/main/ipc/ai.ts` 的
+  `writeFile: 1` 登记为【系统/非项目】（目标路径由用户在保存框里选）；`update-file-size-baseline.mjs`
+  把 840 行的 `ai.ts` 写进 fileGrowth 基线。
+
+### 57.7 测试与闸门
+
+| 测试文件                                                    | 用例数   | 断言点                                                                                                                                                             |
+| ----------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tests/shared/ai/threadSearch.test.ts`                      | 14       | 查询归一/大小写/码点截断、命中下标与片段、上限 3、同条目只算一处、attempt/system 不参与、moreBefore/moreAfter 与省略号、emoji 不切碎                               |
+| `tests/shared/ai/threadExport.test.ts`                      | 14       | 文件名非法字符/空标题/结尾点/40 码点、头信息、轮次编号、`##`/`-` 进引用块、空行带 `>`、耗时与工具行、attempt 警告、超长截断、2000 条尾注、空会话、reasoning 不外流 |
+| `tests/main/services/ai/threadSearch.test.ts`               | 9        | 命中片段、不搜标题、不搜 reasoning+trace、每线程最多 3 处、空查询、查询折叠但正文逐字、倒序 + limit 上限、坏行跳过                                                 |
+| `tests/main/services/ai/threadExport.test.ts`               | 6        | 头信息/轮次/耗时/工具行、reasoning 与工具参数不外流、attempt 警告块、非法文件名替换、找不到线程抛错                                                                |
+| `tests/renderer/components/ai/ThreadSearchResults.test.tsx` | 8        | 有结果 / 行 title 口径 / 无命中 / 短查询不发请求且不渲染 / 搜索中 / 失败 `role=alert` / `ipc-missing` 翻重启文案 / 防抖只发最后一下                                |
+| `tests/renderer/components/ai/ThreadRow.test.tsx`           | 19（+9） | 图标 aria 与 opacity、导出成功只提示文件名、用户取消静默、导出失败、二次确认、取消、Esc、删除失败保留确认态、disabled 时三图标隐藏                                 |
+
+- 定向：`vitest run tests/guards tests/renderer/components/ai tests/renderer/i18n` = **36 文件 / 299 例**。
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **0**；guards **15 文件 / 107 例**。
+- 全量：**295 文件（293 通过 | 2 跳过）/ 3681 例（3674 通过 | 7 跳过）**，比第 56 批 290 / 3621
+  多 5 个文件、60 例；`electron-vite build` **EXIT 0**。
+- prettier：本批 30 个改动路径里 29 个 `--check` 通过；不过的仍是存量
+  `docs/ai/dsh-source-adaptation-2026-10-24.md`（巨型表格，第 55/56 批同状况），不整文件重排。
+- 日志：`_recovery/full-gate-batch57b.log`、`_recovery/build-batch57.log`、
+  `_recovery/gate-batch57b-vitest-exit.txt`。
+
+### 57.8 真机（dev + CDP 43191）
+
+在真实项目 `projects/还原验证项目` 上跑，输出原文留 `_recovery/probe57/`，截图
+`ui-b57-search.png`、`ui-b57-delete-confirm.png`：
+
+1. **正文搜索**：查询「审批」（只存在于正文，不在任何线程标题里）→ `正文命中（1）`，行 `title`
+   原文 `你好…t\` ← "probe-new"）这次**弹出的审批没有过**——「写入未通过审批」，文件没落盘。另…`，
+`<mark>` 1 处；点该行 → 浮层收起（`out-search2.txt`）。
+2. **口径旁证**：`失败` → 0 条（该词只在 trace 里）；`工具` → 2 条、`文件` → 3 条、`审批` → 1 条
+   （`out-search-ipc.txt`）。
+3. **导出取消**：`exportThread('default')` → 保存框弹出（800ms 后 promise 仍 pending）→
+   `AppActivate('导出对话')` + `{ESC}` → `{ok:false, error:'用户取消'}`，3283ms
+   （`out-export-cancel.txt`）。
+4. **导出落盘**：同流程 + 剪贴板粘绝对路径 + Enter →
+   `{ok:true, data:{filePath:'E:\\H Bot 制造\\_recovery\\probe57\\export-default.md', bytes:12782, entries:42}}`；
+   文件头 `# 你好` / `- 会话：default` / `- 项目：还原验证项目` / `- 导出时间：2026-10-27 02:51:01` /
+   `- 规模：21 轮 · 42 条消息`，21 个 `## 第 N 轮`、6 条工具行、grep 不到 `reasoning`。
+5. **二次确认**：点垃圾桶 → 该行变成 `确定删除？` + `确认删除`/`取消删除` 两个按钮
+   （`ui-b57-delete-confirm.png`）；点取消 → 行恢复原标题。
+6. **真删**：对「请只调用一次 write_file 工具，参数：」确认删除 → `listThreads` 只剩
+   `[probe55-readwrite, default]`、行消失、`ai-history/probe55-unread.jsonl` 从磁盘消失、
+   无 `role="alert"`。
+7. **删当前线程**：先打开 `probe55-readwrite` 再删它 → `listThreads` 只剩 `[default]`、无「当前对话」
+   占位、对话区切回「你好」（`hasGreeting=true`、`hasOldThread=false`）。
+8. **收尾**：43191 与 5173 均 0 监听、`ai-history/` 0 个 jsonl、`ai-thread-titles.json` 是
+   `{version:1,titles:{}}`。
+
+诚实边界（没真机跑的）：
+
+- 保存框的**人机细节**没测：覆盖确认、切目录、长文件名截断。取消与落盘两条路径都是驱动真保存框
+  跑出来的（Esc / 粘路径 + Enter）。
+- 正文搜索只搜**当前项目**（能力账也这么写）。
+- 搜索框输入是用 `HTMLInputElement.prototype` 的 value setter + `input` 事件喂的 React 受控输入，
+  等于模拟键入；中文输入法的组合事件（`compositionstart/end`）没测。
+- `ai:searchThreads` 在主线程同步读所有 jsonl（每线程一次 `loadHistory`）。本项目单项目最多几十条
+  线程、单文件 ≤ 1 MB，实测没有感知；上千条线程要改成增量索引或分批 —— 这个阈值本批没测。
+
+### 57.9 涉及文件
+
+新增 `src/shared/ai/threadSearch.ts`(145)、`src/shared/ai/threadExport.ts`(163)、
+`src/main/services/ai/threadSearch.ts`(88)、`src/main/services/ai/threadExport.ts`(65)、
+`src/renderer/src/components/ai/ThreadSearchResults.tsx`(151)、`AiRailButton.tsx`(40)、
+`AiContextFlyout.tsx`(70)、5 个测试文件、`docs/ai/dsh-session-manage-batch57-design.md`；
+改动 `src/main/ipc/ai.ts`(840，两条 handler)、`src/main/schemas/ai.ts`、`src/preload/index.ts`、
+`src/renderer/src/types/ipc.ts`、`src/renderer/src/stores/aiStore.ts`（`ThreadSearchHit` /
+`ThreadSearchMatch` / `searchThreads` / `deleteThread`）、`src/renderer/src/components/ai/AiSidebar.tsx`(737)、
+`src/renderer/src/i18n/{zh-CN,en-US}.json`（各 +13 键）、`capabilityCatalog.generated.ts`、
+`capabilityPolicy.generated.ts`、`tests/guards/{ipcPayloadContract,projectWritesViaFileOps}.test.ts`、
+`tests/guards/file-size-baseline.json`、`tests/renderer/components/ai/ThreadRow.test.tsx`、
+`docs/ai/ai-capability-layering-2026-10-08.md`、`docs/ai/dsh-source-adaptation-2026-10-24.md`、
+`docs/ai/dsh-session-view-batch56-design.md`（第 56 批交接清单收口为终态）。

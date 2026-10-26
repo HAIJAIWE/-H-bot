@@ -2,7 +2,7 @@
 // 由 10/18 打包产物还原（chunk: index.js）；见 _recovery/README-recovery.md
 import * as fs from 'fs'
 import * as path from 'path'
-import { readFile } from 'fs/promises'
+import { readFile, writeFile } from 'fs/promises'
 import * as electron from 'electron'
 import { tryIpc, tryIpcAsync } from './_shared'
 import {
@@ -22,6 +22,8 @@ import {
   aiNoteTurnSchema,
   aiProjectPathSchema,
   aiRenameThreadSchema,
+  aiSearchThreadsSchema,
+  aiExportThreadSchema,
   aiThreadSchema,
   approvalDecisionSchema,
   rewindToSchema,
@@ -38,6 +40,8 @@ import {
 } from '../services/ai/index'
 import { clearThread, listThreads, threadFile } from '../services/ai/threads'
 import { renameThreadTitle } from '../services/ai/threadTitles'
+import { searchProjectThreads } from '../services/ai/threadSearch'
+import { buildThreadMarkdown } from '../services/ai/threadExport'
 import { clearPresetSession } from '../services/ai/presetLock'
 import {
   appendHistoryEntries,
@@ -534,6 +538,54 @@ function registerAiIpc(projectService) {
       // 记忆与预设锁必须一起清：只清记忆会留下"已开始"的锁，用户清空后还是换不了预设
       await clearPresetSession(parsed.data.projectPath, parsed.data.threadId)
       return null
+    })
+  })
+  /**
+   * ai:searchThreads —— 在**本项目**的线程里搜正文（第 57 批）。
+   *
+   * 为什么不在这里碰标题过滤：标题本来就在渲染层的 `threads` 里，本地过滤零延迟；
+   * 只有"正文"必须读盘（渲染层只有当前线程的消息）。两段结果在界面上分区，不合并排序。
+   */
+  electron.ipcMain.handle('ai:searchThreads', async (_event, args) => {
+    const parsed = aiSearchThreadsSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败: ${parsed.error.message}`,
+      }
+    return tryIpcAsync(async () => {
+      assertProjectPathAllowed(baseDir, parsed.data.projectPath)
+      return searchProjectThreads(parsed.data.projectPath, parsed.data.query, parsed.data.limit)
+    })
+  })
+  /**
+   * ai:exportThread —— 把一条线程导出成 Markdown（第 57 批）。
+   *
+   * 选保存位置这一步只能在主进程（渲染层没有 fs）；与 `ai:exportPresets` 同构：
+   * 先组装内容、再弹对话框、最后写盘 —— 用户取消是**明确错误**，不是"成功但空文件"。
+   */
+  electron.ipcMain.handle('ai:exportThread', async (event, args) => {
+    const parsed = aiExportThreadSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败: ${parsed.error.message}`,
+      }
+    return tryIpcAsync(async () => {
+      assertProjectPathAllowed(baseDir, parsed.data.projectPath)
+      const payload = await buildThreadMarkdown(parsed.data.projectPath, parsed.data.threadId)
+      const options = {
+        title: '导出对话',
+        defaultPath: payload.fileName,
+        filters: [{ name: 'Markdown 文件', extensions: ['md'] }],
+      }
+      const win = electron.BrowserWindow.fromWebContents(event.sender)
+      const result = win
+        ? await electron.dialog.showSaveDialog(win, options)
+        : await electron.dialog.showSaveDialog(options)
+      if (result.canceled || !result.filePath) throw new Error('用户取消')
+      await writeFile(result.filePath, payload.text, 'utf-8')
+      return { filePath: result.filePath, bytes: payload.bytes, entries: payload.entries }
     })
   })
   electron.ipcMain.handle('ai:getConfig', async (_event, args) => {

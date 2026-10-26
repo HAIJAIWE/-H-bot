@@ -5,14 +5,14 @@
   "src/main/services/builtinNodes/builtinNodes.ts": {
     "lines": 3000
   },
+  "src/main/services/ai/capabilityCatalog.generated.ts": {
+    "lines": 2598
+  },
   "src/main/templates/builtinTemplates.ts": {
     "lines": 2515
   },
-  "src/main/services/ai/capabilityCatalog.generated.ts": {
-    "lines": 2508
-  },
   "src/renderer/src/stores/aiStore.ts": {
-    "lines": 2137
+    "lines": 2331
   },
   "src/renderer/src/components/launch/dataBrowserData.ts": {
     "lines": 2083
@@ -20,14 +20,14 @@
   "src/renderer/src/components/launch/DataBrowserPanel.tsx": {
     "lines": 1763
   },
-  "src/main/runtime/FlowInterpreter.ts": {
-    "lines": 1609
+  "src/renderer/src/types/ipc.ts": {
+    "lines": 1699
   },
   "src/renderer/src/components/ai/ChatPanel.tsx": {
-    "lines": 1609
+    "lines": 1678
   },
-  "src/renderer/src/types/ipc.ts": {
-    "lines": 1583
+  "src/main/runtime/FlowInterpreter.ts": {
+    "lines": 1609
   },
   "src/renderer/src/lib/mockRunner.ts": {
     "lines": 1405
@@ -44,6 +44,9 @@
   "src/renderer/src/components/blocks/BlockEditor.tsx": {
     "lines": 1112
   },
+  "src/preload/index.ts": {
+    "lines": 1108
+  },
   "src/main/services/builtinNodes/persistentStore.ts": {
     "lines": 1090
   },
@@ -53,14 +56,14 @@
   "src/shared/nodes/subflowTemplateDefs.ts": {
     "lines": 1073
   },
-  "src/preload/index.ts": {
-    "lines": 1053
-  },
   "src/renderer/src/components/canvas/CanvasNode.tsx": {
     "lines": 1023
   },
   "src/main/codegen/nodeRegistry.ts": {
     "lines": 1022
+  },
+  "src/main/ipc/aiAgentCore.ts": {
+    "lines": 1006
   },
   "src/shared/message/compose.ts": {
     "lines": 993
@@ -71,9 +74,6 @@
   "src/shared/nodes/groups/storagePlayer.ts": {
     "lines": 965
   },
-  "src/main/ipc/aiAgentCore.ts": {
-    "lines": 916
-  },
   "src/renderer/src/components/launch/TableDesignModal.tsx": {
     "lines": 878
   },
@@ -82,6 +82,9 @@
   },
   "src/shared/nodes/groups/calc.ts": {
     "lines": 857
+  },
+  "src/main/ipc/ai.ts": {
+    "lines": 841
   },
   "src/main/services/ops/git.ts": {
     "lines": 840

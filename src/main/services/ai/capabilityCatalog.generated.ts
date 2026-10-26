@@ -36,7 +36,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityLayer, string> = {
   X: '助手自身或内部管道，不对外开放',
 }
 
-/** 台账：281 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 81） */
+/** 台账：283 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 83） */
 export const CAPABILITY_CATALOG: CapabilityEntry[] = [
   {
     id: 'adapter.current',
@@ -135,6 +135,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:exportPresets',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.exportThread',
+    ns: 'ai',
+    method: 'exportThread',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:exportThread',
     channelKind: 'invoke',
   },
   {
@@ -486,6 +495,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:saveProjectConfig',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.searchThreads',
+    ns: 'ai',
+    method: 'searchThreads',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:searchThreads',
     channelKind: 'invoke',
   },
   {

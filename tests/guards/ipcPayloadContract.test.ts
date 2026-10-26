@@ -23,6 +23,8 @@ import {
   aiNoteTurnSchema,
   aiProjectPathSchema,
   aiRenameThreadSchema,
+  aiSearchThreadsSchema,
+  aiExportThreadSchema,
   aiPresetRosterSchema,
   aiPresetImportSchema,
   aiSetPresetDefaultSchema,
@@ -106,6 +108,14 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
   'ai:renameThread': {
     shape: aiRenameThreadSchema.shape,
     note: '第 56 批：给线程起名（标题在主进程归一后落盘；空标题被拒）',
+  },
+  'ai:searchThreads': {
+    shape: aiSearchThreadsSchema.shape,
+    note: '第 57 批：搜本项目线程正文（query 归一与截断在 shared；limit 上限 12）',
+  },
+  'ai:exportThread': {
+    shape: aiExportThreadSchema.shape,
+    note: '第 57 批：导出一条线程为 Markdown（主进程弹保存框并写盘）',
   },
   'ai:listTurns': { shape: aiProjectPathSchema.shape, note: '列出已记录的 AI 轮次（撤回候选）' },
   'ai:rewindTo': {

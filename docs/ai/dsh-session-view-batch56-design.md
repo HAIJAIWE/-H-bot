@@ -229,45 +229,74 @@ node node_modules/vitest/vitest.mjs run --maxWorkers=2                # 283 文�
 **把会话从"一条条消息"抬到"有名字、有规模、有目录的会话"：标题归一 + 首轮 AI 起名 + 可重命名，
 线程列表带整条会话统计，回合目录一键跳到任意一轮。**
 
-## 十四、交接状态与未完成清单（2026-10-26 19:45，给新会话）
+## 十四、交接状态（2026-10-27 收口；第 56 批已全部闭环）
 
-> 本文件 §一~§十三 是开工时的设计；**当前真实状态以本节为准**。
+> 本节原为 2026-10-26 19:45 留给"下一个会话"的交接清单，当时写着"真机未跑、代码未提交"。
+> 现在这些都已经执行完，本节按**最终状态**回写，作为这一批的历史记录；后续批次见 `docs/ai/` 下第 57 批起的文档。
 
 ### 14.1 工作区与基线
 
-- 仓库：`E:\H Bot 制造`（`D:\QQ bot` 是误设的空目录且 ACL 有问题，新会话请直接把 cwd 设为 `E:\H Bot 制造`）。
-- 基线：HEAD = `f325877`（第 55 批已提交）；**第 56 批全部改动尚未提交**（`git status --short` 为 35 个路径：修改 + 新增）。
-- 权限：danger-full-access、审批关闭；改源码前先停 dev（Windows 文件锁）。
+- 仓库：`E:\H Bot 制造`（`D:\QQ bot` 是误设的空目录且 ACL 有问题，cwd 一律用 `E:\H Bot 制造`）。
+- 基线：HEAD = `4559842`（第 56 批已提交；上一批是 `f325877`），`git status --short` 干净。
+- 提交内容：36 个路径（含 35 个代码/文档改动 + README 当前状态两行），`+2889 / −200`；提交信息里带能力账与闸门数字。
+- 权限：danger-full-access、审批关闭；改源码前先停 dev（Windows 文件锁会让 build 报 `ReplaceFileW EIO (Win32 32)`）。
 
 ### 14.2 已完成（已验证）
 
 - **Phase A/B**：shared 纯函数（`threadTitle.ts`/`threadTitleTypes.ts`/`turnOutline.ts`）、`threadTitles.ts` 落盘服务、`threads.ts` 的标题优先级与 `stats`、schema/IPC/preload/渲染层类型/`aiAgentCore` 首轮旁路接线、能力台账 281 + 两份生成物重生成、`ai:renameThread` 进 `ipcPayloadContract`、事件契约补 `ai:threadTitle`。Phase A 定向 4 文件 37 例绿。
 - **Phase C**（队友 ui-session 实现、Lead 已验收）：AiSidebar 重命名入口 + 线程统计提示、`TurnOutlineDrawer` + `TurnOutlineLauncher`、`AgentTranscript` 每条消息锚点 `ai-msg-<下标>`、ChatPanel 挂载与滚动高亮、`aiStore` 的 `onThreadTitle` 监听与 `renameThread` action、i18n 中英；前端测试 ThreadRow 10 / TurnOutlineDrawer 7 / TurnOutlineLauncher 7 / ChatPanel 8 例。
 - **闸门实测（2026-10-26 19:40–19:43）**：tsc node `0`、tsc web `0`；guards 15 文件 / 107 例全绿（`deadExports` 已因 `buildTurnOutline` 被界面引用而自然通过）；全量 vitest 日志 `_recovery/full-gate-batch56.log` = **288 passed | 2 skipped（290 文件）/ 3614 passed | 7 skipped（3621 例）/ exit 0**（第 55 批基线 283 文件 / 3557 例）。
-- **文档**：`docs/ai/agent-core-wiring.md` 已追加 §56（114 行）；`docs/ai/dsh-source-adaptation-2026-10-24.md` §14 已加「2026-10-26（第十批）」行；本设计与全部改动文件已过 `prettier --write/--check`。
+- **文档**：`docs/ai/agent-core-wiring.md` 已追加 §56.1–§56.9（第 3275–3534 行，约 270 行）；`docs/ai/dsh-source-adaptation-2026-10-24.md` §14 已加「2026-10-26（第十批）」行；本设计与全部改动文件已过 `prettier --write/--check`。
 
-### 14.3 未完成（按序）
+### 14.3 未完成 → 已清空
 
-1. **真机 6 步**（见 14.4）。
-2. **git 提交**：建议信息 `feat(ai): 会话自动标题与回合目录（标题归一生成、线程统计、回合跳转）`；提交前再跑 `tsc node/web` + `guards`（全量可复用上面结果，除非真机发现要改代码）；`git add -A`（`_recovery` 已 gitignore）→ `git commit -F`。
-3. **Team 收尾**：shared task `task-2` 仍是 in_progress（owner ui-session 已 inactive、未写完成说明），可 complete 或留档。
+原清单三项，逐项收口：
 
-### 14.4 真机步骤（§九 的可执行版）
+1. **真机 6 步** → 已执行，实际跑成 7 个探针、全部通过（结果见 14.4）。
+2. **git 提交** → 已提交 `4559842`（35 个改动路径 + README 两行 = 36 个），提交信息里写清能力账 279→281 与闸门数字；提交后 `git status --short` 为空。
+3. **Team 收尾** → 队友 `renderer-phase-c` 的 task-1 已 complete；并行会话的 task-2 随本批提交一起闭环，任务板上没有遗留 in_progress。
 
-- 放端口：确认 43191 无人监听（`Get-NetTCPConnection -LocalPort 43191 -State Listen -ErrorAction SilentlyContinue`）、无项目 electron（`Get-Process electron -ErrorAction SilentlyContinue`）。
-- 起 dev：`Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue; $env:QQBAT_CDP_PORT='1'; node node_modules/electron-vite/bin/electron-vite.js dev`（CDP 43191，页面 `http://localhost:5173/`）。
-- 项目：`E:\H Bot 制造\projects\还原验证项目`（已配 glm-5.3/百炼，能真正生成标题）。
-- 探针脚本（上一轮已写、**尚未运行过**，可能需要按实际页面微调）：`_recovery/probe56/probe-title.js`（新线程发「只回答一个字：好。不要调用任何工具。」→ 等 8s → `listThreads` 查该线程 `title/titleSource/stats`）、`_recovery/probe56/probe-rename.js`（挑 provider 来源线程 → `renameThread(project,threadId,'第五十六批标题探针')` → 再 `listThreads` 验证 `titleSource==='user'`）。运行：`node _recovery/cdp-eval.mjs <js文件>`；截图：`node _recovery/cdp-shot.mjs <png路径>`。
-- 检查点：① 首轮后标题为 provider 生成（≤64 字节，不是首条消息前 8 词），`.qqbat/ai-thread-titles.json` 出现 `{version:1,titles:{<threadId>:{title,source:'provider',updatedAt}}}`；② 改名带控制字符/纯空白 → 归一后为空被拒（界面「标题不能为空」）；③ 重命名后同线程再发一轮 → 标题不被覆盖（user pin）；④ 侧栏线程行 hover 出现「N 轮 · 约 X」统计提示；⑤ 会话页回合目录按钮 → 抽屉列出两轮、点第 1 轮滚到 `#ai-msg-…`；⑥ 清理测试线程文件（`.qqbat/ai-history/<id>.jsonl` 等）、清标题文件测试条目、停 dev/electron、确认 43191 FREE。
-- 注意：标题生成是旁路请求，失败只 `logger.warn`，界面仍显示 fallback；等 8s 不够可再查。`agentCoreRun` 返回 `{ok,finalText,rounds,phase,toolResults}`。
+遗留观察项（都不阻塞，记在这里免得下次重复发现）：
 
-### 14.5 已知风险/提示
+- `ChatPanel.tsx` 1678 / 硬上限 1688 行，只剩 10 行余量 —— 下一批要动输入区，得先把输入区抽成组件。
+- 线程行重命名的交互（hover 铅笔 + 双击进编辑）只有 jsdom 测试覆盖，真机没点过（真机验的是 IPC 与列表渲染）。
+- README 和 `AiSidebar.tsx` 的存量 prettier 债：整文件 `--write` 会带大量纯格式噪音，本批只保证新增/改动段落干净。
 
-- ui-session 越过了「docs/** 禁改」边界（wiring §56 在 19:35 出现）；内容已复核与实现一致，提交前建议 `git diff docs/ai/agent-core-wiring.md` 快速过一眼。
-- fileSize 提示：ChatPanel 1678 / aiStore 2246 / aiAgentCore 1006 行「待拆」、`capabilityPolicy.generated.ts` 606 行「★未登记」——都不失败，属历史排期提示。
-- 自动标题只在线程首轮触发（`past` 无 user 条目）；已有历史的线程不会自动起名，只显示 fallback，需要时手动重命名。
-- 改名 IPC 只接受 1..200 字符（schema），主进程归一后为空会拒 —— 两条行为都要在真机验证。
+### 14.4 真机验证（已执行，2026-10-26 20:10 – 2026-10-27 00:20）
 
-### 14.6 新会话第一步
+启动方式（每次都一样）：
 
-`git status --short` 确认 35 个未提交路径仍在 → `tsc node/web` + `guards` 快速确认环境 → 起 dev 做真机 6 步 → 提交。
+```powershell
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+$env:QQBAT_CDP_PORT='1'
+node node_modules/electron-vite/bin/electron-vite.js dev
+```
+
+等日志出现 `CDP 已开启：127.0.0.1:43191` 与 `[bootstrap] SQLite 引擎：better-sqlite3`，页面是 `http://localhost:5173/`。探针用 `node _recovery/cdp-eval.mjs <probe.js>`，截图用 `node _recovery/cdp-shot.mjs <out.png>`。
+
+| #   | 探针                                       | 断言                                    | 实测结果                                                                                                                                                                                                                     |
+| --- | ------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `probe56/probe-title2.js`                  | 首轮后 provider 起名、stats 正确        | 线程 `probe56b-vxeldn` → `title='会话标题的定义与作用'`、`titleSource='provider'`、`stats={turns:1,messages:2,assistantMessages:1,chars:86,estimatedTokens:22,durationMs:6083}`                                              |
+| 2   | `probe56/probe-title2.js`（第二轮）        | 第二轮不覆盖标题                        | `titleStable=true`，`turns:2,messages:4,chars:157,estimatedTokens:40,durationMs:21346`                                                                                                                                       |
+| 3   | `probe56/probe-rename2.js`                 | 控制字符归一 / 64 字节截断 / 空标题拒绝 | `'\u001b[31m标题探针\u0007\u202E 第五十六批 \u001b[0m'` → `'标题探针 第五十六批'`（28 字节，source=user）；100 个「零」→ 63 字节；纯控制字符 → `{ok:false, error:'标题不能为空（去掉控制字符后没有可见字符）'}` 且原标题不变 |
+| 4   | `probe56/probe-ui-threads.js`（重启后）    | 标题 pin 跨重启 + 统计提示              | 行 title = `第五十六批标题探针（4 条） · 2 轮 · 约 40 tokens`；长线程 `你好（42 条） · 21 轮 · 约 1,426 tokens`                                                                                                              |
+| 5   | `probe56/probe-ui-drawer.js`               | 抽屉列出全部轮次                        | dialog「回合目录」、2 个条目（`跳到第 1 轮`/`跳到第 2 轮`）、第 1 轮 `aria-current='true'`、两轮 prompt/response 预览都在                                                                                                    |
+| 6   | `probe56/probe-ui-jump.js`                 | 点击 → 关闭 + 高亮 + 1.5s 退场          | `drawerClosed=true`、`ai-msg-2` 带 `ring-sky-400`、1600ms 后 `stillHighlightedAfter1600ms=false`                                                                                                                             |
+| 7   | `probe56/probe-ui-jump2.js`（21 轮长线程） | 长会话跳转滚动                          | 目录 21 条；点「跳到第 10 轮」→ 高亮 `ai-msg-17`、其顶边距容器 12px（= `scroll-mt-3`）、`scrollTop` 9086 → 6191                                                                                                              |
+
+截图证据：`_recovery/probe56/ui-b56-threads.png`（统计提示）、`_recovery/probe56/ui-b56-drawer.png`（回合目录抽屉）。
+
+收尾：删掉探针线程的 `.qqbat/ai-history/probe56b-vxeldn.jsonl` 与 `.preset.json`，`ai-thread-titles.json` 重置为 `{"version":1,"titles":{}}`；杀 electron，确认 43191/5173 都不再监听。
+
+### 14.5 已知风险/提示（复审后）
+
+- 并行会话 ui-session 越界写过 `docs/`：内容已复核与实现一致，且已随本批提交，不需要再处理。
+- 自动标题只在线程首轮触发（`past` 里没有 user 条目才算首轮）；已有历史的线程不会自动起名，只显示 fallback，要改名得手动。
+- `ai:renameThread` 的 schema 是 1..200 字符、主进程归一后为空会拒 —— 两条都已在真机验过（第 3 项）。
+- 统计里的千分位来自 `toLocaleString()`，跟进程 locale 走；测试断言写的是 `'1,234'`，换 locale 会红。
+- 线程列表是启动快照：旁路 IPC 新建的线程不会自动出现在侧栏，要重启或切项目才刷新（既有行为，本批没改）。
+- fileSize 提示：`ChatPanel.tsx` 1678、`aiStore.ts` 2246、`aiAgentCore.ts` 1006 行「待拆」、`capabilityPolicy.generated.ts` 606 行「★未登记」——都不失败，属历史排期提示。
+
+### 14.6 下一批入口（第 57 批）
+
+第 56 批已经完整结束。第 57 批继续"做成 DSH 那样"，设计文档另起（`docs/ai/dsh-<主题>-batch57-design.md`），起手先确认 `git status --short` 干净、`tsc node/web` 与 `guards` 绿，再按"设计 → 实现 → 闸门 → 真机 → 提交"的老流程走。

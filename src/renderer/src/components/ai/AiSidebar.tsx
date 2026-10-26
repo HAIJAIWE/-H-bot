@@ -24,6 +24,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Check,
+  Download,
   Gauge,
   History,
   MessageSquarePlus,
@@ -31,6 +32,7 @@ import {
   Search,
   Settings,
   SlidersHorizontal,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useAiStore } from '../../stores/aiStore'
@@ -38,43 +40,11 @@ import type { ThreadInfo } from '../../stores/aiStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useBotStore } from '../../stores/botStore'
 import { AIProviderConfig } from '../settings/AIProviderConfig'
+import { ThreadSearchResults } from './ThreadSearchResults'
+import { AiContextFlyout } from './AiContextFlyout'
+import { RailButton } from './AiRailButton'
 import { t } from '../../i18n'
 import { useLocaleSubscription } from '../../stores/i18nStore'
-
-/** 图标轨上的一个按钮（hover 用 title 交代含义，不占宽度） */
-function RailButton({
-  icon: Icon,
-  label,
-  /** 禁用时**说明为什么**（否则用户只看到图标变淡，点了没反应只能靠猜） */
-  disabledHint,
-  active,
-  disabled,
-  onClick,
-}: {
-  icon: typeof Settings
-  label: string
-  disabledHint?: string
-  active?: boolean
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      title={disabled && disabledHint ? disabledHint : label}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className={`w-9 h-9 flex items-center justify-center rounded transition-colors ${
-        active
-          ? 'bg-blue-500/15 text-blue-400'
-          : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60'
-      } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-    >
-      <Icon size={17} />
-    </button>
-  )
-}
 
 /**
  * 对话列表里的一行（工作区分组下每行都长这样）。
@@ -82,6 +52,11 @@ function RailButton({
  * 第 56 批给它加了两件事（都要求"用户不用点进来就能判断"）：
  *   · hover 提示里追加规模（N 轮 · 约 X tokens）—— 来自主进程 listThreads 的 stats，这里不算；
  *   · 重命名入口（铅笔 / 双击标题）—— 改的是线程的 **pin 标题**（titleSource 变 user）。
+ *
+ * 第 57 批再加两个入口（导出 / 删除），三个图标挤在行右端、hover 才出现：
+ *   · 204px 的浮层里行本身很窄，常驻三个图标会把标题截到看不清 —— 所以默认隐藏；
+ *   · 删除是**不可撤销**的（删的是磁盘上的记忆文件），点一下不能删：先进行内确认态。
+ *     不用 `window.confirm`：原生弹窗会抢焦点、在 Electron 里还挡不住误触（ENTER 默认确认）。
  */
 export function ThreadRow({
   title,
@@ -92,6 +67,8 @@ export function ThreadRow({
   disabled,
   onClick,
   onRename,
+  onExport,
+  onDelete,
 }: {
   title: string
   /** hover 提示；**不显示在行里**（行里只有标题，条数在右侧，别重复） */
@@ -107,6 +84,16 @@ export function ThreadRow({
    * 返回值与 store 的 renameThread 同形 —— 失败原因这里翻成人话。
    */
   onRename?: (next: string) => Promise<{ ok: true } | { ok: false; error: string }>
+  /**
+   * 导出为 Markdown：主进程弹保存框并写盘，成功返回**落盘路径**（界面只提示文件名）。
+   * 用户取消走 `error: '用户取消'`（preload 契约值）——那不是错误，这一行静默。
+   */
+  onExport?: () => Promise<{ ok: true; filePath: string } | { ok: false; error: string }>
+  /**
+   * 删除这条线程：**行内二次确认之后**才会被调用。
+   * 失败原因显示在行下（静默失败会让用户以为已经删了）。
+   */
+  onDelete?: () => Promise<{ ok: true } | { ok: false; error: string }>
 }): React.ReactNode {
   // 用了 t() 的组件必须订阅语言变化（i18n 闸门）
   useLocaleSubscription()
@@ -114,6 +101,12 @@ export function ThreadRow({
   const [draft, setDraft] = useState(title)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** 导出/删除进行中：与重命名的 busy 分开，否则改名框会被一次导出弄成禁用 */
+  const [actionBusy, setActionBusy] = useState(false)
+  /** 删除的二次确认：true 时整行换成「确定删除？」+ 确认/取消 */
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  /** 成功回执（导出后提示文件名）；失败走 error，成功走这里 */
+  const [notice, setNotice] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // 进编辑态时整段选中旧标题：用户多半是"在原名上改"，不是重新打一遍
@@ -134,6 +127,76 @@ export function ThreadRow({
   const cancelEditing = (): void => {
     setEditing(false)
     setError(null)
+  }
+
+  /** 导出 / 删除入口与重命名同一口径：流式输出中连图标都不出现 */
+  const canExport = Boolean(onExport) && !disabled
+  const canDelete = Boolean(onDelete) && !disabled
+  const hasActions = canRename || canExport || canDelete
+
+  // 删除确认态开着时 Esc 撤回 —— 与重命名输入框同一个手势。
+  // **捕获阶段**拦下：别让 Esc 继续去"停止流式输出"（此刻用户想取消的是删除）。
+  useEffect(() => {
+    if (!confirmingDelete) return
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      setConfirmingDelete(false)
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [confirmingDelete])
+
+  /**
+   * 导出：成功提示文件名，失败分三种。
+   * `用户取消` 是用户在保存框里的主动选择，**不是故障** —— 弹红字会像"出事了"；
+   * `ipc-missing` 是界面与主进程版本不一致（要重启），跟"写盘失败"不是一回事。
+   */
+  const runExport = (): void => {
+    if (!onExport) return
+    void (async () => {
+      setError(null)
+      setNotice(null)
+      setActionBusy(true)
+      const res = await onExport()
+      setActionBusy(false)
+      if (res.ok) {
+        // 只提示文件名：完整路径太长，204px 的浮层里会被截成一片
+        const file = res.filePath.split(/[\\/]/).filter(Boolean).pop() ?? res.filePath
+        setNotice(t('ai.sidebar.exported', { file }))
+        return
+      }
+      if (res.error === '用户取消') return
+      setError(
+        res.error === 'ipc-missing'
+          ? t('ai.sidebar.threadsIpcMissing')
+          : t('ai.sidebar.exportFailed', { message: res.error }),
+      )
+    })()
+  }
+
+  /** 二次确认之后才真的删（删的是记忆文件，不可撤销） */
+  const confirmDelete = (): void => {
+    if (!onDelete) return
+    void (async () => {
+      setActionBusy(true)
+      setError(null)
+      setNotice(null)
+      const res = await onDelete()
+      setActionBusy(false)
+      if (res.ok) {
+        // 删成功后**不留确认态**：列表刷新会让这一行消失，万一还在也别停在「确定删除？」
+        setConfirmingDelete(false)
+        return
+      }
+      // 失败时保留确认态：用户可以再确认一次重试，或点取消退出
+      setError(
+        res.error === 'ipc-missing'
+          ? t('ai.sidebar.threadsIpcMissing')
+          : t('ai.sidebar.deleteFailed', { message: res.error }),
+      )
+    })()
   }
 
   const submit = (e: React.FormEvent): void => {
@@ -177,7 +240,33 @@ export function ThreadRow({
 
   return (
     <div className="group">
-      {editing ? (
+      {confirmingDelete ? (
+        // 确认态与编辑态**同一行高度**：换行会让整个列表跳一下
+        <div className="flex items-center gap-1 pl-4 pr-2.5 py-1">
+          <span className="min-w-0 flex-1 truncate text-xs text-zinc-300">
+            {t('ai.sidebar.deleteConfirm')}
+          </span>
+          <button
+            type="button"
+            disabled={actionBusy}
+            onClick={confirmDelete}
+            title={t('ai.sidebar.deleteConfirmAria')}
+            aria-label={t('ai.sidebar.deleteConfirmAria')}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-red-400 hover:bg-red-500/20 hover:text-red-300 disabled:opacity-40"
+          >
+            <Check size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(false)}
+            title={t('ai.sidebar.deleteCancelAria')}
+            aria-label={t('ai.sidebar.deleteCancelAria')}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ) : editing ? (
         // 编辑态与展示态**同一行高度**：换行会让整个列表跳一下
         <form onSubmit={submit} className="flex items-center gap-1 pl-4 pr-2.5 py-1">
           <input
@@ -231,21 +320,68 @@ export function ThreadRow({
             }`}
           >
             <span className="flex-1 truncate">{title}</span>
-            <span className="text-zinc-600 tabular-nums">{count}</span>
-          </button>
-          {canRename && (
-            // 铅笔**绝对定位盖在条数上**：行本身是 button，按钮里不能再嵌按钮
-            <button
-              type="button"
-              onClick={startEditing}
-              title={t('ai.sidebar.renameAria')}
-              aria-label={t('ai.sidebar.renameAria')}
-              className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-zinc-800/90 text-zinc-400 opacity-0 transition-opacity hover:text-zinc-100 focus-visible:opacity-100 group-hover:opacity-100"
+            {/* 有操作图标时 hover 把条数淡出：否则图标会正好盖在数字上 */}
+            <span
+              className={`text-zinc-600 tabular-nums ${
+                hasActions ? 'transition-opacity group-hover:opacity-0' : ''
+              }`}
             >
-              <Pencil size={11} />
-            </button>
+              {count}
+            </span>
+          </button>
+          {hasActions && (
+            // 三个图标**绝对定位盖在条数上**：行本身是 button，按钮里不能再嵌按钮。
+            // 从右往左：删除 / 导出 / 重命名（危险操作贴边，离标题最远）
+            <>
+              {canRename && (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  title={t('ai.sidebar.renameAria')}
+                  aria-label={t('ai.sidebar.renameAria')}
+                  className="absolute right-11 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-zinc-800/90 text-zinc-400 opacity-0 transition-opacity hover:text-zinc-100 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <Pencil size={11} />
+                </button>
+              )}
+              {canExport && (
+                <button
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={runExport}
+                  title={t('ai.sidebar.exportAria')}
+                  aria-label={t('ai.sidebar.exportAria')}
+                  className="absolute right-6 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-zinc-800/90 text-zinc-400 opacity-0 transition-opacity hover:text-zinc-100 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-40"
+                >
+                  <Download size={11} />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={() => {
+                    // 点垃圾桶只是**进入确认态**，什么都不删
+                    setError(null)
+                    setNotice(null)
+                    setConfirmingDelete(true)
+                  }}
+                  title={t('ai.sidebar.deleteAria')}
+                  aria-label={t('ai.sidebar.deleteAria')}
+                  className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-zinc-800/90 text-zinc-400 opacity-0 transition-opacity hover:text-red-300 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-40"
+                >
+                  <Trash2 size={11} />
+                </button>
+              )}
+            </>
           )}
         </div>
+      )}
+      {notice && (
+        // 成功回执不是错误：不用 role="alert"，但也要在行下说一声（否则导出成功没反馈）
+        <p role="status" className="px-2.5 pb-1 text-[11px] leading-tight text-emerald-500/80">
+          {notice}
+        </p>
       )}
       {error && (
         <p role="alert" className="px-2.5 pb-1 text-[11px] leading-tight text-amber-500/80">
@@ -275,6 +411,10 @@ export function AiSidebar() {
   const switchThread = useAiStore(s => s.switchThread)
   /** 改名：**乐观更新**由 store 做（成功即改内存里的 title），失败原因原样交回这一行 */
   const renameThread = useAiStore(s => s.renameThread)
+  /** 删除：记忆文件不可撤销 —— 入口那一行负责二次确认，这里只转发 */
+  const deleteThread = useAiStore(s => s.deleteThread)
+  /** 正文搜索：命中片段由主进程算好（列表上方那块「正文命中」用它） */
+  const searchThreads = useAiStore(s => s.searchThreads)
   /** 滑出面板：对话列表 / 都没开 */
   const [flyout, setFlyout] = useState<'none' | 'threads' | 'context'>('none')
   const [showSettings, setShowSettings] = useState(false)
@@ -331,6 +471,36 @@ export function AiSidebar() {
     setFlyout('none')
   }
 
+  /**
+   * 导出为 Markdown。
+   *
+   * **没放进 store**：它不是 AI 会话状态，只是一次保存框 + 写盘；store 里也没有这个 action
+   * （第 57 批 store 只加了 searchThreads / deleteThread）。守卫写法与 store 内一致：
+   * 缺 IPC = `ipc-missing`（界面与主进程版本不一致，要重启）。
+   */
+  const exportThread = async (
+    projPath: string,
+    threadId: string,
+  ): Promise<{ ok: true; filePath: string } | { ok: false; error: string }> => {
+    if (typeof window.qqbat?.ai?.exportThread !== 'function') {
+      return { ok: false, error: 'ipc-missing' }
+    }
+    try {
+      const res = await window.qqbat.ai.exportThread(projPath, threadId)
+      if (!res.ok || !res.data) return { ok: false, error: res.error ?? 'unknown' }
+      return { ok: true, filePath: res.data.filePath }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  /** 点一条正文命中：打开那条线程并收起搜索（留着搜索框会挡住刚打开的列表） */
+  const openSearchHit = (projPath: string, threadId: string): void => {
+    openThread(projPath, threadId)
+    setQuery('')
+    setSearching(false)
+  }
+
   /** 工作区列表：当前项目排最前，其余按名字排（顺序稳定，不会每次刷新换位） */
   const sortedGroups = [...allThreads].sort((a, b) => {
     if (a.projectPath === projectPath) return -1
@@ -361,75 +531,7 @@ export function AiSidebar() {
           滑出的对话列表 = **浮层**（绝对定位，从图标轨向左展开）。
           它盖住对话区的一部分，但**不改变对话区的宽度** —— 这是"对话区要有下限"的前提。
         */}
-        {/*
-          上下文洞察：把「占了多少」拆成「谁占的」。
-          数据来自主进程同一份估算（measureConversation），与状态栏那个百分比同源。
-        */}
-        {flyout === 'context' && (
-          <div className="absolute right-10 top-0 bottom-0 w-64 z-20 min-h-0 flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
-            <div className="px-2.5 py-2 text-xs text-zinc-500 border-b border-zinc-800 shrink-0">
-              {t('ai.sidebar.context')}
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-3">
-              {!stats || stats.contextTokens <= 0 ? (
-                <p className="text-[11px] text-zinc-600">{t('ai.context.empty')}</p>
-              ) : (
-                <>
-                  <div>
-                    <div className="text-xs text-zinc-300">
-                      {t('ai.context.total', {
-                        tokens: stats.contextTokens.toLocaleString(),
-                        budget: stats.contextBudget.toLocaleString(),
-                        percent: String(
-                          Math.min(
-                            100,
-                            Math.round((stats.contextTokens / stats.contextBudget) * 100),
-                          ),
-                        ),
-                      })}
-                    </div>
-                    {stats.contextChars ? (
-                      <div className="text-[11px] text-zinc-600 mt-0.5">
-                        {t('ai.context.chars', { chars: stats.contextChars.toLocaleString() })}
-                      </div>
-                    ) : null}
-                  </div>
-                  {(stats.contextHeaviest?.length ?? 0) > 0 && (
-                    <div>
-                      <div className="text-[11px] text-zinc-500 mb-1.5">
-                        {t('ai.context.heaviest')}
-                      </div>
-                      <div className="space-y-1">
-                        {stats.contextHeaviest?.map((h, i) => {
-                          const max = stats.contextHeaviest?.[0]?.tokens || 1
-                          return (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="w-14 shrink-0 text-[11px] text-zinc-500">
-                                {h.role}
-                              </span>
-                              <span
-                                className="h-1.5 rounded bg-blue-500/50"
-                                style={{
-                                  width: `${Math.max(4, Math.round((h.tokens / max) * 100))}%`,
-                                }}
-                              />
-                              <span className="text-[11px] text-zinc-500 tabular-nums">
-                                {h.tokens.toLocaleString()}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  <p className="text-[11px] leading-relaxed text-zinc-600">
-                    {t('ai.context.hint')}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {flyout === 'context' && <AiContextFlyout stats={stats} />}
         {flyout === 'threads' && (
           <div className="absolute right-10 top-0 bottom-0 w-52 z-20 min-h-0 flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
             {/*
@@ -496,8 +598,25 @@ export function AiSidebar() {
               </div>
             )}
             <div className="flex-1 min-h-0 overflow-y-auto py-1">
+              {/*
+                正文命中（第 57 批）：放在**标题匹配之上**单独一块。
+                标题只取自第一条用户消息 —— 聊到第 20 轮时用户记得的那句话往往不在标题里。
+                查询为空时这块不渲染（组件内部对「太短/空」也兜了一层）。
+              */}
+              {searching && q && projectPath && (
+                <ThreadSearchResults
+                  projectPath={projectPath}
+                  query={query}
+                  searchThreads={searchThreads}
+                  onOpen={openSearchHit}
+                />
+              )}
               {/* 工作区分组：一次列出**所有项目**的对话（用户原话：「没必要一个项目切换」） */}
-              {groups.length === 0 ? (
+              {/*
+                搜索时标题一条都不命中，不该说「还没有对话」—— 对话明明都在，
+                只是标题里没有这个词；正文命中区已经在上方交代了结果（或「没有命中」）。
+              */}
+              {groups.length === 0 && !q ? (
                 <p className="px-2.5 py-2 text-xs text-zinc-600">{t('ai.sidebar.empty')}</p>
               ) : (
                 groups.map(g => {
@@ -534,6 +653,8 @@ export function AiSidebar() {
                           disabled={streaming}
                           onClick={() => openThread(g.projectPath, th.id)}
                           onRename={next => renameThread(g.projectPath, th.id, next)}
+                          onExport={() => exportThread(g.projectPath, th.id)}
+                          onDelete={() => deleteThread(g.projectPath, th.id)}
                         />
                       ))}
                     </div>
@@ -552,7 +673,11 @@ export function AiSidebar() {
                     : t('ai.sidebar.threadsFailed', { message: threadsError })}
                 </p>
               )}
-              {!threadsError && !threads.some(th => th.id === activeThreadId) && (
+              {/*
+                搜索时不提「第一条消息」的事：那说的是**新建的空对话**，
+                跟「这个词没搜到」是两件事，摆在一起会让人以为对话丢了。
+              */}
+              {!threadsError && !searching && !threads.some(th => th.id === activeThreadId) && (
                 <p className="px-2.5 py-2 text-[11px] leading-relaxed text-zinc-600">
                   {t('ai.sidebar.firstMessageHint')}
                 </p>

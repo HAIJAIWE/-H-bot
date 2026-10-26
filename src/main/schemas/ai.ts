@@ -116,6 +116,23 @@ var aiRenameThreadSchema = z.object({
   threadId: z.string().min(1).max(64),
   title: z.string().min(1).max(200),
 })
+/**
+ * 搜线程正文（第 57 批）。
+ *
+ * `query` 的主上限在 shared 里（`THREAD_SEARCH_QUERY_MAX_CHARS = 120` 码点），
+ * 这里给 400 字符的宽上限只是为了**挡住明显不是查询的输入**（比如意外传进一整篇日志），
+ * 真正的截断仍在 `normalizeThreadSearchQuery` —— 两处都截，但只有一处是口径。
+ */
+var aiSearchThreadsSchema = z.object({
+  projectPath: z.string().min(1),
+  query: z.string().max(400),
+  limit: z.number().int().min(1).max(50).optional(),
+})
+/** 导出某条线程为 Markdown（第 57 批）：线程不存在时服务层明确报错 */
+var aiExportThreadSchema = z.object({
+  projectPath: z.string().min(1),
+  threadId: z.string().min(1).max(64),
+})
 /** 设置项目默认预设（`null` = 跟页面，删掉记录） */
 var aiSetPresetDefaultSchema = z.object({
   projectPath: z.string().min(1),
@@ -251,6 +268,8 @@ export {
   rollbackTurnSchema,
   aiProjectPathSchema,
   aiRenameThreadSchema,
+  aiSearchThreadsSchema,
+  aiExportThreadSchema,
   aiSetPresetDefaultSchema,
   aiPresetImportSchema,
   aiPresetRosterSchema,

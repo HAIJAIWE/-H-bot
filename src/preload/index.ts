@@ -443,6 +443,15 @@ const api = {
     renameThread: (projectPath: string, threadId: string, title: string) =>
       ipcRenderer.invoke('ai:renameThread', { projectPath, threadId, title }),
     /**
+     * 在**本项目**的线程里搜正文（第 57 批）。
+     * 标题过滤留在渲染层（本地、零延迟）；这条只补"正文不在内存里"的那一半。
+     */
+    searchThreads: (projectPath: string, query: string, limit?: number) =>
+      ipcRenderer.invoke('ai:searchThreads', { projectPath, query, limit }),
+    /** 把一条线程导出成 Markdown（主进程弹保存对话框并写盘；用户取消 = 明确错误） */
+    exportThread: (projectPath: string, threadId: string) =>
+      ipcRenderer.invoke('ai:exportThread', { projectPath, threadId }),
+    /**
      * 列出**已记录的 AI 轮次**（新的在前）—— 「撤回这一轮」的候选列表。
      * 一轮 = 一个可撤销单元（它改过的文件 + 开始时的流程），见主进程 turnJournal.ts。
      */
