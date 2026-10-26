@@ -437,6 +437,12 @@ const api = {
     clearThread: (projectPath: string, threadId: string) =>
       ipcRenderer.invoke('ai:clearThread', { projectPath, threadId }),
     /**
+     * 给会话线程起名（第 56 批）。
+     * 标题归一（剥控制序列、按 64 字节截断）在主进程做；归一后为空会返回 {ok:false,error}。
+     */
+    renameThread: (projectPath: string, threadId: string, title: string) =>
+      ipcRenderer.invoke('ai:renameThread', { projectPath, threadId, title }),
+    /**
      * 列出**已记录的 AI 轮次**（新的在前）—— 「撤回这一轮」的候选列表。
      * 一轮 = 一个可撤销单元（它改过的文件 + 开始时的流程），见主进程 turnJournal.ts。
      */
@@ -597,6 +603,22 @@ const api = {
       const listener = (_e: unknown, data: { projectPath?: string; message: string }) => cb(data)
       ipcRenderer.on('ai:response', listener)
       return () => ipcRenderer.removeListener('ai:response', listener)
+    },
+    /**
+     * 会话自动标题生成完成（第 56 批）。
+     * 只在线程**首轮**成功后可能来一次；渲染层据此刷新线程列表（不改当前对话内容）。
+     */
+    onThreadTitle: (
+      cb: (data: {
+        projectPath?: string
+        threadId: string
+        title: string
+        source: 'fallback' | 'provider' | 'user'
+      }) => void,
+    ) => {
+      const listener = (_e: unknown, data: Parameters<typeof cb>[0]) => cb(data)
+      ipcRenderer.on('ai:threadTitle', listener)
+      return () => ipcRenderer.removeListener('ai:threadTitle', listener)
     },
     /**
      * 主进程下发一条写指令（P1-1 回执协议）。

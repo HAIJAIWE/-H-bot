@@ -24,6 +24,11 @@ export interface AgentTranscriptProps {
   projectPath: string | undefined
   canRollback: boolean
   rollbackLastTurn: (projectPath: string) => void | Promise<void>
+  /**
+   * 刚跳过去的那条消息下标（第 56 批「回合目录」跳转后用一次高亮把落点显出来）。
+   * null/undefined = 没有要高亮的；高亮只是视觉效果，不参与任何逻辑。
+   */
+  highlightIndex?: number | null
 }
 
 export function AgentTranscript(props: AgentTranscriptProps): React.ReactNode {
@@ -42,6 +47,7 @@ export function AgentTranscript(props: AgentTranscriptProps): React.ReactNode {
     projectPath,
     canRollback,
     rollbackLastTurn,
+    highlightIndex,
   } = props
 
   return (
@@ -54,8 +60,17 @@ export function AgentTranscript(props: AgentTranscriptProps): React.ReactNode {
             {rows.map((msg, offset) => {
               const i = turn.start + offset
               const isLast = i === messages.length - 1
+              const highlighted = highlightIndex === i
               return (
-                <div key={`msg-${i}`} className="group">
+                <div
+                  key={`msg-${i}`}
+                  // 消息锚点（第 56 批「回合目录」跳转用）：id 口径 = 消息数组下标，
+                  // 与 buildTurnOutline 的 userIndex 严格同源，中间不另做映射。
+                  id={`ai-msg-${i}`}
+                  className={`group scroll-mt-3 rounded-lg transition-colors duration-500 ${
+                    highlighted ? 'bg-sky-400/5 ring-2 ring-inset ring-sky-400/60' : ''
+                  }`}
+                >
                   <MessageBubble msg={msg} />
                   {editingIndex === i && (
                     <InlineEditBox

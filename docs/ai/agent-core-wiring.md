@@ -3271,3 +3271,273 @@ previousMessageAt? })`，输出两行（逐字）：
 `legacyTools.ts`（query 工具 120s）、`src/main/ipc/aiAgentCore.ts`（每轮时间采样 + 生产开启
 
 观察门）、`core/runTurn/legacyTools` 三个测试、`docs/ai/dsh-source-adaptation-2026-10-24.md` §14。
+
+## §56 第 56 批：会话视图（自动标题 / 线程统计 / 回合目录）（2026-10-26）
+
+### 56.1 为什么是这三件
+
+上游 session 组里有三个小包：`session-title`、`session-stats`、`session-turn-outline`。
+
+它们共同回答一个界面问题：这条会话**叫什么、多大、聊到哪了**。本仓原来只有「线程列表 +
+
+一串消息」：标题是首条消息前 28 字（`titleOf`）、没有规模信息、也没有「跳到某一轮」的入口。
+
+三件都不新增 IPC 域、不改历史文件格式（标题单独一份旁路文件），所以合一批搬。
+
+逐件对标：
+
+- **标题**（`session/session-title`）：归一/截断纯函数进 shared，provider 起名 + 用户重命名
+
+  pin 落盘 `.qqbat/ai-thread-titles.json`，来源三档 `fallback` / `provider` / `user`；
+
+- **统计**（`session/session-stats`）：`listThreads` 每条线程带 `stats`（turns / messages /
+
+  assistantMessages / chars / estimatedTokens / durationMs）；
+
+- **回合目录**（`session/turn-outline`）：shared 纯函数 `buildTurnOutline`（prompt 截 50 字、
+
+  response 取本轮最后一条 assistant 截 120 字）+ 界面抽屉，点一条滚到 `#ai-msg-<index>`。
+
+同一批量过、**明确不搬**的六条（理由见设计文档 §七）：事件流回放、provider 路由记录、每步
+
+刷新的时间上下文、按 seq 分页加载、多级标题史、`llmMs/toolMs/ttft/decode` 分项。
+
+设计文档：`docs/ai/dsh-session-view-batch56-design.md`（226 行）。
+
+### 56.2 标题归一只有一份口径
+
+「什么叫可见字符」若各写一套，模型生成、用户输入、落盘读取迟早给出三种结果。所以口径
+
+落在 `src/shared/ai/threadTitle.ts`（纯函数，无宿主依赖）：
+
+- `cleanTitleText`：先剥 OSC / CSI / 其余 ESC 序列，再删 C0+C1 控制字符，再删方向性与零宽
+
+  字符（`\u200E`、`\u200F`、`\u202A–\u202E`、`\u2066–\u2069`、`\uFEFF`），最后折叠空白去首尾。
+
+  标题里出现 `ESC[31m` 是 bug 不是个性。
+
+- `truncateTitleUtf8`：`for...of` 走**码点**、用 `TextEncoder` 算每个码点的字节数，放不下就停
+
+  —— 结果前缀永远可解码，绝不出半个汉字（`slice` 切 UTF-16 码元会）。
+
+- `normalizeThreadTitle` = 清洗 + 64 字节截断 + 去尾空白；结果空串 = 非法标题，由调用方报错。
+
+- `fallbackThreadTitle` = 首条需求前 8 个词，再按 **48 字节**截断（比硬上限短，给列表留位置）。
+
+硬上限 `THREAD_TITLE_MAX_BYTES = 64` 字节（≈21 汉字），与上游默认值同。上游这三条规则本批
+
+逐条照抄，没有自创口径。
+
+### 56.3 生成时机、pin 与竞态
+
+落盘形状：`{ version: 1, titles: { [threadId]: { title, source, updatedAt } } }`；写走
+
+`infra/fileOps.atomicWrite`（先临时文件再 rename），因此不需要进 `projectWritesViaFileOps`
+
+的直写登记表；读到坏 JSON / 版本不认识 / 条目不合格一律当「没有标题」返回空表，**不删文件**
+
+（与第 54 批「坏记录不自动删」同一纪律）。
+
+什么时候生成（`src/main/ipc/aiAgentCore.ts` 收尾之后）：判据是循环开始前读到的 `past` 里没有
+
+任何 user 消息 = 这就是本线程首轮，且 `result.finalText` 非空 → fire-and-forget 调
+
+`maybeGenerateThreadTitle`。服务自己判三件事就返回 null，不区分原因（调用方也不需要）：
+
+1. 配置缺 `provider` / `model` / `apiKey`（不拿用户 key 去试一个注定 401 的请求）；
+2. 该线程已有落盘标题 —— provider 或 user 都算，**用户改过就绝不允许被覆盖**；
+3. 生成出来归一后为空、或输入 prompt/response 为空。
+
+竞态只有一处：生成期间用户可能刚好重命名。做法是**落盘前再读一次**标题表，已被占用就丢弃
+
+生成结果（以先落盘者为准，绝不对用户操作翻脸）。落盘本身不是跨进程锁，单人本地应用接受。
+
+错误语义：生成或落盘的任何异常只记 `logger.warn`，函数**永不 reject**；30s 超时（
+
+`TITLE_TIMEOUT_MS`）放弃。标题是旁路，不能影响已经收尾的那一轮。
+
+abort 语义要单独说清：`finally` 只清 `RUNNING` / `STEER`，**不 abort ctrl** —— 所以正常收尾
+
+不会误杀标题请求；只有用户按停止（`ai:stop` → `cancelAgentCoreRun`）才 abort。
+
+广播：落盘成功后 emit `ai:threadTitle { projectPath, threadId, title, source }`，渲染层据此就
+
+地更新列表一行，不需要整表重拉。
+
+### 56.4 线程统计只算已经存在的事实
+
+`src/main/services/ai/threads.ts` 的 `statsOf(entries)`：`turns` = user 条数、`messages` = 全部
+
+条数、`assistantMessages`、`chars` = user+assistant 正文字符（工具痕迹不算）、
+
+`estimatedTokens = ceil(chars / 4)`（只用于列表上的量级感，不是计费口径）、`durationMs` = 首末
+
+`ts` 跨度（不足两条或时间戳解析不出来 = 0）。
+
+刻意**不**给 `llmMs` / `toolMs` / `ttft`：那要逐轮墙钟事件，本仓 trace 不带 threadId，拿不到
+
+可信的按线程分项 —— **不编造**（设计文档 §七.6）。
+
+`listThreads` 的标题优先级：落盘记录（user/provider）> fallback > 旧 `titleOf`（28 字截断，只在
+
+什么都推不出来时保留老行为）；读不出条目的线程返回 `emptyThreadInfo`（title 空、source
+
+`fallback`、stats 全 0），界面不用为它写分支。统计不额外读盘：列表本来就要 `loadHistory` 全文，
+
+扫描复用同一次读取。
+
+### 56.5 界面：一个入口按钮、一张目录、一个列表提示
+
+`ChatPanel.tsx` 只多两行：一个 `outlineHighlight` 状态 + 一行
+
+`<TurnOutlineLauncher messages={messages} scrollRef={listRef} onHighlight={setOutlineHighlight} />`。
+
+这不是洁癖 —— `fileGrowth` 闸门给 ChatPanel 的基线是 1609 行、硬上限 1688 行，本批改完
+
+1678 行，余量 10 行。按钮、抽屉开关、视口轮次跟踪、跳转高亮计时器全在新文件
+
+`TurnOutlineLauncher.tsx`（132 行）里；抽屉本身在 `TurnOutlineDrawer.tsx`。
+
+抽屉：右侧遮罩 + `role="dialog" aria-label="回合目录"`，Esc **在捕获阶段**关掉（否则会继续
+
+冒泡到 ChatPanel 的「Esc = 停流/清输入」），空对话给一句空态文案而不是一块空白；条目
+
+`aria-label="跳到第 N 轮"`、当前轮挂 `aria-current`，点一条 → `onJump(userIndex)` + 收起。
+
+跳转口径：`AgentTranscript` 给每条消息容器挂 `id={ai-msg-<消息数组下标>}`，与
+
+`buildTurnOutline` 的 `userIndex` **同一个下标**，中间不做映射；跳转就是
+
+`scrollIntoView({ block: 'start' })`，`scroll-mt-3` 留 12px 顶部余量，落地后高亮 1.5 秒
+
+（`bg-sky-400/5 ring-2 ring-inset ring-sky-400/60`）然后自动褪去 —— 1.5 秒是「够眼睛找到落点，
+
+又不至于像被选中」。计时器在 Launcher 卸载时清掉。
+
+视口当前轮：抽屉**开着**时才给消息容器挂 passive scroll 监听，取「最后一条顶边已越过容器
+
+顶部（容差 4px）的用户消息」；关掉就摘监听。按轮取而不是按消息取，是因为助手回答比用户
+
+气泡长得多，按消息取会让高亮在同一轮内来回甩。
+
+线程行（`ThreadRow`）：hover 提示变成 `threadOption · stats`，即
+
+`你好（42 条） · 21 轮 · 约 1,426 tokens`（千分位用 `toLocaleString()`）；重命名入口有两个
+
+（hover 出现铅笔按钮、双击标题），空标题在渲染层就拦住（`ai.sidebar.renameEmpty`），失败
+
+原因显示在行下 `role="alert"`，`ipc-missing` 特判成人话「重开应用」。i18n 中英各新增 12 键。
+
+明确没做：常驻高亮（只在跳转后 1.5s）、目录搜索/分组/拖排序（21 轮的目录还不需要）。
+
+### 56.6 IPC 与能力账
+
+- `ai:renameThread`（invoke）：schema `aiRenameThreadSchema` = `projectPath` 非空、
+
+  `threadId` 1–64、`title` 1–200；handler 先 `assertProjectPathAllowed`，再
+
+  `tryIpcAsync(() => renameThreadTitle(...))`。归一后为空 → `{ ok: false, error: '标题不能为空
+
+  （去掉控制字符后没有可见字符）' }`。
+
+- `ai:threadTitle`（主 → 渲染广播）：`{ projectPath, threadId, title, source }`；preload
+
+  `onThreadTitle`。
+
+- 能力账：ai 域 54 → **56**、X 79 → **81**、合计 279 → **281**、X+⛔ 82 → **84**；附录 A 加
+
+  `ai.onThreadTitle` / `ai.renameThread` 两行；`capabilityCatalog.generated.ts` 281 条
+
+  （`ai:threadTitle` on、`ai:renameThread` invoke）、`capabilityPolicy.generated.ts` ai 域 56 条。
+
+- 守卫同步登记：`agentCoreEventContract`（事件字段形状）、`ipcPayloadContract`（入参 schema）。
+
+### 56.7 测试与闸门
+
+- 新增 7 个测试文件、改动 4 个：
+  - `tests/shared/ai/threadTitle.test.ts` **13 例**（ANSI/CSI/OSC 剥离、C0+C1、方向性字符、
+    折叠空白、码点截断不出半字、64 字节硬上限、fallback 8 词/48 字节）；
+  - `tests/shared/ai/turnOutline.test.ts` **8 例**（条目数=用户消息数、prompt 50 / response 120
+    截断、跨轮取最后一条 assistant、缺 response 不补空串）；
+  - `tests/main/services/ai/threadTitles.test.ts` **10 例**（读写往返、坏文件容忍、版本不认识、
+    空标题抛错、user 覆盖、provider 不覆盖已有标题、落盘前二次读、缺 key 跳过、错误不 reject）；
+  - `tests/main/services/ai/threads.test.ts` **6 例**（标题优先级、stats 六字段、空线程）；
+  - `tests/renderer/components/ai/TurnOutlineDrawer.test.tsx` **7 例**、`TurnOutlineLauncher.test.tsx`
+    **7 例**、`ThreadRow.test.tsx` **10 例**（stats 提示 / 改名成功退出编辑 / 空标题本地拦 /
+    失败透传 / ipc-missing 人话 / Esc 取消 / 双击进入 / disabled 无入口）、`ChatPanel.test.tsx` **+1**。
+  - 改动：`agentCoreEventContract` 4（+1 事件契约）、`ipcPayloadContract` 5（+1 payload）、
+    `aiAgentCore-ipc` **34**（+2：首轮触发一次标题生成、非首轮不再触发）。
+- `tsc -p tsconfig.node.json` / `tsconfig.web.json` 均 **0 错**；
+- `tests/guards` **15 文件 / 107 例**全绿（deadExports 转绿、fileGrowth 绿、能力账 281）；
+- 全量 `node node_modules/vitest/vitest.mjs run --maxWorkers=2` = **288 passed | 2 skipped
+  （290 文件）**、**3614 passed | 7 skipped（3621 例）**（第 55 批基线 283 文件 / 3557 例，
+  本批 +7 文件 / +64 例）；定向 renderer 88 文件 / 984 例、i18n 6 文件 / 69 例。
+- 日志：`_recovery/gate-batch56-tsc-guards.log`、`_recovery/full-gate-batch56.log`。
+- prettier：本批 35 个改动文件里 34 个 `--check` 通过；唯一不过的是存量
+
+  `docs/ai/dsh-source-adaptation-2026-10-24.md`（巨型表格，第 55 批同状况），不整文件重排。
+
+### 56.8 真机（dev + CDP 43191）
+
+在真实项目 `projects/还原验证项目` 上按设计 §九 走六步（输出原文留 `_recovery/probe56/`，
+
+截图 `ui-b56-threads.png`、`ui-b56-drawer.png`）：
+
+1. **首轮自动起名**：新线程 `probe56b-vxeldn` 发「用一句话说明什么是"会话标题"」→ 等 9s
+
+   `listThreads`：`title=会话标题的定义与作用`、`titleSource=provider`、
+
+   `stats={turns:1,messages:2,assistantMessages:1,chars:86,estimatedTokens:22,durationMs:6083}`。
+
+2. **第二轮不覆盖**：同线程再发一轮 → `title` 不变、`titleStable=true`，`stats.turns=2`、
+
+   `chars=157`、`estimatedTokens=40`（ceil(157/4)）。
+
+3. **重命名归一**：`'\u001b[31m标题探针\u0007\u202E 第五十六批 \u001b[0m'` → 落盘
+
+   `{title:'标题探针 第五十六批', source:'user'}`（28 字节）；100 个「零」→ 63 字节（≤64）；
+
+   只有控制字符 → `{ok:false, error:'标题不能为空（去掉控制字符后没有可见字符）'}` 且原标题不变。
+
+4. **重启后仍在**：杀掉 electron 重新起 dev，线程列表里该行仍在、标题仍是「第五十六批标题
+
+   探针」，hover 提示原文 `第五十六批标题探针（4 条） · 2 轮 · 约 40 tokens`；长线程那行
+
+   `你好（42 条） · 21 轮 · 约 1,426 tokens`（`_recovery/probe56/out-ui-threads2.txt`）。
+
+5. **回合目录**：点开该线程 → 点「回合目录」→ `role=dialog aria-label=回合目录`，2 条条目
+
+   （= 2 轮）、`跳到第 1 轮` 挂 `aria-current=true`；点第 2 轮 → 抽屉关闭、`ai-msg-2` 立刻
+
+   带 `ring-sky-400`、1.6s 后高亮自动消失（`out-ui-jump.txt`）。
+
+6. **长线程跳转**：21 轮的「你好」→ 目录 21 条（第 1–21 轮）；点「跳到第 10 轮」→ 抽屉关闭、
+
+   高亮落在 `ai-msg-17`、其顶边距容器顶 **12px**（= `scroll-mt-3`）、scrollTop 9086 → 6191
+
+   （从底部回到第 10 轮，`out-ui-jump2.txt`）。
+
+7. **收尾**：删 `probe56b-vxeldn.jsonl`（+ preset）、`ai-thread-titles.json` 重置为
+
+   `{version:1,titles:{}}`、停 dev 杀 electron，43191 FREE、无项目进程残留。
+
+诚实边界（没真机跑的）：界面上**输入框**改名（铅笔/双击后敲字提交）没跑 —— 它走的是同一条
+
+已真机验证的 `ai:renameThread`，输入框交互由 `ThreadRow.test.tsx` 10 例覆盖；`ai:threadTitle`
+
+广播对**打开着的**列表的即时刷新也没跑（本次验证的是重启后读取），广播形状由
+
+`agentCoreEventContract` 与 `aiAgentCore-ipc` 用例守住。
+
+### 56.9 涉及文件
+
+新增 `src/shared/ai/threadTitle.ts`、`src/shared/ai/threadTitleTypes.ts`、`src/shared/ai/turnOutline.ts`、
+`src/main/services/ai/threadTitles.ts`、`src/renderer/src/components/ai/TurnOutlineLauncher.tsx`、
+`src/renderer/src/components/ai/TurnOutlineDrawer.tsx`、7 个测试文件、`docs/ai/dsh-session-view-batch56-design.md`；
+改动 `src/main/services/ai/threads.ts`（标题合并 + `statsOf` + `emptyThreadInfo`）、
+`src/main/ipc/aiAgentCore.ts`（首轮后 fire-and-forget 起名 + 广播）、`src/main/ipc/ai.ts`（`ai:renameThread`）、
+`src/main/schemas/ai.ts`、`src/preload/index.ts`、`src/renderer/src/types/ipc.ts`、
+`src/renderer/src/stores/aiStore.ts`（`ThreadStats`/`ThreadInfo`/`renameThread`/`onThreadTitle`）、
+`src/renderer/src/components/ai/ChatPanel.tsx`、`AiSidebar.tsx`、`AgentTranscript.tsx`、
+`src/renderer/src/i18n/{zh-CN,en-US}.json`、`capabilityCatalog.generated.ts`、`capabilityPolicy.generated.ts`、
+`docs/ai/ai-capability-layering-2026-10-08.md`、三份守卫/主进程测试、`docs/ai/dsh-source-adaptation-2026-10-24.md` §14。

@@ -44,6 +44,7 @@ import { MAX_IMAGES, clipboardImageToDataUrl, imagesFromClipboard } from './clip
 import { MODE_OF_ROLE } from '@shared/ai/roleDomains'
 import { AgentPresetMenu } from './AgentPresetMenu'
 import { TurnBoundary } from './TurnBoundary'
+import { TurnOutlineLauncher } from './TurnOutlineLauncher'
 import { creatorWorkspaceStatus, useFrameworkDevStore } from '../../stores/frameworkDevStore'
 
 /* 角色按钮表在 ./agentModes（渲染层唯一那处枚举）；选择器是 ./AgentPresetMenu（纯组件）——
@@ -465,6 +466,15 @@ export const ChatPanel = React.memo(function ChatPanel() {
    */
   const [images, setImages] = useState<string[]>([])
   const listRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * 回合目录跳转落点的高亮下标（第 56 批）。
+   *
+   * 抽屉的 open / 当前视口在哪一轮都由 `TurnOutlineLauncher` 自己管；
+   * 只有"刚跳到哪条"得留在这里 —— 它要作为 prop 传给消息流（AgentTranscript）。
+   * 纯界面态，不进 store：换个窗口打开对话时该从头算。
+   */
+  const [outlineHighlight, setOutlineHighlight] = useState<number | null>(null)
 
   // 初始化监听器
   useEffect(() => {
@@ -1029,6 +1039,7 @@ export const ChatPanel = React.memo(function ChatPanel() {
               projectPath={projectPath}
               canRollback={canRollback}
               rollbackLastTurn={rollbackLastTurn}
+              highlightIndex={outlineHighlight}
             />
             {/* 本轮改动卡：**在消息流末尾**（按时间顺序），不再钉在列表上方 */}
             <TurnChangesCard turnChanges={turnChanges} />
@@ -1532,6 +1543,11 @@ export const ChatPanel = React.memo(function ChatPanel() {
               multiple
               className="hidden"
               onChange={e => void handleAttach(e)}
+            />
+            <TurnOutlineLauncher
+              messages={messages}
+              scrollRef={listRef}
+              onHighlight={setOutlineHighlight}
             />
             <details className="relative shrink-0">
               <summary className="cursor-pointer list-none whitespace-nowrap rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 [&::-webkit-details-marker]:hidden">

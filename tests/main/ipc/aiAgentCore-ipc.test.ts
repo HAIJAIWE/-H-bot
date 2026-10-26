@@ -33,6 +33,8 @@ const h = vi.hoisted(() => ({
   writePresetSession: vi.fn(),
   /** 第 54 批：菜单要据此显示「撤销上次导入」 */
   readPresetUndo: vi.fn(),
+  /** 第 56 批：线程首轮后的标题生成（旁路请求，这里挡掉） */
+  maybeGenerateThreadTitle: vi.fn(),
   /** 主进程发出去的事件（只在回调里发的那些，比如 ai:compact，要靠它断言） */
   send: vi.fn(),
   /** 旧 27 工具适配器：这里只验接线（真适配器另有 legacyTools 的测试） */
@@ -84,6 +86,9 @@ vi.mock('@main/services/ai/presetLock', () => ({
   writePresetSession: h.writePresetSession,
 }))
 vi.mock('@main/services/ai/presetUndo', () => ({ readPresetUndo: h.readPresetUndo }))
+vi.mock('@main/services/ai/threadTitles', () => ({
+  maybeGenerateThreadTitle: h.maybeGenerateThreadTitle,
+}))
 vi.mock('@main/services/infra/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
@@ -146,6 +151,7 @@ describe('ai:agentCoreRun 接线', () => {
       .mockResolvedValue({ started: false, preset: null, locked: false })
     h.writePresetSession.mockReset().mockResolvedValue(undefined)
     h.readPresetUndo.mockReset().mockResolvedValue({ available: false })
+    h.maybeGenerateThreadTitle.mockReset().mockResolvedValue(null)
     h.send.mockReset()
     h.runOnboarding.mockReset().mockResolvedValue({ ok: true, finalText: '开荒好了' })
     h.validateProposal.mockReset().mockResolvedValue({ issues: [], introduced: [] })
@@ -740,5 +746,41 @@ describe('ai:agentCoreRun 接线', () => {
       data: { ...roster, session, undo: { available: false } },
     })
     expect(h.readPresetSession).toHaveBeenCalledWith('D:/p', 't-1')
+  })
+
+  /**
+   * 第 56 批：会话自动标题是**旁路请求** —— 接线的正确性只测"该不该发起"，
+   * 生成内容与落盘在 threadTitles.test.ts 里测。
+   */
+  it('★ 第 56 批：线程首轮成功后发起一次标题生成（fire-and-forget）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-title-'))
+    try {
+      await invoke({ projectPath: dir, requirement: '给机器人加定时提醒' })
+      expect(h.maybeGenerateThreadTitle).toHaveBeenCalledTimes(1)
+      expect(h.maybeGenerateThreadTitle.mock.calls[0][0]).toMatchObject({
+        projectPath: dir,
+        threadId: 'default',
+        prompt: '给机器人加定时提醒',
+        responseText: '做完了',
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('★ 第 56 批：历史里已有用户消息 = 不是首轮，不再自动起标题', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-title-'))
+    mkdirSync(join(dir, '.qqbat'), { recursive: true })
+    writeFileSync(
+      join(dir, '.qqbat', 'ai-history.jsonl'),
+      JSON.stringify({ ts: '2026-10-26T07:00:00.000Z', role: 'user', content: '旧需求' }) + '\n',
+      'utf-8',
+    )
+    try {
+      await invoke({ projectPath: dir, requirement: '第二轮需求' })
+      expect(h.maybeGenerateThreadTitle).not.toHaveBeenCalled()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

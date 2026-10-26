@@ -22,6 +22,7 @@ import {
   aiHistorySchema,
   aiNoteTurnSchema,
   aiProjectPathSchema,
+  aiRenameThreadSchema,
   aiPresetRosterSchema,
   aiPresetImportSchema,
   aiSetPresetDefaultSchema,
@@ -101,6 +102,10 @@ const CONTRACTS: Record<string, { shape: Record<string, unknown>; note: string }
   'ai:listThreads': {
     shape: aiProjectPathSchema.shape,
     note: '列出项目的任务线程（按最后活动倒序）',
+  },
+  'ai:renameThread': {
+    shape: aiRenameThreadSchema.shape,
+    note: '第 56 批：给线程起名（标题在主进程归一后落盘；空标题被拒）',
   },
   'ai:listTurns': { shape: aiProjectPathSchema.shape, note: '列出已记录的 AI 轮次（撤回候选）' },
   'ai:rewindTo': {

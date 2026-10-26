@@ -78,6 +78,41 @@ export interface ChatMessageWithTrace extends ChatMessage {
   turnMs?: number
 }
 
+/**
+ * 一条线程的规模（第 56 批）。
+ *
+ * 形状与主进程 `listThreads` 返回的 `stats` **逐字段一致**（`src/main/services/ai/threads.ts` 的 `statsOf()`）：
+ * 这里不重新计算，只当列表提示的数据源 —— 统计口径只有主进程那一份。
+ */
+export interface ThreadStats {
+  /** 用户消息数 = 回合数 */
+  turns: number
+  /** 全部消息数（含 attempt） */
+  messages: number
+  assistantMessages: number
+  /** 正文字符数（用户 + 助手，不含工具痕迹） */
+  chars: number
+  /** 估算 token：ceil(chars / 4)，只用于提示量级 */
+  estimatedTokens: number
+  /** 第一条到最后一条的时间跨度（毫秒）；消息不足两条 = 0 */
+  durationMs: number
+}
+
+/**
+ * 线程列表项（第 56 批）：标题 + 标题来源 + 规模。
+ *
+ * `titleSource` 决定「用户 pin 的标题不会被 AI 覆盖」这条规则：
+ * `fallback` = 首条需求推导、`provider` = AI 起的、`user` = 用户改的（pin）。
+ */
+export interface ThreadInfo {
+  id: string
+  title: string
+  titleSource: 'fallback' | 'provider' | 'user'
+  updatedAt: number
+  messageCount: number
+  stats: ThreadStats
+}
+
 /** 把"这一刻的工具记录"压成可长期保存的痕迹（只留展示需要的字段） */
 function traceOf(records: readonly ToolCallRecord[]): ToolTraceEntry[] {
   return records.map(tc => ({
@@ -267,7 +302,7 @@ interface AiState {
    * main/services/ai/threads.ts。在此之前一个项目只有一条无限长的对话，
    * 用户的原话是「他是同一个记忆的，那我怎么切换新的任务呢」。
    */
-  threads: Array<{ id: string; title: string; updatedAt: number; messageCount: number }>
+  threads: ThreadInfo[]
   /** 当前线程 id；`default` = 升级前的那条老记忆 */
   activeThreadId: string
   /**
@@ -330,7 +365,7 @@ interface AiState {
   allThreads: Array<{
     projectPath: string
     projectName: string
-    threads: Array<{ id: string; title: string; updatedAt: number; messageCount: number }>
+    threads: ThreadInfo[]
   }>
   /** 已知项目（渲染层从 botStore 喂进来；列表要按它遍历） */
   knownProjects: Array<{ path: string; name: string }>
@@ -366,6 +401,17 @@ interface AiState {
   switchThread: (projectPath: string, threadId: string) => Promise<void>
   /** **真的**清空当前线程的记忆（界面 + 磁盘） */
   clearActiveThread: (projectPath: string) => Promise<void>
+  /**
+   * 改线程标题（第 56 批）。
+   *
+   * 归一（剥控制序列 / 按 64 字节截断）在主进程；成功后 **乐观更新** 列表标题
+   * （`titleSource: 'user'` = pin，之后 AI 不会再覆盖），并返回结果给界面做提示。
+   */
+  renameThread: (
+    projectPath: string,
+    threadId: string,
+    title: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
   /** images = 这一轮贴的图（data URL）；只作用于这一轮，不进记忆 */
   sendMessage: (
     projectPath: string,
@@ -1194,10 +1240,7 @@ export const useAiStore = create<AiState>((set, get) => {
       } catch {
         current = ''
       }
-      const fetched = new Map<
-        string,
-        Array<{ id: string; title: string; updatedAt: number; messageCount: number }>
-      >()
+      const fetched = new Map<string, ThreadInfo[]>()
       let error: string | null = null
       await Promise.all(
         projects.map(async p => {
@@ -1235,6 +1278,34 @@ export const useAiStore = create<AiState>((set, get) => {
         return
       }
       await get().loadAllThreads()
+    },
+
+    /**
+     * 改线程标题（第 56 批）。
+     *
+     * 为什么**乐观更新**而不是等 `loadThreads` 回来：标题是用户刚敲完的那句话，
+     * 列表慢半拍才变会像"没生效"；落盘失败时返回 error 给界面提示，旧标题一个字没动。
+     */
+    renameThread: async (projectPath, threadId, title) => {
+      if (typeof window.qqbat?.ai?.renameThread !== 'function') {
+        return { ok: false, error: 'ipc-missing' }
+      }
+      try {
+        const res = await window.qqbat.ai.renameThread(projectPath, threadId, title)
+        if (!res.ok || !res.data) return { ok: false, error: res.error ?? 'unknown' }
+        const nextTitle = res.data.title
+        const patch = (th: ThreadInfo): ThreadInfo =>
+          th.id === threadId ? { ...th, title: nextTitle, titleSource: 'user' } : th
+        set(st => ({
+          threads: st.threads.map(patch),
+          allThreads: st.allThreads.map(g =>
+            g.projectPath === projectPath ? { ...g, threads: g.threads.map(patch) } : g,
+          ),
+        }))
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
     },
 
     /**
@@ -2127,6 +2198,33 @@ export const useAiStore = create<AiState>((set, get) => {
             }),
           )
         }) ?? (() => {})
+      /**
+       * 会话自动标题（第 56 批）：线程首轮成功后主进程推一条**新标题**。
+       * 只动列表标题（title/titleSource），不碰消息 —— 标题不是对话内容。
+       * `projectPath` 缺省 = 主进程没带（老版本），按当前项目处理。
+       */
+      const unsubThreadTitle = window.qqbat.ai.onThreadTitle?.(data => {
+        const patch = (th: ThreadInfo): ThreadInfo =>
+          th.id === data.threadId ? { ...th, title: data.title, titleSource: data.source } : th
+        set(st => {
+          let forCurrent = !data.projectPath
+          if (!forCurrent) {
+            try {
+              forCurrent = (st.conversationPath || currentProjectPath()) === data.projectPath
+            } catch {
+              forCurrent = false
+            }
+          }
+          return {
+            threads: forCurrent ? st.threads.map(patch) : st.threads,
+            allThreads: st.allThreads.map(g =>
+              !data.projectPath || g.projectPath === data.projectPath
+                ? { ...g, threads: g.threads.map(patch) }
+                : g,
+            ),
+          }
+        })
+      })
       return () => {
         unsubToolCall?.()
         unsubAgentStep?.()
@@ -2140,6 +2238,7 @@ export const useAiStore = create<AiState>((set, get) => {
         unsubProposal()
         unsubError()
         unsubWarning()
+        unsubThreadTitle?.()
       }
     },
   }

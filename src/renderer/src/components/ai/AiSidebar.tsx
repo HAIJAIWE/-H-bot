@@ -21,21 +21,25 @@
 // —— 三条全对：**工具是模型调的，用户调不了**；30 个工具名 + 密集描述对用户是纯噪音。
 // 它原本是"当年显示错了 8 个数据工具"那个 bug 的遗留物（内容修好了、位置和名字没跟上）。
 // 真要给用户看"这台助手能做什么"，该给的是**按域分组的能力清单**，不是裸工具名。
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react'
 import {
+  Check,
   Gauge,
   History,
   MessageSquarePlus,
+  Pencil,
   Search,
   Settings,
   SlidersHorizontal,
-} from 'lucide-react';
-import { useAiStore } from '../../stores/aiStore';
-import { useProjectStore } from '../../stores/projectStore';
-import { useBotStore } from '../../stores/botStore';
-import { AIProviderConfig } from '../settings/AIProviderConfig';
-import { t } from '../../i18n';
-import { useLocaleSubscription } from '../../stores/i18nStore';
+  X,
+} from 'lucide-react'
+import { useAiStore } from '../../stores/aiStore'
+import type { ThreadInfo } from '../../stores/aiStore'
+import { useProjectStore } from '../../stores/projectStore'
+import { useBotStore } from '../../stores/botStore'
+import { AIProviderConfig } from '../settings/AIProviderConfig'
+import { t } from '../../i18n'
+import { useLocaleSubscription } from '../../stores/i18nStore'
 
 /** 图标轨上的一个按钮（hover 用 title 交代含义，不占宽度） */
 function RailButton({
@@ -47,12 +51,12 @@ function RailButton({
   disabled,
   onClick,
 }: {
-  icon: typeof Settings;
-  label: string;
-  disabledHint?: string;
-  active?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
+  icon: typeof Settings
+  label: string
+  disabledHint?: string
+  active?: boolean
+  disabled?: boolean
+  onClick: () => void
 }) {
   return (
     <button
@@ -69,74 +73,221 @@ function RailButton({
     >
       <Icon size={17} />
     </button>
-  );
+  )
 }
 
-/** 对话列表里的一行（工作区分组下每行都长这样） */
-function ThreadRow({
+/**
+ * 对话列表里的一行（工作区分组下每行都长这样）。
+ *
+ * 第 56 批给它加了两件事（都要求"用户不用点进来就能判断"）：
+ *   · hover 提示里追加规模（N 轮 · 约 X tokens）—— 来自主进程 listThreads 的 stats，这里不算；
+ *   · 重命名入口（铅笔 / 双击标题）—— 改的是线程的 **pin 标题**（titleSource 变 user）。
+ */
+export function ThreadRow({
   title,
   tooltip,
   count,
+  stats,
   active,
   disabled,
   onClick,
+  onRename,
 }: {
-  title: string;
+  title: string
   /** hover 提示；**不显示在行里**（行里只有标题，条数在右侧，别重复） */
-  tooltip?: string;
-  count: number;
-  active: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
+  tooltip?: string
+  count: number
+  /** 线程规模（turns / estimatedTokens）；没有就只显示基础提示 */
+  stats?: ThreadInfo['stats']
+  active: boolean
+  disabled: boolean
+  onClick: () => void
+  /**
+   * 重命名：给了才出现入口（占位行「当前对话」还没落盘，不提供）。
+   * 返回值与 store 的 renameThread 同形 —— 失败原因这里翻成人话。
+   */
+  onRename?: (next: string) => Promise<{ ok: true } | { ok: false; error: string }>
+}): React.ReactNode {
+  // 用了 t() 的组件必须订阅语言变化（i18n 闸门）
+  useLocaleSubscription()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(title)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // 进编辑态时整段选中旧标题：用户多半是"在原名上改"，不是重新打一遍
+  useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  /** 正在流式输出时不许改名 —— 与行本身禁用同一个理由（避免半路换标题造成误解） */
+  const canRename = Boolean(onRename) && !disabled
+
+  const startEditing = (): void => {
+    if (!canRename) return
+    setDraft(title)
+    setError(null)
+    setEditing(true)
+  }
+
+  const cancelEditing = (): void => {
+    setEditing(false)
+    setError(null)
+  }
+
+  const submit = (e: React.FormEvent): void => {
+    e.preventDefault()
+    void (async () => {
+      if (!onRename) return
+      // 空标题先在本地挡：主进程归一后也会拒绝，但那一趟 IPC 没有任何价值
+      if (!draft.trim()) {
+        setError(t('ai.sidebar.renameEmpty'))
+        return
+      }
+      setBusy(true)
+      const res = await onRename(draft)
+      setBusy(false)
+      if (res.ok) {
+        setEditing(false)
+        setError(null)
+        return
+      }
+      // `ipc-missing` = 界面与主进程版本不一致（要重启），跟"标题不合法"不是一回事
+      setError(
+        res.error === 'ipc-missing'
+          ? t('ai.sidebar.threadsIpcMissing')
+          : t('ai.sidebar.renameFailed', { message: res.error }),
+      )
+    })()
+  }
+
+  // 统计只进 hover 提示：行里已经有条数了，再塞一行数字会让 208px 的浮层变成表格
+  const fullTooltip = [
+    tooltip ?? title,
+    stats
+      ? t('ai.sidebar.stats', {
+          turns: stats.turns,
+          tokens: stats.estimatedTokens.toLocaleString(),
+        })
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      title={tooltip ?? title}
-      className={`w-full text-left pl-4 pr-2.5 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-        active
-          ? 'bg-blue-500/10 text-blue-300'
-          : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
-      }`}
-    >
-      <span className="flex-1 truncate">{title}</span>
-      <span className="text-zinc-600 tabular-nums">{count}</span>
-    </button>
-  );
+    <div className="group">
+      {editing ? (
+        // 编辑态与展示态**同一行高度**：换行会让整个列表跳一下
+        <form onSubmit={submit} className="flex items-center gap-1 pl-4 pr-2.5 py-1">
+          <input
+            ref={inputRef}
+            value={draft}
+            disabled={busy}
+            onChange={e => {
+              setDraft(e.target.value)
+              setError(null)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                cancelEditing()
+              }
+            }}
+            aria-label={t('ai.sidebar.renameAria')}
+            className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 outline-none focus:border-blue-500"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            title={t('ai.sidebar.renameSave')}
+            aria-label={t('ai.sidebar.renameSave')}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40"
+          >
+            <Check size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={cancelEditing}
+            title={t('ai.sidebar.renameCancel')}
+            aria-label={t('ai.sidebar.renameCancel')}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+          >
+            <X size={12} />
+          </button>
+        </form>
+      ) : (
+        <div className="relative">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            onDoubleClick={startEditing}
+            title={fullTooltip}
+            className={`w-full text-left pl-4 pr-2.5 py-1.5 text-xs flex items-center gap-2 transition-colors ${
+              active
+                ? 'bg-blue-500/10 text-blue-300'
+                : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
+            }`}
+          >
+            <span className="flex-1 truncate">{title}</span>
+            <span className="text-zinc-600 tabular-nums">{count}</span>
+          </button>
+          {canRename && (
+            // 铅笔**绝对定位盖在条数上**：行本身是 button，按钮里不能再嵌按钮
+            <button
+              type="button"
+              onClick={startEditing}
+              title={t('ai.sidebar.renameAria')}
+              aria-label={t('ai.sidebar.renameAria')}
+              className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-zinc-800/90 text-zinc-400 opacity-0 transition-opacity hover:text-zinc-100 focus-visible:opacity-100 group-hover:opacity-100"
+            >
+              <Pencil size={11} />
+            </button>
+          )}
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="px-2.5 pb-1 text-[11px] leading-tight text-amber-500/80">
+          {error}
+        </p>
+      )}
+    </div>
+  )
 }
 
 export function AiSidebar() {
-  useLocaleSubscription();
-  const projectPath = useProjectStore((s) => s.currentProject?.path);
-  const threads = useAiStore((s) => s.threads);
-  const activeThreadId = useAiStore((s) => s.activeThreadId);
-  const streaming = useAiStore((s) => s.streaming);
-  const threadsError = useAiStore((s) => s.threadsError);
+  useLocaleSubscription()
+  const projectPath = useProjectStore(s => s.currentProject?.path)
+  const threads = useAiStore(s => s.threads)
+  const activeThreadId = useAiStore(s => s.activeThreadId)
+  const streaming = useAiStore(s => s.streaming)
+  const threadsError = useAiStore(s => s.threadsError)
   /** 本轮统计（含上下文明细）—— 与状态栏同一个来源，不另算 */
-  const stats = useAiStore((s) => s.stats);
-  const allThreads = useAiStore((s) => s.allThreads);
-  const setKnownProjects = useAiStore((s) => s.setKnownProjects);
-  const setActiveThread = useAiStore((s) => s.setActiveThread);
+  const stats = useAiStore(s => s.stats)
+  const allThreads = useAiStore(s => s.allThreads)
+  const setKnownProjects = useAiStore(s => s.setKnownProjects)
+  const setActiveThread = useAiStore(s => s.setActiveThread)
   /** 项目列表（工作区）= 左侧那一栏的项目 */
-  const bots = useBotStore((s) => s.bots);
-  const loadThreads = useAiStore((s) => s.loadThreads);
-  const newThread = useAiStore((s) => s.newThread);
-  const switchThread = useAiStore((s) => s.switchThread);
+  const bots = useBotStore(s => s.bots)
+  const loadThreads = useAiStore(s => s.loadThreads)
+  const newThread = useAiStore(s => s.newThread)
+  const switchThread = useAiStore(s => s.switchThread)
+  /** 改名：**乐观更新**由 store 做（成功即改内存里的 title），失败原因原样交回这一行 */
+  const renameThread = useAiStore(s => s.renameThread)
   /** 滑出面板：对话列表 / 都没开 */
-  const [flyout, setFlyout] = useState<'none' | 'threads' | 'context'>('none');
-  const [showSettings, setShowSettings] = useState(false);
+  const [flyout, setFlyout] = useState<'none' | 'threads' | 'context'>('none')
+  const [showSettings, setShowSettings] = useState(false)
   /** 🔍 搜索框是否展开（默认收起，不占地方） */
-  const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false)
+  const [query, setQuery] = useState('')
   /** ⇅ 只看当前项目（对话多了以后，把别的项目收起来） */
-  const [onlyCurrent, setOnlyCurrent] = useState(false);
+  const [onlyCurrent, setOnlyCurrent] = useState(false)
 
   // 线程列表由**消费它的地方**负责加载
   useEffect(() => {
-    if (projectPath) void loadThreads(projectPath);
-  }, [projectPath, loadThreads]);
+    if (projectPath) void loadThreads(projectPath)
+  }, [projectPath, loadThreads])
 
   /**
    * 把项目列表喂进 store —— 工作区列表要**遍历所有项目**。
@@ -146,9 +297,9 @@ export function AiSidebar() {
    * 点哪条就进哪条（跨项目时自动切过去，见 openThread）。
    */
   useEffect(() => {
-    if (bots.length === 0) return;
-    setKnownProjects(bots.map((b) => ({ path: b.projectPath, name: b.name })));
-  }, [bots, setKnownProjects]);
+    if (bots.length === 0) return
+    setKnownProjects(bots.map(b => ({ path: b.projectPath, name: b.name })))
+  }, [bots, setKnownProjects])
 
   /**
    * 一轮对话结束后刷新列表。
@@ -158,10 +309,10 @@ export function AiSidebar() {
    * 依赖里只有 streaming 与 projectPath，不会自激。
    */
   useEffect(() => {
-    if (!streaming && projectPath) void loadThreads(projectPath);
-  }, [streaming, projectPath, loadThreads]);
+    if (!streaming && projectPath) void loadThreads(projectPath)
+  }, [streaming, projectPath, loadThreads])
 
-  const busy = !projectPath || streaming;
+  const busy = !projectPath || streaming
 
   /**
    * 打开一条对话。
@@ -171,21 +322,21 @@ export function AiSidebar() {
    */
   const openThread = (projPath: string, threadId: string) => {
     if (projPath === projectPath) {
-      void switchThread(projPath, threadId);
+      void switchThread(projPath, threadId)
     } else {
-      setActiveThread(threadId);
-      useBotStore.getState().selectBot(projPath);
+      setActiveThread(threadId)
+      useBotStore.getState().selectBot(projPath)
     }
     // 选完就收起：浮层挡着对话，留着它反而碍事
-    setFlyout('none');
-  };
+    setFlyout('none')
+  }
 
   /** 工作区列表：当前项目排最前，其余按名字排（顺序稳定，不会每次刷新换位） */
   const sortedGroups = [...allThreads].sort((a, b) => {
-    if (a.projectPath === projectPath) return -1;
-    if (b.projectPath === projectPath) return 1;
-    return a.projectName.localeCompare(b.projectName);
-  });
+    if (a.projectPath === projectPath) return -1
+    if (b.projectPath === projectPath) return 1
+    return a.projectName.localeCompare(b.projectName)
+  })
 
   /**
    * 过滤（🔍 搜索 + ⇅ 只看当前项目）。
@@ -194,14 +345,14 @@ export function AiSidebar() {
    * 搜索时把没有命中的组整组藏掉（否则满屏空标题）；不搜索时保留当前项目的组
    * （它要显示「当前对话」那条占位）。
    */
-  const q = query.trim().toLowerCase();
+  const q = query.trim().toLowerCase()
   const groups = sortedGroups
-    .filter((g) => !onlyCurrent || g.projectPath === projectPath)
-    .map((g) => ({
+    .filter(g => !onlyCurrent || g.projectPath === projectPath)
+    .map(g => ({
       ...g,
-      threads: q ? g.threads.filter((th) => th.title.toLowerCase().includes(q)) : g.threads,
+      threads: q ? g.threads.filter(th => th.title.toLowerCase().includes(q)) : g.threads,
     }))
-    .filter((g) => g.threads.length > 0 || (!q && !onlyCurrent && g.projectPath === projectPath));
+    .filter(g => g.threads.length > 0 || (!q && !onlyCurrent && g.projectPath === projectPath))
 
   return (
     <>
@@ -250,7 +401,7 @@ export function AiSidebar() {
                       </div>
                       <div className="space-y-1">
                         {stats.contextHeaviest?.map((h, i) => {
-                          const max = stats.contextHeaviest?.[0]?.tokens || 1;
+                          const max = stats.contextHeaviest?.[0]?.tokens || 1
                           return (
                             <div key={i} className="flex items-center gap-2">
                               <span className="w-14 shrink-0 text-[11px] text-zinc-500">
@@ -266,7 +417,7 @@ export function AiSidebar() {
                                 {h.tokens.toLocaleString()}
                               </span>
                             </div>
-                          );
+                          )
                         })}
                       </div>
                     </div>
@@ -293,10 +444,10 @@ export function AiSidebar() {
                 aria-label={t('ai.sidebar.searchAria')}
                 aria-pressed={searching}
                 onClick={() => {
-                  setSearching((v) => {
-                    if (v) setQuery('');
-                    return !v;
-                  });
+                  setSearching(v => {
+                    if (v) setQuery('')
+                    return !v
+                  })
                 }}
                 className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
                   searching ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-200'
@@ -309,7 +460,7 @@ export function AiSidebar() {
                 title={t('ai.sidebar.onlyCurrent')}
                 aria-label={t('ai.sidebar.onlyCurrent')}
                 aria-pressed={onlyCurrent}
-                onClick={() => setOnlyCurrent((v) => !v)}
+                onClick={() => setOnlyCurrent(v => !v)}
                 className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
                   onlyCurrent ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-200'
                 }`}
@@ -322,9 +473,9 @@ export function AiSidebar() {
                 aria-label={t('ai.sidebar.newChat')}
                 disabled={busy}
                 onClick={() => {
-                  if (!projectPath) return;
-                  newThread(projectPath);
-                  void loadThreads(projectPath);
+                  if (!projectPath) return
+                  newThread(projectPath)
+                  void loadThreads(projectPath)
                   // 留在列表里：用户就是在这一页新建的，收起会显得没反应
                 }}
                 className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 transition-colors disabled:opacity-40"
@@ -337,7 +488,7 @@ export function AiSidebar() {
                 <input
                   autoFocus
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={e => setQuery(e.target.value)}
                   placeholder={t('ai.sidebar.searchPlaceholder')}
                   aria-label={t('ai.sidebar.searchAria')}
                   className="w-full bg-zinc-800 rounded px-2 py-1 text-xs text-zinc-200 outline-none border border-zinc-700 focus:border-blue-500"
@@ -349,12 +500,12 @@ export function AiSidebar() {
               {groups.length === 0 ? (
                 <p className="px-2.5 py-2 text-xs text-zinc-600">{t('ai.sidebar.empty')}</p>
               ) : (
-                groups.map((g) => {
-                  const isCurrent = g.projectPath === projectPath;
+                groups.map(g => {
+                  const isCurrent = g.projectPath === projectPath
                   // 别的项目且一条对话都没有 → 不占地方（当前项目即使空着也要出现）
-                  if (!isCurrent && g.threads.length === 0) return null;
+                  if (!isCurrent && g.threads.length === 0) return null
                   const needsPlaceholder =
-                    isCurrent && !g.threads.some((th) => th.id === activeThreadId);
+                    isCurrent && !g.threads.some(th => th.id === activeThreadId)
                   return (
                     <div key={g.projectPath}>
                       <div className="px-2.5 py-1.5 text-[11px] text-zinc-500 bg-zinc-900/60 border-y border-zinc-800/60">
@@ -369,7 +520,7 @@ export function AiSidebar() {
                           onClick={() => openThread(g.projectPath, activeThreadId)}
                         />
                       )}
-                      {g.threads.map((th) => (
+                      {g.threads.map(th => (
                         <ThreadRow
                           key={th.id}
                           title={th.title}
@@ -378,13 +529,15 @@ export function AiSidebar() {
                             count: th.messageCount,
                           })}
                           count={th.messageCount}
+                          stats={th.stats}
                           active={isCurrent && th.id === activeThreadId}
                           disabled={streaming}
                           onClick={() => openThread(g.projectPath, th.id)}
+                          onRename={next => renameThread(g.projectPath, th.id, next)}
                         />
                       ))}
                     </div>
-                  );
+                  )
                 })
               )}
               {/*
@@ -399,7 +552,7 @@ export function AiSidebar() {
                     : t('ai.sidebar.threadsFailed', { message: threadsError })}
                 </p>
               )}
-              {!threadsError && !threads.some((th) => th.id === activeThreadId) && (
+              {!threadsError && !threads.some(th => th.id === activeThreadId) && (
                 <p className="px-2.5 py-2 text-[11px] leading-relaxed text-zinc-600">
                   {t('ai.sidebar.firstMessageHint')}
                 </p>
@@ -416,9 +569,9 @@ export function AiSidebar() {
             disabledHint={streaming ? t('ai.sidebar.busyHint') : t('ai.sidebar.noProjectHint')}
             disabled={busy}
             onClick={() => {
-              if (!projectPath) return;
-              newThread(projectPath);
-              void loadThreads(projectPath);
+              if (!projectPath) return
+              newThread(projectPath)
+              void loadThreads(projectPath)
               /**
                * **把列表打开**（2026-10-08 用户反馈：「我新建对话好像没用」）。
                *
@@ -427,7 +580,7 @@ export function AiSidebar() {
                * 而"新对话已经建好了"这件事，只有列表里那条置顶的「当前对话」能证明。
                * 新建是个**要有回执**的动作：要么看见它，要么别让人猜。
                */
-              setFlyout('threads');
+              setFlyout('threads')
             }}
           />
           <RailButton
@@ -436,13 +589,13 @@ export function AiSidebar() {
             disabledHint={t('ai.sidebar.noProjectHint')}
             active={flyout === 'threads'}
             disabled={!projectPath}
-            onClick={() => setFlyout((f) => (f === 'threads' ? 'none' : 'threads'))}
+            onClick={() => setFlyout(f => (f === 'threads' ? 'none' : 'threads'))}
           />
           <RailButton
             icon={Gauge}
             label={t('ai.sidebar.context')}
             active={flyout === 'context'}
-            onClick={() => setFlyout((f) => (f === 'context' ? 'none' : 'context'))}
+            onClick={() => setFlyout(f => (f === 'context' ? 'none' : 'context'))}
           />
           <RailButton
             icon={Settings}
@@ -455,5 +608,5 @@ export function AiSidebar() {
       {/* 设置：复用现有的模型配置弹窗，不另造一个 */}
       {showSettings && <AIProviderConfig onClose={() => setShowSettings(false)} />}
     </>
-  );
+  )
 }

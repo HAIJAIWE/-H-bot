@@ -684,11 +684,36 @@ export interface QqbatApi {
     /** 任务线程列表（按最后活动时间倒序）—— 一个项目可以有多条任务 */
     listThreads: (projectPath: string) => Promise<
       ApiResult<{
-        threads: Array<{ id: string; title: string; updatedAt: number; messageCount: number }>
+        threads: Array<{
+          id: string
+          title: string
+          /** 标题来源（第 56 批）：fallback=首条需求推导；provider=AI 起的；user=用户改的（pin） */
+          titleSource: 'fallback' | 'provider' | 'user'
+          updatedAt: number
+          messageCount: number
+          /** 整条线程的规模（第 56 批）：轮/消息/字符/估算 token/时间跨度 */
+          stats: {
+            turns: number
+            messages: number
+            assistantMessages: number
+            chars: number
+            estimatedTokens: number
+            durationMs: number
+          }
+        }>
       }>
     >
     /** **真的**清空某条线程的记忆（在此之前界面上的「清空」只清渲染层） */
     clearThread: (projectPath: string, threadId: string) => Promise<ApiResult<null>>
+    /**
+     * 给会话线程起名（第 56 批）。
+     * 归一（剥控制序列、按 64 字节截断）在主进程；归一后为空 → {ok:false,error}。
+     */
+    renameThread: (
+      projectPath: string,
+      threadId: string,
+      title: string,
+    ) => Promise<ApiResult<{ title: string; source: 'user'; updatedAt: string }>>
     /** 已记录的 AI 轮次（新的在前）—— 「撤回这一轮」的候选 */
     /** 回工具批准决定（主进程在 ask 时会停下来等它） */
     resolveApproval: (
@@ -882,6 +907,18 @@ export interface QqbatApi {
     ) => () => void
     onResponse: (
       callback: (data: { projectPath?: string; message: string; toolCalls?: unknown[] }) => void,
+    ) => () => void
+    /**
+     * 会话自动标题生成完成（第 56 批）：只在线程首轮成功后可能来一次，
+     * 渲染层据此刷新线程列表（不改当前对话内容）。
+     */
+    onThreadTitle: (
+      callback: (data: {
+        projectPath?: string
+        threadId: string
+        title: string
+        source: 'fallback' | 'provider' | 'user'
+      }) => void,
     ) => () => void
     onClientInstruction: (
       callback: (data: {

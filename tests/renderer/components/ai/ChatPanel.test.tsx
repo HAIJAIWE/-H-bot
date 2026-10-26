@@ -175,3 +175,15 @@ describe('ChatPanel 集成 ProposalCard', () => {
     expect(useAiStore.getState().currentProposal).toBeNull()
   })
 })
+
+// 第 56 批：回合目录的入口必须真的挂在 ChatPanel 上（web tsc 能过 ≠ 按钮存在 ——
+// 这个功能的第一版就是"import 有了、JSX 没有"，所以这里从界面点一次）。
+describe('回合目录入口', () => {
+  it('点消息工具条上的目录按钮能打开抽屉', () => {
+    render(<ChatPanel />)
+    fireEvent.click(screen.getByRole('button', { name: t('ai.turnOutline.title') }))
+    expect(screen.getByRole('dialog', { name: t('ai.turnOutline.title') })).toBeInTheDocument()
+    // 空对话：抽屉如实说"还没有回合"
+    expect(screen.getByText(t('ai.turnOutline.empty'))).toBeInTheDocument()
+  })
+})

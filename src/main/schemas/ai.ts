@@ -109,6 +109,13 @@ var rollbackTurnSchema = z.object({
   threadId: z.string().optional(),
 })
 var aiProjectPathSchema = z.object({ projectPath: z.string().min(1) })
+
+/** 重命名会话线程（第 56 批）：标题在主进程归一（剥控制字符、按 64 字节截断），空标题会被拒 */
+var aiRenameThreadSchema = z.object({
+  projectPath: z.string().min(1),
+  threadId: z.string().min(1).max(64),
+  title: z.string().min(1).max(200),
+})
 /** 设置项目默认预设（`null` = 跟页面，删掉记录） */
 var aiSetPresetDefaultSchema = z.object({
   projectPath: z.string().min(1),
@@ -243,6 +250,7 @@ export {
   rewindToSchema,
   rollbackTurnSchema,
   aiProjectPathSchema,
+  aiRenameThreadSchema,
   aiSetPresetDefaultSchema,
   aiPresetImportSchema,
   aiPresetRosterSchema,

@@ -25,6 +25,7 @@ import {
   aiSetPresetDefaultSchema,
 } from '../schemas/ai'
 import { resolveAuthorAiConfig } from '../services/ai/appAiConfig'
+import { maybeGenerateThreadTitle } from '../services/ai/threadTitles'
 import { appendTrace } from '../services/ai/trace'
 import { requestApproval } from '../services/ai/toolApproval'
 import {
@@ -888,6 +889,32 @@ export function registerAiAgentCoreIpc(): void {
          */
         if (!proposalSent) emit('ai:response', { projectPath, message: result.finalText })
         emit('ai:agentState', { projectPath, state: 'idle' })
+        /**
+         * 会话自动标题（第 56 批）：**只在线程的第一轮**试一次。
+         *
+         * 判据是 `past`（循环开始前读的历史）：其中没有任何用户消息，说明这一轮就是这个线程的首轮。
+         * 生成是**旁路请求**（fire-and-forget）：没 key / 失败 / 结果为空都静默，fallback 顶上，
+         * 绝不影响这一轮已经收尾的事实。用户重命名过（user 来源）不会再生成 —— 判据在服务里。
+         */
+        if (!past.some(entry => entry.role === 'user') && result.finalText.trim()) {
+          void maybeGenerateThreadTitle({
+            projectPath,
+            threadId,
+            prompt: currentRequirement,
+            responseText: result.finalText,
+            config,
+            signal: ctrl.signal,
+          }).then(record => {
+            if (record) {
+              emit('ai:threadTitle', {
+                projectPath,
+                threadId,
+                title: record.title,
+                source: record.source,
+              })
+            }
+          })
+        }
         /**
          * 还有排队的下一轮吗？有就接着开（用户的"排队"消息**不能**等他再发一次）。
          * 队列在取走后立刻落盘：崩在这一刻也不该重复跑同一句。

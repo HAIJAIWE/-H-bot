@@ -21,6 +21,7 @@ import {
   aiHistorySchema,
   aiNoteTurnSchema,
   aiProjectPathSchema,
+  aiRenameThreadSchema,
   aiThreadSchema,
   approvalDecisionSchema,
   rewindToSchema,
@@ -36,6 +37,7 @@ import {
   setAiConfig,
 } from '../services/ai/index'
 import { clearThread, listThreads, threadFile } from '../services/ai/threads'
+import { renameThreadTitle } from '../services/ai/threadTitles'
 import { clearPresetSession } from '../services/ai/presetLock'
 import {
   appendHistoryEntries,
@@ -493,6 +495,24 @@ function registerAiIpc(projectService) {
     return tryIpcAsync(async () => {
       assertProjectPathAllowed(baseDir, parsed.data.projectPath)
       return { threads: await listThreads(parsed.data.projectPath) }
+    })
+  })
+  /**
+   * ai:renameThread —— 用户给线程起名（第 56 批）。
+   *
+   * 归一（剥控制序列、按 64 字节截断）放在主进程：渲染层传原文，落盘与展示都以归一后为准。
+   * 归一后为空 → 报人话错误、不写盘（空标题会让列表项变成可点击的空白）。
+   */
+  electron.ipcMain.handle('ai:renameThread', async (_event, args) => {
+    const parsed = aiRenameThreadSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败: ${parsed.error.message}`,
+      }
+    return tryIpcAsync(async () => {
+      assertProjectPathAllowed(baseDir, parsed.data.projectPath)
+      return renameThreadTitle(parsed.data.projectPath, parsed.data.threadId, parsed.data.title)
     })
   })
   /**

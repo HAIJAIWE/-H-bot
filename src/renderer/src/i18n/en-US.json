@@ -618,6 +618,14 @@
       "heaviest": "Biggest consumers (local estimate)",
       "hint": "The system prompt is usually the biggest block (tool definitions + flow context). It grows with history and tool results — start a new chat when replies feel slow or off."
     },
+    "turnOutline": {
+      "title": "Turn outline",
+      "close": "Close",
+      "empty": "No turns yet — they appear here after your first message",
+      "jump": "Jump to turn {n}",
+      "turn": "Turn {n}",
+      "hint": "Click a turn to jump back to that message"
+    },
     "sidebar": {
       "searchAria": "Search chats",
       "searchPlaceholder": "Search chat titles",
@@ -632,7 +640,13 @@
       "newChat": "New chat",
       "chats": "Chats",
       "settings": "Settings",
-      "empty": "No chats yet"
+      "empty": "No chats yet",
+      "renameAria": "Rename chat",
+      "renameSave": "Save title",
+      "renameCancel": "Cancel rename",
+      "renameEmpty": "Title cannot be empty",
+      "renameFailed": "Failed to rename: {message}",
+      "stats": "{turns} turns · ~{tokens} tokens"
     },
     "mode": {
       "builder": "Flow assistant",

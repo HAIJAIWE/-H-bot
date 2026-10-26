@@ -618,6 +618,14 @@
       "heaviest": "最占地方的几条（本地估算）",
       "hint": "系统提示通常是最大头（含工具定义与流程上下文）。历史越长、工具结果越多，它涨得越快 —— 觉得它变笨或变慢时，开一条新对话。"
     },
+    "turnOutline": {
+      "title": "回合目录",
+      "close": "关闭",
+      "empty": "还没有回合 —— 发出第一条消息后，这里会按轮列出",
+      "jump": "跳到第 {n} 轮",
+      "turn": "第 {n} 轮",
+      "hint": "点任意一轮跳回那条消息"
+    },
     "sidebar": {
       "searchAria": "搜索对话",
       "searchPlaceholder": "搜索对话标题",
@@ -632,7 +640,13 @@
       "newChat": "新对话",
       "chats": "对话",
       "settings": "设置",
-      "empty": "还没有对话"
+      "empty": "还没有对话",
+      "renameAria": "重命名对话",
+      "renameSave": "保存标题",
+      "renameCancel": "取消重命名",
+      "renameEmpty": "标题不能为空",
+      "renameFailed": "重命名失败：{message}",
+      "stats": "{turns} 轮 · 约 {tokens} tokens"
     },
     "mode": {
       "builder": "流程助手",

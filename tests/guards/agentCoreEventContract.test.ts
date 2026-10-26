@@ -37,6 +37,8 @@ export const REQUIRED_KEYS: Record<string, string[]> = {
   'ai:stats': ['projectPath', 'stats'],
   // 循环里的提案（旧工具攒出来的操作）：渲染层按 projectPath 分档、直接渲染 proposal
   'ai:proposal': ['projectPath', 'proposal'],
+  // 第 56 批：线程标题生成完成（侧栏/会话页标题据此刷新）
+  'ai:threadTitle': ['projectPath', 'threadId', 'title', 'source'],
   'ai:response': ['message'],
   'ai:error': ['message'],
   'ai:warning': ['message'],
@@ -219,6 +221,7 @@ describe('★ 事件契约：主进程发 → preload 收 → 渲染层读', () 
       'ai:proposal',
       'ai:response',
       'ai:stats',
+      'ai:threadTitle',
       'ai:todo',
       'ai:todo',
       'ai:toolCall',
