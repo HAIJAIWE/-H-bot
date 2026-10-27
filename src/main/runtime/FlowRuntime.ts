@@ -15,6 +15,8 @@ import { BUS_WS_PATH } from '../../shared/protocol/bus';
 import { logger } from '../services/logger';
 import { FlowInterpreter } from './FlowInterpreter';
 import { dueTriggers, selectDueLifecycle } from './scheduler';
+import { describePlatformMismatch } from '../../shared/nodes/platformCheck';
+import { readProjectPlatform } from '../services/project/projectPlatform';
 import type { HandlerBot } from './handlerRegistry';
 import type { TriggerEvent } from './triggerMatcher';
 
@@ -76,6 +78,21 @@ export class FlowRuntime {
   }
   async start(): Promise<void> {
     if (this.status === 'running' || this.status === 'connecting') return;
+    // 第 65 批：运行前平台预检 —— 专属节点摆错项目时在"启动"这一下就报清楚，
+    // 而不是跑起来之后遇到该节点才静默不工作（用户视角是"机器人启动了但不回话"）。
+    const platformProblems = this.interpreter.platformMismatches(
+      readProjectPlatform(this.projectPath),
+    );
+    if (platformProblems.length > 0) {
+      const shown = platformProblems
+        .slice(0, 3)
+        .map((m) => describePlatformMismatch(m))
+        .join('；');
+      const more =
+        platformProblems.length > 3 ? ` 等共 ${platformProblems.length} 个节点` : '';
+      this.setStatus('error', `流程里有节点在当前平台跑不了：${shown}${more}`);
+      return;
+    }
     this.stopped = false;
     this.setStatus('connecting');
     this.connect();

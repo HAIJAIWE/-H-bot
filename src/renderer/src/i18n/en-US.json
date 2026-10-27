@@ -328,6 +328,7 @@
     "composed": "Composite",
     "platformOnlyTitle": "Only available on {platform}",
     "platformOnly": "{platform} only",
+    "platformMismatch": "Node \"{node}\" only works on {platform}; this project is not on that platform",
     "searchPlaceholder": "Search nodes...",
     "clearSearch": "Clear search",
     "addHint": "Click to add · drag anywhere on the canvas",

@@ -97,6 +97,8 @@ export interface NormalizeResult<T> {
 export type IssueSeverity = 'error' | 'warning' | 'info';
 
 import { collectConnectionIssues, isTriggerLikeNode } from './connectionIssues';
+import { describePlatformMismatch, findPlatformMismatches } from './platformCheck';
+import type { PlatformFamily } from '../domain/platform/registry';
 
 /** 一条校验问题 */
 export interface FlowIssue {
@@ -259,7 +261,21 @@ function collectButtons(config: Record<string, unknown>): Array<Record<string, u
   return out;
 }
 
-export function validateFlow(graph: NormalizableGraph): FlowIssue[] {
+/**
+ * 校验选项（第 65 批 `platformCheck` 引入）。
+ *
+ * `projectPlatform` 是**可选**的：调用方不知道项目平台时（例如只拿到一张孤立的图、
+ * AI 提案预演）就不传，校验保持原来的行为 —— 平台校验绝不能变成"没传参就报错"。
+ */
+export interface ValidateFlowOptions {
+  /** 当前项目所属平台族；传 `null` 表示"项目没绑平台"，此时不做平台校验 */
+  projectPlatform?: PlatformFamily | null
+}
+
+export function validateFlow(
+  graph: NormalizableGraph,
+  options: ValidateFlowOptions = {},
+): FlowIssue[] {
   const issues: FlowIssue[] = [];
   const nodes = graph.nodes ?? [];
   const edges = (graph.edges ?? []) as NormalizableEdge[];
@@ -553,6 +569,22 @@ export function validateFlow(graph: NormalizableGraph): FlowIssue[] {
       edgeId: issue.edgeId,
       fixHint: issue.fixHint,
     });
+  }
+
+  // 平台能力校验（第 65 批）：节点只能在自己的平台框架里工作，摆错项目里再跑就是
+  // 「运行时才发现节点不工作」。这里把它提到校验面板 —— 用户添加时被拦、存盘后能看到
+  // 为什么、运行时预检（FlowRuntime.start）再兜一次底。
+  // 注意 severity 用 error：它会在预览/运行前被当成阻断项（hasBlockingIssues）。
+  if (options.projectPlatform !== undefined) {
+    for (const mismatch of findPlatformMismatches(graph, options.projectPlatform)) {
+      issues.push({
+        severity: 'error',
+        code: 'platform-mismatch',
+        message: describePlatformMismatch(mismatch),
+        nodeId: mismatch.nodeId,
+        fixHint: '换成当前平台可用的节点，或把节点移到对应平台的项目里',
+      });
+    }
   }
 
   return issues;

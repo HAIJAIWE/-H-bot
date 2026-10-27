@@ -4156,3 +4156,40 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；guards 18 文件 121 例全绿；新增测试 17 例；全量 vitest 见提交说明。
 
 **下一步（P2b）**：节点库按平台拆包 —— 先 `groups/qq-*` 与 `groups/{lark,dingtalk,wechat}-*` 分组，节点贡献点从 `builtinCatalog.ts` 的静态 import 改成「平台包注册」，同一张注册表做可见性/依赖校验。
+
+## §65 第 65 批：平台能力校验（P2b 之前的能力闸门，2026-10-28）
+
+**批次变更说明**：§64 的下一步原写「节点包拆分」，用户 10-28 纠正语义后又确认先做**能力校验**：平台标注不是产品偏好，而是**能力绑定**——「QQ 专属」的真实含义是「这个节点只能在 QQ 的官方 Bot API 上工作」，飞书/钉钉里根本没有对应物。所以节点库过滤只解决「看不见」，还得解决「看得见但用错 / 老项目里摆着但跑不了」。节点包拆分仍是 P2b，排在后面。
+
+**做了什么事**：把「节点平台族 ↔ 项目平台族」的冲突判定收成一处纯函数 `findPlatformMismatches`，接进**四个**会用到它的面：① 校验面板（`flow:validate`）② 运行时启动预检（`FlowRuntime.start`）③ 启动前的引擎预检（`FlowInterpreter.platformMismatches`）④ 三个添加入口（节点库点击、命令面板、拖放）。UI 入口（工具栏按钮 / 顶层标签页）也从「中文标签 + `botType` 判断」改成直接声明平台族，与节点库同一套规则。
+
+**为什么运行时也要拦**：老项目里已经摆着专属节点，启动时若不拦，解释器遇到该节点会静默不工作，用户看到的是「机器人启动了但不回话」——这是最难排查的一类。运行时预检把错误提到「启动」这一下，并写进状态栏（`setStatus('error', …)`）。
+
+**校验口径（三条，都写进代码注释）**：
+- 项目没绑平台（`undefined` / `null`，如老项目 / `botType:'general'` 且无 adapter）：**不做校验**，历史项目照常跑——别把老项目判成坏项目；
+- 通用节点（无平台标注）永远兼容；
+- 目录里没有的 kind（插件 / 自定义节点）跳过，交给其它校验。
+
+**数据与接口**：
+- `src/shared/nodes/platformCheck.ts`(71)：`findPlatformMismatches(graph, projectPlatform)` → `PlatformMismatch[]`（`nodeId / kind / label / need`）；`describePlatformMismatch(mismatch, locale='zh-CN')` 一行可读文案（校验面板 / 运行时错误 / 添加提示共用）。
+- `src/shared/nodes/flowNormalize.ts`(633)：`validateFlow(graph, options?)` 新增 `ValidateFlowOptions { projectPlatform?: PlatformFamily | null }`；追加 `severity:'error'`、`code:'platform-mismatch'`、`fixHint:'换成当前平台可用的节点，或把节点移到对应平台的项目里'` 的问题（**error 级会让整图阻塞**，`hasBlockingIssues` 为 true）。
+- `src/main/services/project/projectPlatform.ts`(33)：`readProjectPlatform(projectPath)` 读 `.qqbat/project.json` 的 `adapter / botType`，经注册表的 `projectPlatformFamily` 推导。
+- `src/main/runtime/FlowInterpreter.ts`(1625)：新增公开方法 `platformMismatches(projectPlatform)`（内部 `loadFlow` + `findPlatformMismatches`）。
+- `src/main/runtime/FlowRuntime.ts`(458)：`start()` 在启动子机器人前预检，>3 个只展示前 3 个 + 「等共 N 个节点」。
+- 渲染层 `src/renderer/src/lib/node/platformGuard.ts`(40)：`nodePlatformBlockReason(spec)` 统一三个入口的拦截文案（读 `projectStore.currentProject` + `i18nStore.locale`，真机有多项目切换）。
+- i18n 新键 `palette.platformMismatch`（中：`节点「{node}」只能在 {platform} 平台工作，当前项目不是该平台`；英同义）。
+
+**UI 入口统一**：`src/renderer/src/lib/node/platformEntries.ts`(32) 的 `TOOLBAR_PLATFORM_TAGS.commandPanel / factoryConfig` 与 `TOP_TAB_PLATFORM_TAGS.panels` 的标签从 `['QQ']` 改为平台族 `['qq']`；`platform/registry.ts` 新增 `platformTagsVisible(families, projectFamily)`（通用永远显示、专属只在本平台显示、不绑平台的项目一律藏）；`BlockToolbar` / `CenterPanel` 的调用从 `isPlatformVisible(tags, botType)` 改为 `platformTagsVisible(tags, projectPlatformFamily({ botType }))`。顺手删掉陈旧副本 `src/renderer/src/lib/platformEntries.ts`（无人 import，内容已漂移）。
+
+**守卫与测试**：
+- `tests/guards/platformTagCoverage.test.ts` +1 例：UI 专属入口声明的平台族都已登记（`PLATFORM_ENTRIES` 遍历）。
+- `tests/shared/nodes/platformCheck.test.ts`(80，8 例)：不绑平台不校验 / 通用不报 / QQ 专属进飞书项目报一条（带节点名与所需平台）/ 同平台不报 / 未知 kind 跳过 / 空图不炸 / 中英文案。
+- `tests/shared/flowNormalize.test.ts` +4 例：`platform-mismatch` 为 error、平台不匹配使整图阻塞、同平台与不传 options 均不报。
+- `tests/shared/domain/platform/registry.test.ts` +3 例：`platformTagsVisible` 的通用/专属/多标签。
+- 用例里「QQ 专属 / 通用」节点是**动态从目录找**（`nodePlatformTags(s) === ['qq']` / 长度 0），不钉死某个 kind；注意 `message_received` 带 `tags:['QQ']` 并不是通用节点。
+
+**涉及文件行数**：新增 `platformCheck.ts`(71)、`main/services/project/projectPlatform.ts`(33)、`renderer/lib/node/platformGuard.ts`(40)、`tests/shared/nodes/platformCheck.test.ts`(80)；改动 `flowNormalize.ts`(+34)、`FlowInterpreter.ts`(+17)、`FlowRuntime.ts`(+17)、`ipc/flow.ts`(+7)、`previewRunner.ts`(+5)、`services/flow/flow.ts`(+5)、`NodePalette.tsx`(+9)、`NodeSearchDialog.tsx`(+10)、`useFlowBridge.tsx`(+9)、`BlockToolbar.tsx`(±6)、`CenterPanel.tsx`(±7)、`BlockEditor.tsx`(-2 未使用 import)、`platformEntries.ts`(重写 32)、`registry.ts`(+15)、zh/en 各 +1 键、3 个测试文件。**未新增 IPC 通道**，能力台账不动。
+
+**闸门**：typecheck node/web `EXIT=0`；新增/相关测试 57 例全绿；guards 与 main 受影响面 29 文件 262 例全绿；全量 vitest 见提交说明。
+
+**下一步（P2b）**：节点包拆分 —— `groups/*` 17 文件按平台分组（qq / lark / dingtalk / wechat），`builtinCatalog.ts` 的静态 import 改成「平台包注册」，同一张注册表做可见性 + 能力校验（本批的 `findPlatformMismatches` 直接复用，不需要再写一遍判定）。

@@ -16,7 +16,7 @@ import type { ProjectMeta } from '@shared/types/project';
 import { t } from '../../i18n';
 import { useLocaleSubscription } from '../../stores/i18nStore';
 import { flushFlow } from '@renderer/lib/canvas/flushFlow';
-import { isPlatformVisible } from '@shared/domain/project/botTypeConfig';
+import { platformTagsVisible, projectPlatformFamily } from '@shared/domain/platform/registry';
 import { TOP_TAB_PLATFORM_TAGS } from '../../lib/node/platformEntries';
 
 const LAUNCH_TABS: { id: LaunchTab; label: string }[] = [
@@ -403,12 +403,13 @@ export function CenterPanel() {
   // 平台专属标签页：「面板」是 QQ 平台专有（按钮面板 = inline keyboard），
   // 换到通用/别的平台的项目里就不出现 ✓（规则与节点库、工具栏入口同一条）
   const botType = useProjectStore((s) => s.currentProject?.botType);
+  const projectFamily = projectPlatformFamily({ botType });
   const visibleTabs = useMemo(
     () =>
       TABS.filter((x: (typeof TABS)[number]) =>
-        x.id === 'panels' ? isPlatformVisible(TOP_TAB_PLATFORM_TAGS.panels, botType) : true,
+        x.id === 'panels' ? platformTagsVisible(TOP_TAB_PLATFORM_TAGS.panels, projectFamily) : true,
       ),
-    [botType],
+    [projectFamily],
   );
   useEffect(() => {
     // 藏起来时若正停在这一页，切回低代码 —— 否则内容区一片空白 ✗

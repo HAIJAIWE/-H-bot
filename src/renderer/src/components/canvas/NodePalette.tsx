@@ -22,6 +22,8 @@ import { getNodeIcon } from '../blocks/iconMap';
 import { recordNodeUsage, loadRecentKinds } from '../../lib/infra/recentStore';
 import { matchesNodePaletteQuery } from '../../lib/node/paletteSearch';
 import { findSpec } from '../../lib/node/nodeCatalog';
+import { nodePlatformBlockReason } from '../../lib/node/platformGuard';
+import { toast } from '../ui/Toast';
 import {
   ChevronDown,
   Package,
@@ -374,6 +376,13 @@ export function NodePalette() {
 
   /** 点击节点：追加到当前选中链末尾，或创建新链（触发器） */
   function handleAdd(kind: string) {
+    // 第 65 批：平台守卫 —— 节点库已按平台过滤，这里再兜一层（排序/搜索/最近使用
+    // 都可能把过滤后的列表重新暴露出来）。摆错平台的节点加进去只会白占画布。
+    const blocked = nodePlatformBlockReason(findSpec(kind));
+    if (blocked) {
+      toast.error(blocked);
+      return;
+    }
     // 先读旧选中节点，再创建/选中新节点——否则 selectedNodeId 已是新节点自己，
     // 「追加到选中链」永远找不到目标链（原实现因此总是兜底到最后一条链）
     const oldSelectedNodeId = useFlowStore.getState().selectedNodeId;

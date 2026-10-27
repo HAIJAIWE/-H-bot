@@ -13,6 +13,7 @@ import { setPreviewDataDirOverride } from '../services/builtinNodes/persistentSt
 import { FlowInterpreter } from './FlowInterpreter';
 import { logger } from '../services/logger';
 import { createTempWorkspace, disposeTempWorkspace } from '../services/infra/tempWorkspace';
+import { readProjectPlatform } from '../services/project/projectPlatform';
 
 //#region src/main/runtime/previewRunner.ts
 
@@ -177,7 +178,9 @@ export async function runPreview(request) {
 		};
 		const { graph, changes } = normalizeFlow(rawGraph);
 		normalizedNodes = changes.length;
-		issues = validateFlow(graph);
+		// 第 65 批：预览与 flow:validate 同一口径 —— 平台专属节点摆错项目会作为
+		// error 阻断预览（而不是跑到该节点才静默不工作）。
+		issues = validateFlow(graph, { projectPlatform: readProjectPlatform(request.projectPath) });
 		const blocking = issues.filter((i) => i.severity === "error");
 		if (blocking.length > 0) return {
 			ok: false,

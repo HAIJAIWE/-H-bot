@@ -13,6 +13,7 @@ import {
   dropInvalidEdges
 } from '@shared/nodes/flowNormalize'
 import { NODE_CATALOG_V2 } from '@shared/nodes/builtinCatalog'
+import { nodePlatformTags } from '@shared/domain/platform/registry'
 import type { FlowEdge, FlowGraph, FlowNode, Port } from '@shared/types/flow'
 
 /** 构造"模板风格"节点：只有 config，没有端口定义（内置模板的真实形态） */
@@ -397,5 +398,41 @@ describe('dropInvalidEdges — 显式清理（替代静默删除）', () => {
     const { dropped } = dropInvalidEdges(graph)
 
     expect(dropped).toEqual([])
+  })
+})
+
+describe('validateFlow — 平台能力校验（第 65 批）', () => {
+  const qqOnly = NODE_CATALOG_V2.find((s) => nodePlatformTags(s).join() === 'qq')
+  const universal = NODE_CATALOG_V2.find((s) => nodePlatformTags(s).length === 0)
+
+  const graphWith = (kind: string) =>
+    normalizeFlow(makeGraph([templateNode('u1', universal!.kind), templateNode('q1', kind)])).graph
+
+  it('扫描确实在工作（目录里有 QQ 专属节点与通用节点）', () => {
+    expect(qqOnly).toBeDefined()
+    expect(universal).toBeDefined()
+  })
+
+  it('★ 平台专属节点放进别的平台的项目 → error 级 platform-mismatch', () => {
+    const issues = validateFlow(graphWith(qqOnly!.kind), { projectPlatform: 'lark' })
+    const hits = issues.filter((x) => x.code === 'platform-mismatch')
+    expect(hits).toHaveLength(1)
+    expect(hits[0].severity).toBe('error')
+    expect(hits[0].nodeId).toBe('q1')
+    expect(hits[0].message).toContain('QQ')
+    expect(hits[0].message).toContain('只能在')
+  })
+
+  it('同平台 / 通用项目（不传或传 null）都不报平台问题', () => {
+    const graph = graphWith(qqOnly!.kind)
+    expect(validateFlow(graph, { projectPlatform: 'qq' }).filter((x) => x.code === 'platform-mismatch')).toEqual([])
+    expect(validateFlow(graph).filter((x) => x.code === 'platform-mismatch')).toEqual([])
+    expect(validateFlow(graph, { projectPlatform: null }).filter((x) => x.code === 'platform-mismatch')).toEqual(
+      []
+    )
+  })
+
+  it('平台不匹配会让整图判定为阻塞（error 级）', () => {
+    expect(hasBlockingIssues(validateFlow(graphWith(qqOnly!.kind), { projectPlatform: 'lark' }))).toBe(true)
   })
 })

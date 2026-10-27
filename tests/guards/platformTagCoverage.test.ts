@@ -15,6 +15,7 @@ import {
   projectPlatformFamily,
 } from '@shared/domain/platform/registry'
 import { PLATFORM_TAGS } from '@shared/domain/project/botTypeConfig'
+import { PLATFORM_ENTRIES } from '@renderer/lib/node/platformEntries'
 
 /** 平台族清单（加平台时同步这里 + registry 的 FAMILIES；两边漏一个这里就红） */
 const FAMILIES = [
@@ -78,5 +79,18 @@ describe('闸门：平台标注覆盖', () => {
     for (const adapter of ['official', 'lark', 'dingtalk'] as const) {
       expect(projectPlatformFamily({ adapter }), `adapter ${adapter} 没有对应平台族`).toBeDefined()
     }
+  })
+
+  it('★ UI 专属入口（工具栏/标签页）声明的平台族都已登记（第 65 批）', () => {
+    expect(PLATFORM_ENTRIES.length).toBeGreaterThan(0)
+    const offenders: string[] = []
+    for (const entry of PLATFORM_ENTRIES) {
+      for (const tag of entry.tags) {
+        if (nodePlatformTags({ platform: tag }).length !== 1) {
+          offenders.push(`  ${entry.id}: 平台族 ${tag} 未登记到 platform/registry.ts`)
+        }
+      }
+    }
+    expect(offenders, 'UI 入口的平台标签与平台注册表不一致').toEqual([])
   })
 })

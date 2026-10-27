@@ -193,3 +193,18 @@ export function specVisibleOnPlatform(
   if (fams.length === 0) return true
   return family !== null && fams.includes(family)
 }
+
+/**
+ * UI 入口（工具栏按钮 / 标签页）是否该显示 —— 与节点库同一套规则的「直接给平台族」版本。
+ *
+ * 第 65 批起 UI 入口不再写中文标签（`['QQ']`）再经 botType 判断，而是直接声明平台族；
+ * 这条函数把「通用永远显示、专属只在本平台显示」的规则留在注册表里一处。
+ */
+export function platformTagsVisible(
+  families: readonly PlatformFamily[],
+  projectFamily: PlatformFamily | undefined,
+): boolean {
+  if (families.length === 0) return true
+  if (!projectFamily) return false
+  return families.includes(projectFamily)
+}

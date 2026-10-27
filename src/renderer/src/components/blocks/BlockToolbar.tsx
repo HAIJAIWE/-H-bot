@@ -31,7 +31,7 @@ import {
   Undo2,
   Wand2,
 } from 'lucide-react';
-import { isPlatformVisible } from '@shared/domain/project/botTypeConfig';
+import { platformTagsVisible, projectPlatformFamily } from '@shared/domain/platform/registry';
 import { TOOLBAR_PLATFORM_TAGS } from '../../lib/node/platformEntries';
 import { t } from '@renderer/i18n';
 import { useLocaleSubscription } from '@renderer/stores/i18nStore';
@@ -151,7 +151,7 @@ export function BlockToolbar(props: BlockToolbarProps): ReactNode {
         >
           {t('blocks.editor.wizard.command')}
         </Button>
-        {isPlatformVisible(TOOLBAR_PLATFORM_TAGS.commandPanel, botType) && (
+        {platformTagsVisible(TOOLBAR_PLATFORM_TAGS.commandPanel, projectPlatformFamily({ botType })) && (
           <Button
             variant={showCommandPanel ? 'primary' : 'secondary'}
             size="sm"
@@ -184,7 +184,7 @@ export function BlockToolbar(props: BlockToolbarProps): ReactNode {
             )}
           </Button>
         )}
-        {isPlatformVisible(TOOLBAR_PLATFORM_TAGS.factoryConfig, botType) && (
+        {platformTagsVisible(TOOLBAR_PLATFORM_TAGS.factoryConfig, projectPlatformFamily({ botType })) && (
           <Button
             variant="secondary"
             size="sm"

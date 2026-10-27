@@ -125,8 +125,6 @@ import {
 import type { ContextMenuItem } from './ContextMenu';
 import { t, getLocale } from '../../i18n';
 import { useLocaleSubscription } from '../../stores/i18nStore';
-import { isPlatformVisible } from '@shared/domain/project/botTypeConfig';
-import { TOOLBAR_PLATFORM_TAGS } from '../../lib/node/platformEntries';
 import { BlockToolbar } from './BlockToolbar';
 import { useStoreRequests } from './useStoreRequests';
 import { useFlowBridge } from './useFlowBridge';

@@ -37,6 +37,9 @@ import {
 import { getBranchColor, getBranchLabel } from '../../lib/canvas/branchColors';
 import { isControlEdge } from '../../lib/canvas/executionOrder';
 import { createNode, createEdge } from '../../lib/canvas/nodeFactory';
+import { findSpec } from '../../lib/node/nodeCatalog';
+import { nodePlatformBlockReason } from '../../lib/node/platformGuard';
+import { toast } from '../ui/Toast';
 import { findCompatibleTargets } from '../../lib/canvas/portMatcher';
 import { getValidationSummary } from '../../lib/canvas/connectionValidator';
 import { splitIssuesByBaseline } from '@shared/nodes/issueBaseline';
@@ -508,6 +511,12 @@ export function useFlowBridge(opts: UseFlowBridgeOptions) {
       setDragPreview(null);
       const kind = e.dataTransfer.getData('text/node-kind');
       if (!kind) return;
+      // 第 65 批：拖放是第三个添加入口（前面是节点库点击、命令面板），同样过平台守卫
+      const blocked = nodePlatformBlockReason(findSpec(kind));
+      if (blocked) {
+        toast.error(blocked);
+        return;
+      }
       const instance = getReactFlowInstance();
       if (!instance) return;
       // 屏幕坐标 → 画布坐标，节点创建在鼠标松开位置

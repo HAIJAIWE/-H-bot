@@ -27,6 +27,11 @@ import { join } from 'path';
 import type { FlowEdge, FlowGraph, FlowNode } from '../../shared/types/flow';
 import { NODE_CATALOG_V2 } from '../../shared/nodes/builtinCatalog';
 import { normalizeFlow } from '../../shared/nodes/flowNormalize';
+import {
+  findPlatformMismatches,
+  type PlatformMismatch,
+} from '../../shared/nodes/platformCheck';
+import type { PlatformFamily } from '../../shared/domain/platform/registry';
 import { logger } from '../services/logger';
 import { emitBotLog, emitNodeEvent } from '../services/runner/runtimeEvents';
 import { buildGraphIndexes, ExecContext } from './ExecContext';
@@ -148,6 +153,18 @@ export class FlowInterpreter {
     private projectPath: string,
     private options: FlowInterpreterOptions = {},
   ) {}
+
+  /**
+   * 平台预检（第 65 批）：返回图中在当前平台跑不了的节点（空数组 = 干净）。
+   *
+   * 只读（走 loadFlow 的 mtime 缓存），不执行任何节点；`projectPlatform` 为空时
+   * 直接返回空数组（项目没绑平台 → 不校验，历史项目照常可运行）。
+   */
+  platformMismatches(projectPlatform: PlatformFamily | undefined): PlatformMismatch[] {
+    if (!projectPlatform) return [];
+    const graph = this.loadFlow();
+    return graph ? findPlatformMismatches(graph, projectPlatform) : [];
+  }
 
   /** 加载 flow.json（带 mtime 缓存） */
   private loadFlow(): FlowGraph | null {

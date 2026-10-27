@@ -17,6 +17,7 @@ import { activeProjectRegistry } from "../project/activeProject";
 import { atomicWrite } from "../infra/fileOps";
 import { gitService } from "../ops/git";
 import { FLOW_SCHEMA_VERSION } from "../../../shared/types/flow";
+import { readProjectPlatform } from "../project/projectPlatform";
 
 /**
 * 加载判定用的「当前版本」。
@@ -248,7 +249,9 @@ var FlowService = class {
 		}
 		if (unknownKinds.length > 0) logger.debug(`[flow] ${unknownKinds.length} 个节点不在内置目录中（按插件节点处理）: ` + unknownKinds.map((u) => u.nodeKind).join(", "));
 		const sanitized = sanitizeFlowEdges(normalized);
-		const errors = validateFlow(sanitized).filter((i) => i.severity === "error");
+		// 第 65 批：存盘日志也带上平台口径 —— 摆错平台的节点在保存时就开始报，
+		// 不用等到运行。只记 error 数（原有行为），不阻断保存（历史项目要能打开/保存）。
+		const errors = validateFlow(sanitized, { projectPlatform: readProjectPlatform(projectPath) }).filter((i) => i.severity === "error");
 		if (errors.length > 0) logger.warn(`[flow] ${projectPath} 存在 ${errors.length} 个问题: ` + errors.slice(0, 5).map((i) => i.message).join("；") + (errors.length > 5 ? ` 等 ${errors.length} 项` : ""));
 		return sanitized;
 	}

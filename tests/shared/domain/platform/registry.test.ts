@@ -8,6 +8,7 @@ import { PlatformIdSchema } from '@shared/domain/common/capabilities'
 import {
   nodePlatformTags,
   platformLabel,
+  platformTagsVisible,
   projectPlatformFamily,
   specVisibleOnPlatform,
 } from '@shared/domain/platform/registry'
@@ -102,5 +103,24 @@ describe('平台注册表：显示名', () => {
     expect(platformLabel('lark', 'zh-CN')).toBe('飞书')
     expect(platformLabel('lark', 'en-US')).toBe('Feishu')
     expect(platformLabel('unknown-x' as never, 'zh-CN')).toBe('unknown-x')
+  })
+})
+
+describe('平台注册表：UI 入口可见性（第 65 批）', () => {
+  it('不带标签（通用）任何项目都显示', () => {
+    expect(platformTagsVisible([], 'qq')).toBe(true)
+    expect(platformTagsVisible([], 'lark')).toBe(true)
+    expect(platformTagsVisible([], undefined)).toBe(true)
+  })
+
+  it('★ 带标签的只有本平台项目显示；不绑平台的项目一律藏', () => {
+    expect(platformTagsVisible(['qq'], 'qq')).toBe(true)
+    expect(platformTagsVisible(['qq'], 'lark')).toBe(false)
+    expect(platformTagsVisible(['qq'], undefined)).toBe(false)
+  })
+
+  it('多标签取并集', () => {
+    expect(platformTagsVisible(['qq', 'lark'], 'lark')).toBe(true)
+    expect(platformTagsVisible(['qq', 'lark'], 'dingtalk')).toBe(false)
   })
 })

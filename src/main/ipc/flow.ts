@@ -6,6 +6,7 @@ import { normalizeFlow, validateFlow } from '@shared/nodes/flowNormalize'
 import { runPreview } from '../runtime/previewRunner'
 import { tryIpcAsync } from './_shared'
 import { flowLoadSchema, flowSaveSchema } from '../schemas/flowIpc'
+import { readProjectPlatform } from '../services/project/projectPlatform'
 
 export function registerFlowIpc(service: InstanceType<typeof FlowService>): void {
   ipcMain.handle('flow:load', async (_event, projectPath: string) => {
@@ -55,7 +56,11 @@ export function registerFlowIpc(service: InstanceType<typeof FlowService>): void
     return tryIpcAsync(() => {
       const normalized = normalizeFlow(graph as Parameters<typeof normalizeFlow>[0])
       return {
-        issues: validateFlow(normalized.graph),
+        // 第 65 批：带上项目平台 —— 专属节点摆错项目时在问题清单里报 error，
+        // 而不是等到运行时才发现节点不工作。项目没绑平台时不传，行为与以前一致。
+        issues: validateFlow(normalized.graph, {
+          projectPlatform: readProjectPlatform(projectPath)
+        }),
         normalizedNodes: normalized.changes.length,
         graph: normalized.graph
       }

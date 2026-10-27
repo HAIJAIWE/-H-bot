@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
-import { getAllSpecs, subscribeCatalog, getCatalogVersion } from '../../lib/node/nodeCatalog';
+import { getAllSpecs, subscribeCatalog, getCatalogVersion, findSpec } from '../../lib/node/nodeCatalog';
 import { createNode } from '../../lib/canvas/nodeFactory';
 import { useFlowStore } from '../../stores/flowStore';
 import { focusNode } from '../../lib/canvas/reactFlowBridge';
@@ -10,6 +10,8 @@ import type { NodeSpec } from '@shared/types/flow';
 import { nodePlatformTags, platformLabel } from '@shared/domain/platform/registry';
 import { t, getLocale } from '../../i18n';
 import { useLocaleSubscription } from '../../stores/i18nStore';
+import { nodePlatformBlockReason } from '../../lib/node/platformGuard';
+import { toast } from '../ui/Toast';
 
 export function NodeSearchDialog() {
   useLocaleSubscription();
@@ -52,6 +54,12 @@ export function NodeSearchDialog() {
 
   const handleSelect = useCallback(
     (kind: string) => {
+      // 第 65 批：命令面板也要过平台守卫（列表已滤过，但入口不止一处，兜一层）。
+      const blocked = nodePlatformBlockReason(findSpec(kind));
+      if (blocked) {
+        toast.error(blocked);
+        return;
+      }
       // 与 NodePalette/BlockInsertMenu 行为一致：使用即入最近使用列表
       recordNodeUsage(kind);
       const node = createNode(kind, { x: 0, y: 0 });
