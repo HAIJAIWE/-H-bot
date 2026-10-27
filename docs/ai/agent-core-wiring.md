@@ -4340,3 +4340,22 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；agentSurfaceContract 4 例、agentSurface 8 例、契约 6 例全绿；全量 vitest 与守卫见提交。
 
 **下一步**：① 内置 `ChatPanel` 逐步改吃 ctx（先拆"发送/停止"，再拆"审批"）—— 每挪一块跑一次全量，防止特权与契约两套路径长期并存；② P4 生态包装（manifest v2 + 插件脚手架 + 这份示例当模板）；③ 三栏骨架/命令面板等视觉肌理。
+
+## §72 第 72 批：智能体窗口走进渲染层插件系统（P4 前置，2026-10-28）
+
+**为什么**：第 68 批的窗口注册是「模块 import 即注册」，绕过了仓库里已经存在的渲染层插件系统（`src/renderer/src/lib/plugins/api.ts`，它本来就有清单/权限/可撤销），而 `plugins/index.tsx` 这个"树内插件清单"从 2026-10-18 起**根本没被 main 引入**——插件系统是死代码（右侧「界面插件 1」只是零散注册，不是插件）。DSH 的做法正好相反：整个 UI 都是带 `dsh.client` 清单的插件包（打包产物里 68 个 `dsh-client-*`），由 renderer 包按 slots 装配。这一批把我们的窗口也收进同一套形状。
+
+**改了什么**
+
+- `lib/plugins/api.ts`：`PluginPermission` 增加 `'window'`；`PluginApi.contributeAgentWindow({ id, order?, label?, render(ctx) })`，注册进 agent surface 注册表、dispose 由插件停用统一回收。窗口 id **不拼插件前缀**（它写进 `uiStore.agentSurfaceId` 持久化，拼前缀会让用户选过的窗口升级后失效）。
+- 新增 `src/renderer/src/plugins/agentWindows.tsx`：两个清单式插件（`builtin.agent-window.chat` order=1000 / `builtin.agent-window.compact` order=2000），`permissions: ['window']`，activate 时 `contributeAgentWindow`。
+- `components/ai/builtinAgentSurface.tsx`：只保留挂载点（`import '../../plugins/agentWindows'`），保证 RightPanel 首帧前窗口已就绪。
+- `plugins/index.tsx` 引入窗口插件；`main.tsx` 增加 `import './plugins'`（修死代码）。
+- `compactAgentSurface.tsx`：导出 `CompactAgentSurface` 组件；删掉 `registerCompactAgentSurface`。
+- 守卫：`agentSurfaceContract` 扩到 5 条——窗口必须经插件 `window` 权限注册（正则断言 2 份清单、2 次 contribute、不得直接 `registerAgentSurface`）、窗口 id 保持 chat/compact、插件入口被 main 引入。
+
+**真机**：重启后「界面插件 3」（enter-hint + 两个窗口）；设置 → 智能体窗口 仍显示「已注册 2 个」，内置对话窗口/紧凑窗口（示例）可切换；截图 `_recovery/ui-batch72-windows.png`。
+
+**涉及文件行数**：新增 `plugins/agentWindows.tsx`(~70)、`agentWindowContribution.test.ts`(~60)；改 `lib/plugins/api.ts`(+45)、`builtinAgentSurface.tsx`(~10)、`compactAgentSurface.tsx`(-12)、`plugins/index.tsx`(+2)、`main.tsx`(+3)、`agentSurfaceContract.test.ts`(84)。**未新增 IPC 通道**。
+
+**与 DSH 的差距（如实）**：DSH 的 UI 插件是**运行时加载的 npm 包**（Cordis 注入 + 懒加载 + `dsh.client.inject` 依赖声明）；我们目前是**树内编译期模块**，贡献类型只有 slot/window，加载器与沙箱仍是 P4。这一批只把"形状"对齐，不整 runtime loader。

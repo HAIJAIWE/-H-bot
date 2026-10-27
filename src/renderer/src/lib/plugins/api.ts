@@ -10,6 +10,13 @@
 // v0.2 补的是**可撤销**（对齐 Cordis 的"注册即副作用、卸载即回收"）：
 // 每次 activate 的贡献都会被记账；停用插件 = 逐条 dispose，启用 = 重新 activate。
 // 这条纪律比"画一个启用开关"重要 —— 没有它，停用只是界面上骗自己。
+//
+// v0.3（第 72 批）：**窗口也可以是插件贡献**。对齐 DSH 的 `dsh.client` 清单 ——
+// 它的每个界面（对话、审批条、插件市场、设置页…）都是一个带 `dsh.client` 的 npm 包；
+// 我们把同一件事缩到"渲染层插件能贡献第一类 UI"：插槽片段（slot）与整个智能体窗口（window）。
+// 窗口插件同样吃第 70 批的 `AgentSurfaceContext`，不 import 内部 store。
+import { registerAgentSurface } from '../ai/agentSurface';
+import type { AgentSurfaceContext } from '../ai/agentSurfaceContext';
 import { registerAiSlot, type AiSlotName } from '../ai/uiSlots';
 
 import type { PluginIdentity } from '@shared/plugins/manifest';
@@ -35,7 +42,7 @@ export interface PluginManifest extends PluginIdentity<PluginPermission> {
 export const AI_PLUGIN_HOST_VERSION = '0.1.0';
 
 /** 渲染层插件能声明的能力；主进程工具与提示段落不在这里（跨进程要走 IPC 权限模型） */
-export type PluginPermission = 'slot';
+export type PluginPermission = 'slot' | 'window';
 
 // 版本范围判定与主进程共用一份（见 src/shared/plugins/version.ts）
 import { satisfiesPluginRange } from '@shared/plugins/version';
@@ -49,9 +56,25 @@ export interface PluginSlotContribution {
   render: () => React.ReactNode;
 }
 
+/**
+ * 智能体窗口贡献（第 72 批）：整个右侧面板由这个插件接管。
+ * 只吃 `AgentSurfaceContext`（第 70 批）：窗口插件不该 import 内部 store，否则内部结构换不动。
+ */
+export interface PluginAgentWindowContribution {
+  /** 插件内唯一即可；注册时自动加上插件前缀 */
+  id: string;
+  /** 越小越优先；内置对话窗口是 1000，外部窗口想当默认就用更小的值 */
+  order?: number;
+  /** 给人看的名字：函数而非字符串 —— 每次现算 i18n，切语言不用重新注册 */
+  label?: () => string;
+  render: (context: AgentSurfaceContext) => React.ReactNode;
+}
+
 export interface PluginApi {
   /** 往面板插槽里贡献一段 UI */
   contributeSlot(entry: PluginSlotContribution): void;
+  /** 贡献一整个智能体窗口（右侧面板） */
+  contributeAgentWindow(entry: PluginAgentWindowContribution): void;
 }
 
 export interface Plugin {
@@ -136,6 +159,23 @@ function activate(plugin: Plugin): Array<() => void> {
             id: plugin.manifest.id + '.' + entry.id,
             slot: entry.slot,
             ...(entry.order !== undefined ? { order: entry.order } : {}),
+            render: entry.render,
+          }),
+        );
+      },
+      contributeAgentWindow: (entry) => {
+        if (!allowed.has('window')) {
+          throw new Error(
+            'plugin ' + plugin.manifest.id + ' did not declare the "window" permission',
+          );
+        }
+        disposers.push(
+          registerAgentSurface({
+            // 窗口 id 直接用贡献方给的 id（不拼插件前缀）：它写进 `uiStore.agentSurfaceId`
+            // 持久化，拼前缀会让用户选过的窗口在升级后失效。重名由注册表自己抛错。
+            id: entry.id,
+            ...(entry.order !== undefined ? { order: entry.order } : {}),
+            ...(entry.label !== undefined ? { label: entry.label } : {}),
             render: entry.render,
           }),
         );

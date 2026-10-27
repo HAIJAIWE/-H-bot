@@ -7,6 +7,8 @@
 // 先有形状（manifest + 贡献），再谈加载。插件以完整渲染层权限运行 —— 这条必须写清楚。
 import { definePlugin, registerPlugin } from '../lib/plugins/api';
 import { t } from '../i18n';
+// 第 72 批：两个内置智能体窗口也是插件（`window` 权限，贡献整个右侧面板）
+import './agentWindows';
 
 registerPlugin(
   definePlugin({

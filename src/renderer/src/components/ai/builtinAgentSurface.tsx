@@ -1,22 +1,9 @@
 // src/renderer/src/components/ai/builtinAgentSurface.tsx
 //
-// 内置「对话窗口」作为 agent surface 的注册（第 68 批）。
+// 第 68 批起这里是「默认窗口」的注册入口：import 即生效，保证注册表里至少有一个窗口。
+// 第 72 批把两个内置窗口搬进**渲染层插件系统**（`plugins/agentWindows.tsx`，`window` 权限）后，
+// 本文件只保留挂载点：RightPanel 继续 import 它，窗口由插件 activate 时贡献。
 //
-// import 即生效：`RightPanel` 在渲染前先 import 本模块，保证注册表里至少有一个窗口。
-// order=1000 表示「默认」——贡献方注册更小的 order 即可接管整个智能体窗口。
-// label 是函数：每次取名字时现算 i18n，切语言不必重新注册（第 69 批）。
-import { t } from '../../i18n'
-import { registerAgentSurface } from '../../lib/ai/agentSurface'
-import { ChatPanel } from './ChatPanel'
-import { registerCompactAgentSurface } from './compactAgentSurface'
-
-registerAgentSurface({
-  id: 'chat',
-  order: 1000,
-  label: () => t('settings.aiProvider.agentSurface.builtin'),
-  render: () => <ChatPanel />,
-})
-
-// 第 71 批：示例窗口（order=2000，不抢默认）。它只用 AgentSurfaceContext，
-// 是「第三方能写窗口」的最小可用样板，也是契约守卫的静态样本。
-registerCompactAgentSurface()
+// 为什么还留这个文件：注册表必须**早于 RightPanel 首次渲染**就有窗口，
+// 否则会先白屏一帧；而 main.tsx 的 `import './plugins'` 负责整份树内插件清单（含 enter-hint）。
+import '../../plugins/agentWindows'

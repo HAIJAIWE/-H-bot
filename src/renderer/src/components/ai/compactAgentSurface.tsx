@@ -11,7 +11,6 @@
 // 已知特权差异：它是**内置**窗口（和默认对话窗口一样在树内），将来 P4 外部窗口会被
 // 放进沙箱，只能用契约、不能 import 任何渲染层模块 —— 本文件注释里不依赖树内特权。
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { registerAgentSurface } from '../../lib/ai/agentSurface'
 import type { AgentSurfaceContext } from '../../lib/ai/agentSurfaceContext'
 import { t } from '../../i18n'
 import { useLocaleSubscription } from '../../stores/i18nStore'
@@ -19,7 +18,8 @@ import { useLocaleSubscription } from '../../stores/i18nStore'
 const SNIPPET_LIMIT = 240
 const RECENT_LIMIT = 6
 
-function CompactAgentSurface({ context }: { context: AgentSurfaceContext }): ReactNode {
+/** 示例窗口本体（第 72 批起由 `plugins/agentWindows.tsx` 以插件贡献的方式注册） */
+export function CompactAgentSurface({ context }: { context: AgentSurfaceContext }): ReactNode {
   useLocaleSubscription()
   const snapshot = useSyncExternalStore(context.subscribe, context.getSnapshot, context.getSnapshot)
   const [draft, setDraft] = useState('')
@@ -141,14 +141,4 @@ function CompactAgentSurface({ context }: { context: AgentSurfaceContext }): Rea
       </div>
     </div>
   )
-}
-
-/** 注册「紧凑窗口」示例；order=2000 排在默认窗口之后（不抢默认，但可在设置里选） */
-export function registerCompactAgentSurface(): () => void {
-  return registerAgentSurface({
-    id: 'compact',
-    order: 2000,
-    label: () => t('settings.aiProvider.agentSurface.compact'),
-    render: context => <CompactAgentSurface context={context} />,
-  })
 }
