@@ -990,6 +990,8 @@ const api = {
     unload: (pluginName: string) => ipcRenderer.invoke('plugin:unload', { pluginName }),
     install: (projectPath: string) => ipcRenderer.invoke('plugin:install', { projectPath }),
     listInstalled: () => ipcRenderer.invoke('plugin:listInstalled'),
+    /** 外部窗口包（第 73 批）：扫 <userData>/plugins/windows/ 的清单，只返回数据不执行代码 */
+    listWindows: () => ipcRenderer.invoke('plugin:listWindows'),
     /** 宿主插件（应用级能力）清单：id/name/version/enabled/source/permissions/settings/tools */
     listHost: () => ipcRenderer.invoke('plugin:listHost'),
     setHostEnabled: (id: string, enabled: boolean) =>

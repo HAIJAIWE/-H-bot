@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.compact",
+  "name": "演示窗口（外部包）",
+  "version": "1.0.0",
+  "description": "第 73 批的示例：一份纯声明式清单，由宿主画成紧凑窗口，不含任何可执行代码。",
+  "order": 3000,
+  "layout": "compact",
+  "parts": { "header": true, "messages": true, "composer": false }
+}

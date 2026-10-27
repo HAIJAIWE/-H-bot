@@ -348,6 +348,9 @@
     "collapse": "Collapse",
     "typeFilterHint": "Current project: {type} · {count} platform-specific nodes from other platforms are hidden (generic nodes stay)"
   },
+  "externalWindow": {
+    "messageCount": "{count} messages"
+  },
   "ai": {
     "send": "Send",
     "generating": "Generating...",

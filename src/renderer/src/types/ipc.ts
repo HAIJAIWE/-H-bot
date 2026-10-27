@@ -28,6 +28,7 @@ import type {
 } from '@shared/types/launch'
 import type { ButtonPanel } from '@shared/types/buttonPanel'
 import type { MarketInstallInfo, MarketInstallPlan, MarketListResult } from '@shared/plugins/market'
+import type { WindowPackageScanResult } from '@shared/plugins/windowPackage'
 import type { PluginSettingSpec, PluginSettingValues } from '@shared/plugins/settings'
 
 export type { PluginSettingSpec, PluginSettingValues } from '@shared/plugins/settings'
@@ -1330,6 +1331,8 @@ export interface QqbatApi {
       projectPath: string,
     ) => Promise<ApiResult<{ name: string; version: string; path: string }>>
     listInstalled: () => Promise<ApiResult<PluginInfo[]>>
+    /** 外部窗口包（第 73 批）：<userData>/plugins/windows/ 下的声明式窗口清单 */
+    listWindows: () => Promise<ApiResult<WindowPackageScanResult>>
     /** 宿主插件（应用级能力：工具/提示）只读清单 */
     listHost: () => Promise<
       ApiResult<

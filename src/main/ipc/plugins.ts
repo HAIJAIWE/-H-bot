@@ -1,9 +1,10 @@
 // src/main/ipc/plugins.ts
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app } from 'electron'
 import { access, mkdir, readFile, copyFile, readdir } from 'fs/promises'
 import { join, basename } from 'path'
 import { constants } from 'fs'
 import { scanPlugins, loadPluginPackage } from '../services/plugins/pluginScanner'
+import { scanWindowPackages } from '../services/plugins/windowPackageScanner'
 import { detectPluginKind } from '@shared/plugins/kind'
 import {
   aiPluginIdOf,
@@ -275,6 +276,19 @@ export function registerPluginIpc(): void {
   /** plugin:listInstalled — 列出已加载插件 */
   ipcMain.handle('plugin:listInstalled', async () => {
     return tryIpc(() => getPluginInfos())
+  })
+
+  /**
+   * plugin:listWindows — **外部窗口包**清单（第 73 批，P4 加载器 v1）。
+   *
+   * 只扫盘 + 校验声明，**不执行任何第三方代码**：清单里的 layout/parts 由渲染层用
+   * 宿主自己的组件画出来。目录：`<userData>/plugins/windows/<目录>/manifest.json`。
+   * 坏清单进 `issues` 而不是让整个调用失败 —— 一个坏包不该让全部窗口消失。
+   */
+  ipcMain.handle('plugin:listWindows', async () => {
+    return tryIpcAsync(() =>
+      scanWindowPackages(join(app.getPath('userData'), 'plugins', 'windows')),
+    )
   })
 
   /** plugin:setEnabled — 启用/禁用插件 */

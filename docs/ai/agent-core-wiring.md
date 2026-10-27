@@ -4359,3 +4359,37 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **涉及文件行数**：新增 `plugins/agentWindows.tsx`(~70)、`agentWindowContribution.test.ts`(~60)；改 `lib/plugins/api.ts`(+45)、`builtinAgentSurface.tsx`(~10)、`compactAgentSurface.tsx`(-12)、`plugins/index.tsx`(+2)、`main.tsx`(+3)、`agentSurfaceContract.test.ts`(84)。**未新增 IPC 通道**。
 
 **与 DSH 的差距（如实）**：DSH 的 UI 插件是**运行时加载的 npm 包**（Cordis 注入 + 懒加载 + `dsh.client.inject` 依赖声明）；我们目前是**树内编译期模块**，贡献类型只有 slot/window，加载器与沙箱仍是 P4。这一批只把"形状"对齐，不整 runtime loader。
+
+## §73 第 73 批：外部窗口包加载器 v1（P4 第一步，2026-10-28）
+
+**为什么**：第 72 批让窗口能由渲染层插件贡献（`window` 权限），但插件是**树内编译期模块**，生态装不进来。这一批做「磁盘上的窗口包」：目录 `<userData>/plugins/windows/<目录>/manifest.json` 声明一个窗口，宿主按清单**声明式**画出来。
+
+⚠️ v1 **不执行第三方代码**：清单只能描述布局/部件开关，不能带 JS。渲染层进程里 eval 第三方代码等于把整个应用交出去（`sandbox: true` 也挡不住同进程的 React 树）。可执行窗口留到 P4b（独立 worker + 消息桥）。
+
+**清单形状**（`src/shared/plugins/windowPackage.ts`，202 行，纯 TS 可 node 直跑）
+
+- 准入按「目录里有 `manifest.json`」判断，不看目录名（与 `pluginScanner` 同一纪律）；目录不存在 = 空结果，不是错误。
+- `schemaVersion` 必须是 `1`（不兼容的未来格式拒绝加载，不猜）。
+- `id`：必填，`/^[a-z][a-z0-9.-]{2,47}$/`（会成为目录名与窗口 id 后缀）。
+- `name` 1–60 字符（下拉里显示的名字）；`version` 形如 `1.0.0`；`description` ≤200 可选。
+- `order` 0–100000 可选（缺省按 5000 参与排序）。
+- `layout` 必填：`compact | full`（数据相同，只是排版）。
+- `parts` 可选：`{ header?, messages?, composer? }` 布尔（省略 = 画）；未知部件报错。
+- 未知字段不报错也**不透传**（外部输入，多出来的字段一律丢弃，避免旧宿主误读未来字段）。
+- 校验返回 `{ ok, value } | { ok: false, issues }`，issues 带字段路径，方便用户对着清单改。
+
+**扫描与通道**
+
+- `src/main/services/plugins/windowPackageScanner.ts`（81 行）：无 manifest 的子目录跳过、JSON 坏/校验坏进 `issues`、重复 id 先扫到的生效（后到的进 issues）、排序 `order ?? 5000` 再按 id。
+- 新增只读通道 `plugin:listWindows` → `{ ok, data: { packages, issues } }`；坏包不影响整个调用（一个坏包不该让所有窗口消失）。
+- `src/renderer/src/plugins/externalWindows.tsx`（93 行）：启动时经 preload 桥拉清单 → 每个合法包注册成 `window` 权限插件（插件 id `builtin.external-window.<包id>`，窗口 id `external.<包id>`）→ `contributeAgentWindow({ label: () => spec.name, render: ctx => <DeclarativeAgentSurface context={ctx} spec={spec} /> })`。失败不抛、不阻塞界面（窗口少一个比起不来强）。
+- `src/renderer/src/components/ai/declarativeAgentSurface.tsx`（170 行）：按 `layout`/`parts` 画头部、消息列表、输入区占位；数据全部来自 `AgentSurfaceContext`（第 70 批契约），不含命令调用。
+- `src/renderer/src/main.tsx`：`void bootstrapExternalWindowPluginsFromBridge()`（在 `installFlowPersistence()` 之后）。
+- i18n：`externalWindow.messageCount`（两条语言）。
+- 能力台账：附录 A 增 `plugin.listWindows = Q`；总表「扩展与插件」23→24、Q8→Q9、已开 **6→7**；逐命名空间表 plugin 19→20、Q7→Q8；小计 Q+M 189→190；附录 C「扩展与插件」行 23→24、Q7→Q8(8/7?)。生成物重生成（293 条）。
+
+**真机**：`%APPDATA%\qqbat\plugins\windows\demo.compact\manifest.json` 放好后重启，设置 → 智能体窗口下拉出现「演示窗口（外部包）」；截图 `_recovery/ui-batch73-*.png`。
+
+**涉及文件行数**：新增 `shared/plugins/windowPackage.ts` 202、`main/.../windowPackageScanner.ts` 81、`renderer/.../declarativeAgentSurface.tsx` 170、`renderer/plugins/externalWindows.tsx` 93、3 个测试（108/81/56）；改 `ipc/plugins.ts`(+16)、`preload/index.ts`(+2)、`renderer/types/ipc.ts`(+3)、`main.tsx`(+5)、两份 i18n(+4)、能力台账/生成物。**新增 IPC 通道 1 条**（`plugin:listWindows`，只读）。
+
+**下一步（P4b）**：可执行窗口包（清单加 `entry`，资源与依赖声明），在 worker 里跑、只给 postMessage 契约；顺带把插槽也外置。

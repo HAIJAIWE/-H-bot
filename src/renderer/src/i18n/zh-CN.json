@@ -348,6 +348,9 @@
     "collapse": "折叠",
     "typeFilterHint": "当前项目：{type} · 已隐藏其他平台的 {count} 个专属节点（通用节点照常显示）"
   },
+  "externalWindow": {
+    "messageCount": "共 {count} 条消息"
+  },
   "ai": {
     "send": "发送",
     "generating": "生成中...",
