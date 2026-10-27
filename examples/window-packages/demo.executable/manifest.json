@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.executable",
+  "name": "可执行窗口（外部包）",
+  "version": "1.0.0",
+  "description": "第 74 批示例：entry.js 在 Blob module worker 里跑，返回受限视图树并请求命令。",
+  "order": 4000,
+  "entry": "entry.js",
+  "capabilities": ["send-message", "stop", "select-thread"]
+}

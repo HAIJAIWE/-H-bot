@@ -349,7 +349,11 @@
     "typeFilterHint": "Current project: {type} · {count} platform-specific nodes from other platforms are hidden (generic nodes stay)"
   },
   "externalWindow": {
-    "messageCount": "{count} messages"
+    "messageCount": "{count} messages",
+    "loading": "Loading external window…",
+    "failed": "Window package failed to load: {reason}",
+    "entryReadFailed": "Cannot read the window package entry file",
+    "workerError": "Window package code failed to run"
   },
   "ai": {
     "send": "Send",

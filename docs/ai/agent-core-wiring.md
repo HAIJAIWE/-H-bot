@@ -4393,3 +4393,59 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **涉及文件行数**：新增 `shared/plugins/windowPackage.ts` 202、`main/.../windowPackageScanner.ts` 81、`renderer/.../declarativeAgentSurface.tsx` 170、`renderer/plugins/externalWindows.tsx` 93、3 个测试（108/81/56）；改 `ipc/plugins.ts`(+16)、`preload/index.ts`(+2)、`renderer/types/ipc.ts`(+3)、`main.tsx`(+5)、两份 i18n(+4)、能力台账/生成物。**新增 IPC 通道 1 条**（`plugin:listWindows`，只读）。
 
 **下一步（P4b）**：可执行窗口包（清单加 `entry`，资源与依赖声明），在 worker 里跑、只给 postMessage 契约；顺带把插槽也外置。
+
+## §74 第 74 批：可执行窗口包（worker 沙箱，2026-10-28）
+
+### 74.1 为什么
+
+第 73 批只能装「声明式窗口」：清单描述 layout/parts，宿主用自己的组件画。第三方真正想做的窗口（自己的会话列表、自己的指标面板、嵌别人的组件）都需要代码。两条路里选了 worker 沙箱：
+
+- ❌ 在渲染层 eval 第三方代码：等于把整个应用的 React 树与 preload 桥交出去，`sandbox: true` 挡不住同进程。
+- ✅ 源码由主进程读成字符串 → 渲染层 `new Worker(URL.createObjectURL(new Blob([source])), { type: "module" })`。worker 里没有 DOM、没有 Node、import 无从解析（Blob 没有 base URL），只能收发消息。
+
+### 74.2 清单扩展（`src/shared/plugins/windowPackage.ts`）
+
+- `entry` 可选：包内**单层**相对文件名，实测 `/^[a-z0-9][a-z0-9._-]{0,95}\.m?js$/i`；带它就切换成「可执行窗口」。
+- 可执行窗口的 `layout` 可省（缺省 `compact`，只当默认排版）；声明式窗口仍必填。
+- `capabilities` 可选：`send-message | stop | select-thread` 的子集，去重；**没有 entry 却写 capabilities 会报错**（避免把声明式包误写成可执行）。
+- `windowPackageIsExecutable(manifest)` 是唯一判定（`typeof entry === string && length > 0`）。
+
+### 74.3 读入口源码（主进程，`windowPackageScanner.ts`）
+
+`readWindowPackageSource(root, packageId)`：先 `scanWindowPackages` 找到包目录 → entry 再校验一次（单层、无 `..`）→ `realpath` 后必须仍在包目录内（防符号链接逃逸）→ 必须是普通文件、≤ `WINDOW_PACKAGE_ENTRY_MAX_BYTES`（256 KB）→ 读成 utf-8 返回 `{ source, byteLength }`。失败抛 Error，IPC 包成 `{ ok:false, error }`。
+
+新通道 `plugin:readWindowEntry`（payload `{ id }`，zod 校验 `WINDOW_PACKAGE_ID_RE`）：主进程只读文件，**不 eval、不 require**。
+
+### 74.4 worker 宿主（`renderer/src/components/ai/executableAgentSurface.tsx`）
+
+- 只吃 `AgentSurfaceContext`（第 70 批契约），与内置窗口同纪律。
+- 生命周期：读源码 → 建 Blob worker → 发 `init`（`apiVersion`/`packageId`/`capabilities`）→ 订阅上下文发 `context` → 收 `view`/`command`；卸载时 `terminate` + `revokeObjectURL` + 退订。
+- 失败一律降级成一块提示（`externalWindow.failed`），不让一个坏包把右栏打白。
+
+### 74.5 视图协议与命令白名单（`src/shared/plugins/windowView.ts`，纯 TS）
+
+- 节点只有：`stack / header / text / message / list / button / divider / empty`；未知类型丢弃并记 issue（能画的都画，不白屏）。
+- 上限：深度 6、节点 300（整棵共享计数）、列表 200 项、文本 4000 字符（超长截断）、payload 500 字符。
+- 命令必须先过 `WINDOW_VIEW_COMMANDS` 白名单，再必须在清单 `capabilities` 里声明；payload 只收字符串。
+- 宿主侧执行：`send-message` → `actions.send`、`stop` → `actions.stop`、`select-thread` → `actions.switchThread`；worker 拿到的动作永远只是「请求」。
+
+### 74.6 能力台账
+
+附录 A 增 `plugin.readWindowEntry = Q`；总表 plugin 20→21、Q 8→9；小计 Q 86→87、合计 292→293；附录小计 290→291。生成物重生成（294 条 channel）。
+
+### 74.7 涉及文件
+
+新增：`shared/plugins/windowView.ts`（约 420 行）、`renderer/lib/ai/executableProtocol.ts`（约 130 行）、`renderer/components/ai/executableAgentSurface.tsx`（约 300 行）、3 个测试（windowView 8 例 / executableProtocol 9 例 / scanner 与 windowPackage 扩 10 例）、示例 `examples/window-packages/demo.executable/`。
+
+改：`shared/plugins/windowPackage.ts`（entry/capabilities 校验）、`main/services/plugins/windowPackageScanner.ts`（+读入口）、`main/ipc/plugins.ts`（+通道）、`main/schemas/plugins.ts`（+schema）、`preload/index.ts`、`renderer/types/ipc.ts`、`renderer/plugins/externalWindows.tsx`（按 entry 分支）、两份 i18n（+loading/failed）。
+
+### 74.8 闸门
+
+- typecheck node/web 0 错误；guards 20 文件 133 例全绿；targeted 45 例全绿。
+- 新文件与文档 prettier 干净；真机截图见 `_recovery/ui-batch74-*.png`。
+
+### 74.9 下一步
+
+- 可执行窗口的**依赖/资源**声明（多文件包、import map、worker 内 importScripts 的替代方案）。
+- 插件管理页：列 `issues`、一键停用/卸载（现在只能删目录重启）。
+- 插槽（slot）外置：现在只有整窗这一种外部贡献形态。

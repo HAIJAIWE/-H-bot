@@ -6,16 +6,24 @@
 // 生态装不进来。本批做「磁盘上的窗口包」：目录 `<userData>/plugins/windows/<id>/manifest.json`
 // 声明一个窗口，宿主渲染层按清单**声明式**画出来。
 //
-// ⚠️ v1 **不执行第三方代码**：清单只能描述布局/部件开关/文案，不能带 JS。
-// 这是有意的边界——渲染层进程里 eval 第三方代码等于把整个应用交出去（`sandbox: true`
-// 也挡不住同进程的 React 树）。可执行窗口等沙箱宿主（P4b），届时用独立的 worker +
-// 消息桥，而不是把代码塞进渲染层。
+// v1（第 73 批）**不执行第三方代码**：清单只能描述布局/部件开关/文案，不能带 JS。
+// v1b（第 74 批）给清单加**可选 `entry`**：带 entry 的包是"可执行窗口"，源码由主进程读
+// 出来、在渲染层的 **Blob module worker** 里跑（没有 DOM / Node），用 `windowView.ts`
+// 的消息协议交换「受限视图树 + 命令」。声明式窗口（无 entry）行为不变。
+// 渲染层进程里 eval 第三方代码仍然禁止——边界从"不执行"收紧成"只在 worker 里执行"。
 //
 // 本文件必须保持纯 TS（可被 node 直跑）：不 import electron、fs、React。
 import { z } from 'zod'
+import { WINDOW_VIEW_COMMANDS, type WindowViewCommand } from './windowView'
 
 /** 清单格式版本：不兼容的未来格式用更高数字，宿主拒绝加载而不是猜 */
 export const WINDOW_PACKAGE_SCHEMA_VERSION = 1
+
+/** 可执行窗口的入口文件名规则：包内相对文件名，单层，`.js` / `.mjs` */
+export const WINDOW_PACKAGE_ENTRY_RE = /^[a-z0-9][a-z0-9._-]{0,95}\.m?js$/i
+
+/** 入口源码体积上限（读盘时再校验一次；worker 里跑的东西不该是几 MB） */
+export const WINDOW_PACKAGE_ENTRY_MAX_BYTES = 256 * 1024
 
 /** 两种声明式布局：compact = 紧凑单列；full = 常规间距（数据一样，只是排版差异） */
 export const WINDOW_PACKAGE_LAYOUTS = ['compact', 'full'] as const
@@ -46,6 +54,13 @@ export interface WindowPackageManifest {
   layout: WindowPackageLayout
   parts?: WindowPackageParts
   description?: string
+  /**
+   * 可执行窗口的入口文件（包内相对文件名）。存在即为"可执行窗口"：
+   * 源码会以 Blob module worker 运行，见 `windowView.ts` 的消息协议。
+   */
+  entry?: string
+  /** 可执行窗口可以请求的动作；宿主只会执行这里声明过的（声明式窗口不用它） */
+  capabilities?: WindowViewCommand[]
 }
 
 /** 一条校验问题：`field` 用 JSON 路径，方便用户对着清单改 */
@@ -97,6 +112,47 @@ export function validateWindowPackage(raw: unknown): WindowPackageValidation {
     issues.push({ field: 'version', message: '必填，形如 1.0.0' })
   }
 
+  let entry: string | undefined
+  if (m.entry !== undefined) {
+    if (typeof m.entry !== 'string' || !WINDOW_PACKAGE_ENTRY_RE.test(m.entry)) {
+      issues.push({
+        field: 'entry',
+        message: '可选，包内相对文件名（单层，.js / .mjs）；带它即为可执行窗口',
+      })
+    } else {
+      entry = m.entry
+    }
+  }
+
+  let capabilities: WindowViewCommand[] | undefined
+  if (m.capabilities !== undefined) {
+    if (entry === undefined) {
+      issues.push({ field: 'capabilities', message: '只有带 entry 的可执行窗口才声明能力' })
+    } else if (!Array.isArray(m.capabilities)) {
+      issues.push({
+        field: 'capabilities',
+        message: `可选，数组，取值：${WINDOW_VIEW_COMMANDS.join(' / ')}`,
+      })
+    } else {
+      const picked: WindowViewCommand[] = []
+      for (let i = 0; i < m.capabilities.length; i += 1) {
+        const item = m.capabilities[i]
+        if (
+          typeof item !== 'string' ||
+          !(WINDOW_VIEW_COMMANDS as readonly string[]).includes(item)
+        ) {
+          issues.push({
+            field: `capabilities[${i}]`,
+            message: `未知动作（可用：${WINDOW_VIEW_COMMANDS.join(' / ')}）`,
+          })
+        } else if (!picked.includes(item as WindowViewCommand)) {
+          picked.push(item as WindowViewCommand)
+        }
+      }
+      if (picked.length > 0) capabilities = picked
+    }
+  }
+
   let order: number | undefined
   if (m.order !== undefined) {
     if (
@@ -115,11 +171,17 @@ export function validateWindowPackage(raw: unknown): WindowPackageValidation {
   }
 
   let layout: WindowPackageLayout | undefined
-  if (
+  if (m.layout === undefined && entry !== undefined) {
+    // 可执行窗口只借 layout 当"默认排版"，缺省 compact
+    layout = 'compact'
+  } else if (
     typeof m.layout !== 'string' ||
     !WINDOW_PACKAGE_LAYOUTS.includes(m.layout as WindowPackageLayout)
   ) {
-    issues.push({ field: 'layout', message: `必填，${WINDOW_PACKAGE_LAYOUTS.join(' / ')}` })
+    issues.push({
+      field: 'layout',
+      message: `必填（可执行窗口可省），${WINDOW_PACKAGE_LAYOUTS.join(' / ')}`,
+    })
   } else {
     layout = m.layout as WindowPackageLayout
   }
@@ -172,8 +234,15 @@ export function validateWindowPackage(raw: unknown): WindowPackageValidation {
       layout: layout as WindowPackageLayout,
       ...(parts !== undefined ? { parts } : {}),
       ...(description !== undefined ? { description } : {}),
+      ...(entry !== undefined ? { entry } : {}),
+      ...(capabilities !== undefined ? { capabilities } : {}),
     },
   }
+}
+
+/** 这个包是不是可执行窗口（带 entry）—— 渲染层据此选 worker 宿主还是声明式宿主 */
+export function windowPackageIsExecutable(manifest: WindowPackageManifest): boolean {
+  return typeof manifest.entry === 'string' && manifest.entry.length > 0
 }
 
 /** 这个部件是否要画（省略即默认画） */

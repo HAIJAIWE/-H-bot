@@ -992,6 +992,8 @@ const api = {
     listInstalled: () => ipcRenderer.invoke('plugin:listInstalled'),
     /** 外部窗口包（第 73 批）：扫 <userData>/plugins/windows/ 的清单，只返回数据不执行代码 */
     listWindows: () => ipcRenderer.invoke('plugin:listWindows'),
+    /** 可执行窗口包的入口源码（第 74 批）：主进程只读文件，执行在渲染层 Blob worker */
+    readWindowEntry: (id: string) => ipcRenderer.invoke('plugin:readWindowEntry', { id }),
     /** 宿主插件（应用级能力）清单：id/name/version/enabled/source/permissions/settings/tools */
     listHost: () => ipcRenderer.invoke('plugin:listHost'),
     setHostEnabled: (id: string, enabled: boolean) =>

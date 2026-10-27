@@ -349,7 +349,11 @@
     "typeFilterHint": "当前项目：{type} · 已隐藏其他平台的 {count} 个专属节点（通用节点照常显示）"
   },
   "externalWindow": {
-    "messageCount": "共 {count} 条消息"
+    "messageCount": "共 {count} 条消息",
+    "loading": "正在加载外部窗口…",
+    "failed": "窗口包加载失败：{reason}",
+    "entryReadFailed": "读不到窗口包入口文件",
+    "workerError": "窗口包代码运行出错"
   },
   "ai": {
     "send": "发送",

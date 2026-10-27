@@ -348,6 +348,7 @@ export const CAPABILITIES_BY_DOMAIN: Record<string, string[]> = {
     'plugin.marketList',
     'plugin.marketRemoveSource',
     'plugin.marketUninstall',
+    'plugin.readWindowEntry',
     'plugin.saveSettings',
     'plugin.scan',
     'plugin.setEnabled',

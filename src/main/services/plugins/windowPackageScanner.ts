@@ -7,9 +7,11 @@
 //
 // 本模块只读盘 + 校验 + 汇总，不 import electron：路径由调用方（IPC handler）传入，
 // 这样 node 测试可以直接给临时目录。
-import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { join, sep } from 'node:path'
 import {
+  WINDOW_PACKAGE_ENTRY_MAX_BYTES,
+  WINDOW_PACKAGE_ENTRY_RE,
   validateWindowPackage,
   type WindowPackageInfo,
   type WindowPackageScanIssue,
@@ -78,4 +80,49 @@ export async function scanWindowPackages(root: string): Promise<WindowPackageSca
 
   packages.sort((a, b) => (a.order ?? 5000) - (b.order ?? 5000) || a.id.localeCompare(b.id))
   return { packages, issues }
+}
+
+/** 可执行窗口的入口源码（`plugin:readWindowEntry` 的返回） */
+export interface WindowPackageSource {
+  source: string
+  byteLength: number
+}
+
+/**
+ * 读一个可执行窗口包的入口源码（第 74 批，P4b-1）。
+ *
+ * 安全要点（这里不做，渲染层就无从检查）：
+ * - entry 必须是清单里校验过的单层文件名，`..` 一律拒绝；
+ * - `realpath` 之后仍必须落在包目录内 —— 防用户目录里的符号链接把宿主引到任意文件；
+ * - 必须是普通文件，且不超过 `WINDOW_PACKAGE_ENTRY_MAX_BYTES`；
+ * - 失败抛 Error（IPC 层会包成 `{ ok:false, error }`），由窗口宿主显示成"加载失败"。
+ */
+export async function readWindowPackageSource(
+  root: string,
+  packageId: string,
+): Promise<WindowPackageSource> {
+  const scan = await scanWindowPackages(root)
+  const pkg = scan.packages.find(p => p.id === packageId)
+  if (!pkg) throw new Error(`找不到窗口包：${packageId}`)
+  const entry = pkg.entry
+  if (!entry || !WINDOW_PACKAGE_ENTRY_RE.test(entry) || entry.includes('..')) {
+    throw new Error(`窗口包 ${packageId} 没有合法的 entry`)
+  }
+
+  const dirReal = await realpath(pkg.dir)
+  const fileReal = await realpath(join(pkg.dir, entry))
+  if (!fileReal.startsWith(dirReal + sep)) {
+    throw new Error(`窗口包 ${packageId} 的 entry 指向包目录之外`)
+  }
+
+  const info = await stat(fileReal)
+  if (!info.isFile()) throw new Error(`窗口包 ${packageId} 的 entry 不是文件`)
+  if (info.size > WINDOW_PACKAGE_ENTRY_MAX_BYTES) {
+    throw new Error(
+      `窗口包 ${packageId} 的 entry 超过 ${Math.round(WINDOW_PACKAGE_ENTRY_MAX_BYTES / 1024)} KB`,
+    )
+  }
+
+  const source = await readFile(fileReal, 'utf-8')
+  return { source, byteLength: Buffer.byteLength(source, 'utf-8') }
 }

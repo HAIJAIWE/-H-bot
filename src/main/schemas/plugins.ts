@@ -4,6 +4,12 @@ import {
   PLUGIN_DIR_NAME_RE,
   PLUGIN_NAME_MAX_LENGTH,
 } from '../services/plugins/pluginNamingContract'
+import { WINDOW_PACKAGE_ID_RE } from '@shared/plugins/windowPackage'
+
+/** plugin:readWindowEntry —— 读可执行窗口包的入口源码（第 74 批，P4b-1） */
+export const pluginReadWindowEntrySchema = z.object({
+  id: z.string().regex(WINDOW_PACKAGE_ID_RE),
+})
 
 export const pluginScanSchema = z.object({
   projectPath: z.string().min(1),

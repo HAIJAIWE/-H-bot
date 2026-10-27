@@ -12,8 +12,10 @@
 //
 // 失败策略：加载失败（IPC 挂了 / 清单坏）**不抛**、不阻塞界面 —— 窗口少一个比启动不了强。
 import type { WindowPackageInfo, WindowPackageScanResult } from '@shared/plugins/windowPackage'
+import { windowPackageIsExecutable } from '@shared/plugins/windowPackage'
 import { definePlugin, registerPlugin } from '../lib/plugins/api'
 import { DeclarativeAgentSurface } from '../components/ai/declarativeAgentSurface'
+import { ExecutableAgentSurface } from '../components/ai/executableAgentSurface'
 
 /** 外部窗口 id 的前缀（写进 uiStore 的持久化 id 也是这个形状） */
 export const EXTERNAL_WINDOW_PREFIX = 'external.'
@@ -46,7 +48,17 @@ export function registerExternalWindowPackage(spec: WindowPackageInfo): void {
           // 清单里的 order 决定它在下拉里的位置：想当默认就写比 1000 更小的数
           ...(spec.order !== undefined ? { order: spec.order } : {}),
           label: () => spec.name,
-          render: context => <DeclarativeAgentSurface context={context} spec={spec} />,
+          render: context =>
+            windowPackageIsExecutable(spec) ? (
+              // 带 entry 的包：源码在主进程读出来，这里用 Blob worker 跑（第 74 批）
+              <ExecutableAgentSurface
+                context={context}
+                spec={spec}
+                loadEntry={id => window.qqbat.plugin.readWindowEntry(id)}
+              />
+            ) : (
+              <DeclarativeAgentSurface context={context} spec={spec} />
+            ),
         })
       },
     }),

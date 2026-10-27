@@ -4,7 +4,11 @@ import { access, mkdir, readFile, copyFile, readdir } from 'fs/promises'
 import { join, basename } from 'path'
 import { constants } from 'fs'
 import { scanPlugins, loadPluginPackage } from '../services/plugins/pluginScanner'
-import { scanWindowPackages } from '../services/plugins/windowPackageScanner'
+import {
+  readWindowPackageSource,
+  scanWindowPackages,
+} from '../services/plugins/windowPackageScanner'
+import { pluginReadWindowEntrySchema } from '../schemas/plugins'
 import { detectPluginKind } from '@shared/plugins/kind'
 import {
   aiPluginIdOf,
@@ -288,6 +292,21 @@ export function registerPluginIpc(): void {
   ipcMain.handle('plugin:listWindows', async () => {
     return tryIpcAsync(() =>
       scanWindowPackages(join(app.getPath('userData'), 'plugins', 'windows')),
+    )
+  })
+
+  /**
+   * plugin:readWindowEntry — 读**可执行窗口包**的入口源码（第 74 批，P4b-1）。
+   *
+   * 主进程只负责"把包里的一个文件按规则读成字符串"：路径穿越、符号链接逃逸、
+   * 体积上限都在 `readWindowPackageSource` 里挡住；执行发生在渲染层的 Blob worker 里，
+   * 主进程不 eval、不 require。
+   */
+  ipcMain.handle('plugin:readWindowEntry', async (_event, payload: unknown) => {
+    const parsed = pluginReadWindowEntrySchema.safeParse(payload)
+    if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
+    return tryIpcAsync(() =>
+      readWindowPackageSource(join(app.getPath('userData'), 'plugins', 'windows'), parsed.data.id),
     )
   })
 

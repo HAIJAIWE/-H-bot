@@ -6,7 +6,11 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { scanWindowPackages } from '../../../../src/main/services/plugins/windowPackageScanner'
+import {
+  readWindowPackageSource,
+  scanWindowPackages,
+} from '../../../../src/main/services/plugins/windowPackageScanner'
+import { WINDOW_PACKAGE_ENTRY_MAX_BYTES } from '../../../../src/shared/plugins/windowPackage'
 
 let root = ''
 
@@ -77,5 +81,32 @@ describe('scanWindowPackages（第 73 批）', () => {
     const result = await scanWindowPackages(root)
     expect(result.packages).toHaveLength(1)
     expect(result.issues[0]?.message).toContain('重复')
+  })
+})
+
+describe('readWindowPackageSource（第 74 批）', () => {
+  it('读到入口源码与字节数', async () => {
+    await writePackage('exec', manifest('exec.pkg', { entry: 'entry.js' }))
+    await writeFile(join(root, 'exec', 'entry.js'), 'self.postMessage({ type: "view" })', 'utf-8')
+
+    const result = await readWindowPackageSource(root, 'exec.pkg')
+    expect(result.source).toContain('postMessage')
+    expect(result.byteLength).toBe(Buffer.byteLength(result.source, 'utf-8'))
+  })
+
+  it('没有 entry 的声明式包 → 抛错（不让加载器去执行一个不存在的入口）', async () => {
+    await writePackage('plain', manifest('plain.pkg'))
+    await expect(readWindowPackageSource(root, 'plain.pkg')).rejects.toThrow('没有合法的 entry')
+  })
+
+  it('entry 文件不存在 → 抛错', async () => {
+    await writePackage('missing', manifest('missing.pkg', { entry: 'entry.js' }))
+    await expect(readWindowPackageSource(root, 'missing.pkg')).rejects.toThrow()
+  })
+
+  it('entry 超过体积上限 → 抛错', async () => {
+    await writePackage('big', manifest('big.pkg', { entry: 'entry.js' }))
+    await writeFile(join(root, 'big', 'entry.js'), 'x'.repeat(WINDOW_PACKAGE_ENTRY_MAX_BYTES + 1), 'utf-8')
+    await expect(readWindowPackageSource(root, 'big.pkg')).rejects.toThrow('KB')
   })
 })
