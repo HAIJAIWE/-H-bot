@@ -84,3 +84,37 @@ describe('★ search_sessions 指引段：条件注入', () => {
     expect(text).not.toContain('search_sessions 能搜');
   });
 });
+
+
+/**
+ * 第 60 批（M1）：审批策略段是**条件 + 分岔**注入。
+ *
+ * 模型必须知道这次运行到底是"会弹审批"还是"完全权限"—— 否则它会在全程权限下
+ * 干等一个永远不会出现的弹窗，或者在 ask 模式下把"被拒绝"理解成"用户不喜欢"。
+ */
+describe('★ approval-policy 段：按审批口径分岔', () => {
+  it('不传 → 按 ask 注入，四种结局都写明', () => {
+    const text = buildSystemPrompt('D:/ws', []);
+    expect(text).toContain('审批策略：ask');
+    expect(text).toContain('用户拒绝');
+    expect(text).toContain('超时');
+    expect(text).toContain('没有可用的审批通道');
+    // 规矩第 4 条也必须是 ask 的口径
+    expect(text).toContain('会先弹审批给人点');
+  });
+
+  it('never（完全权限）→ 明确说不再弹窗，且不出现 ask 的结局话术', () => {
+    const text = buildSystemPrompt('D:/ws', [], { approvalPolicy: 'never' });
+    expect(text).toContain('审批策略：never');
+    expect(text).not.toContain('审批策略：ask');
+    expect(text).not.toContain('用户拒绝 →');
+    // 规矩第 4 条换成"不再弹审批"，但仍要提醒角色写域边界
+    expect(text).toContain('不再弹审批');
+    expect(text).toContain('角色写域');
+  });
+
+  it('没有工作区 → 不出现（开荒没有写盘/跑命令，讲审批是噪音）', () => {
+    const text = buildSystemPrompt('', []);
+    expect(text).not.toContain('审批策略：');
+  });
+});

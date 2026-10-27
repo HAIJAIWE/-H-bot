@@ -3993,3 +3993,63 @@ Terminal-b59 队友交付待定：`terminal.ts`(198)、`terminalTools.ts`(311)�
 
 TASK AS OF THIS BLOCK：并行工具数设置 + 会话检索工具已 Lead-side 完整落地并各自有测试（17+11+3+5 绿），tsc node/web 均 0；持久终端 6 工具由队友收尾（6 个失败正在修）；剩余 = 等队友完成 terminal 测试 → 全量 vitest → build → 真机（并行数设置 + search_sessions）→ wiring §59 补完 → 适配表第十三批一行 + README 数字更新 → 提交。
 Open objectives: 第 59 批「并行工具调用数设置 + 会话检索工具 + 持久终端 6 工具」做完并提交（用户 m03057/m03510/m03533「继续」延续 m01170「能搬就搬」）。
+
+## §60 第 60 批：每轮刷新标题 + 审批策略句与四结局话术（2026-10-28）
+
+### 60.1 为什么是这两件
+
+第 59 批收口时，上游 `others.md` §5 与 `approval.md` §10 各剩一件"小但每天都被真机碰到"的事：①会话标题只在**首轮**生成一次，聊了三轮后标题还停在「看看这个项目」，会话列表里全是同款项；②审批的**失败结局**在模型眼里只有一种（"被拒绝"），可实际有四种（拒绝 / 超时 / 取消 / 没有窗口），模型把"没窗口"这种环境故障当成"用户不喜欢"，于是换个参数重试同一个危险动作。两件都不引入新工具、新依赖，但都改"模型看到的世界"。
+
+### 60.2 每轮刷新标题（A，`others.md` §5 B 策略）
+
+**数据形状**（`src/shared/ai/threadTitleTypes.ts`，31 行）：`ThreadTitleRecord` 加两字段 —— 必填 `revision: number`（每次**真落盘** +1，用来判在飞刷新是否过期；旧文件读时兜底 1）与可选 `inputCount?: number`（生成时折叠的用户消息数）。`ThreadTitleSource` 仍是 `'fallback' | 'provider' | 'user'`：fallback 仍不落盘，user 改名仍 pin 住。
+
+**服务**（`src/main/services/ai/threadTitles.ts`，447 行，原有 214 行的重构 + 新函数）：
+
+- `parseRecord` 容忍旧记录（revision 缺失 → 1）；`setThreadTitle` 加 `force` 选项，并给 `WriteFenceOptions` 补「旧版本号」与「是否重命名」——原因是 `maybeRefreshThreadTitle` 的 prompt 生成要 30s，期间用户可能已经手动改名，**在飞刷新不能覆盖 user 标题**，也不能把 revision 回退。
+- 生成侧：`buildTitlePrompt` 仍取首条用户消息 + 首个助手回复各 500 字（`TITLE_PROMPT_CHARS`/`TITLE_RESPONSE_CHARS`）；新增 `buildRefreshPrompt`（`REFRESH_INPUT_MAX_CHARS = 4000`）喂**最近几轮折叠对话**，并**剔除 `toolCallsRejected` 的轮次**（工具被拒的回复没有信息量，喂进去会把标题带偏）。
+- `maybeGenerateThreadTitle`（首轮，`kind: 'generate'`）与新增 `maybeRefreshThreadTitle`（后续轮，`kind: 'refresh'`）共用 `generateTitleText`；provider 没出字、超时（`TITLE_TIMEOUT_MS = 30_000`）、信号中止 → 静默放弃，标题保持旧值。
+- 去抖：`REFRESH_INFLIGHT`（每个 thread 一个 AbortController，在飞时新请求直接放弃）+ `REFRESH_LAST_AT`（**最小间隔 `REFRESH_MIN_INTERVAL_MS = 2000`**，`pruneRefreshClock` 每 200 次清理一次超 60s 的旧键）。这里踩过一个坑：只靠"在飞"去抖不够——第一次刷新完成后立刻又调就绕过了间隔，标题会在两轮内被反复改写；所以间隔必须是**上次落盘之后**算，而不是"仍在生成中"。
+
+**落盘判定**（`src/main/ipc/aiAgentCore.ts`）：`isFirstTurn = !past.some(entry => entry.role === 'user')`（历史里还没有任何用户消息）→ 首轮走 generate；否则走 refresh（`ctrl.signal.aborted` 或开关关闭就跳过）。落盘前用 `past` 读到的旧 `revision` 比对——旧记录被用户改名/别的轮刷新过（`threadTitleAutoRefreshEnabled()` 关闭同理）就放弃本次结果。
+
+**开关**（队友 task-1 交付，9 个导出 + 17 例测试）：`src/main/services/ai/threadTitleSettings.ts`（113 行）照 `parallelToolCallsSettings.ts` 的「双读单写 + 应用进运行时」形状；`paths.ts` 加 `USER_DATA_LAYOUT.aiThreadTitleRefresh = ['config', 'ai-thread-title-refresh.json']`；`index.ts` 启动 `await loadAndApplyThreadTitleRefresh()`；IPC `ai:getThreadTitleRefresh` / `ai:setThreadTitleRefresh`；`AIProviderConfig.tsx` 紧跟「并行工具调用数」块加 `auto / off` 下拉（off 时显示 amber 提示）；i18n 两份各 6 键 `settings.aiProvider.threadTitleRefresh.*`；`aiAgentCore.ts` 用 `threadTitleAutoRefreshEnabled()` 把开关接上（关闭 = 首轮仍生成、后续轮不再刷新）。
+
+**测试**：`tests/main/services/ai/threadTitles.test.ts` 19 例（原有 11 例按 revision 更新 + 新增「刷新」段 8 例：空输入/缺 key 不发、user 标题 pin、模型原样返回不落盘、消息条数与上次相同不重问、话题变了 revision+1 且记 inputCount、折叠超 4000 字跳过、生成期间用户改名以用户为准、2 秒内连发只发前一次）；`aiAgentCore-ipc.test.ts` 40 例，新增第 60 批刷新段 3 例（非首轮 → 用「历史用户消息 + 本轮要求」调 refresh、开关关着不调、首轮只走 generate）。
+
+### 60.3 审批 M1：审批策略句进系统提示
+
+**提示词**（`src/main/services/agent-core/prompt.ts`，226 行）：`PromptContext` 加 `approvalPolicy?: 'ask' | 'never'`；规矩第 4 条按口径分岔（ask：「写文件、跑命令会先弹审批给人点。被拒绝时**不要原地重试**」；never：「**不再弹审批**（完全权限）……但角色写域边界仍然有效」）；新增 `APPROVAL_POLICY_PROMPT: Record<'ask' | 'never', string>` 与段落 `id: 'approval-policy', order: 32`（**有工作区才渲染**——开荒没有写盘/跑命令，讲审批是噪音）。ask 文案把四种结局逐条写明（拒绝→换做法；超时 5 分钟→先做别的、收尾提醒点确认；本轮取消→立刻停；无窗口→环境问题，提醒开主窗口）。never 文案明确「不存在请求升级权限的参数，不要尝试」。
+
+**链路**：`RunTurnInput` 加 `approvalMode?: 'ask' | 'never'`（`runTurn.ts`，315 行），组装系统提示时 `...(input.approvalMode ? { approvalPolicy: input.approvalMode } : {})`；`aiAgentCore.ts` 传 `approvalMode: effectiveFullAccess ? 'never' : 'ask'`（与同一处 `effectiveFullAccess = fullAccess ?? runPreset?.permissionMode === 'full'` 同口径，预设 `full` 与调用方开关都算「不弹审批」）。
+
+**测试**：`prompt.test.ts` 8→11 例（approval-policy 段三例：默认按 ask 注入含四种结局、never 明确不弹窗且不出现 ask 话术、无工作区不出现）；`runTurn.test.ts` 13→14 例（捕获第一轮 `m[0].content` 断言 ask/never 两副口径）。
+
+### 60.4 审批 M2：四结局区分话术（`approval.md` §10.1）
+
+**契约扩展**（`src/main/services/ai/toolApproval.ts`，169 行）：
+
+- `export type ApprovalReason = 'user' | 'timeout' | 'aborted' | 'unavailable'`；`export interface ApprovalResult { decision: ApprovalDecision; reason: ApprovalReason }`。
+- `requestApproval(req, { emit, signal?, timeoutMs? })` 返回值从 `ApprovalDecision` 改成 `Promise<ApprovalResult>`：用户点 `allow/deny/always` → `reason: 'user'`；5 分钟定时器 → `{ deny, timeout }`；`signal` 中止 → `{ deny, aborted }`；同一 `callId` 重复请求（旧请求已被新请求顶掉）→ `{ deny, aborted }`；`resolveApproval` 仍回 boolean（它只答"这次点的是不是允许"），未点以前的结构由 `requestApproval` 自己补 reason。`cancelApprovalsFor` / 测试用的 `_resetApprovals` → `aborted`。
+
+**闸门抽模块**（`src/main/ipc/aiAgentCoreApproval.ts`，201 行，新文件）：原 `aiAgentCore.ts` 里 100 行的审批回调整体搬到 `createApprovalGate(ctx: ApprovalGateContext): (req, signal?) => Promise<boolean>`，`aiAgentCore.ts` 从 1167 → 988 行（`fileGrowth` 闸门从 +112 行超阈值 → 绿）。`ApprovalGateContext` 字段：`projectPath / role / effectiveFullAccess / allowRules / approved / window: BrowserWindow | null / addRule`。顺序是硬约束：**角色写域闸在最前**（越界写连弹窗都不弹——让用户点「允许」绕过角色边界等于边界不存在）→ 全权直通 → 已记住的规则（本轮 `approved` 集合 / 跨轮 `allowRules`）→ 没有窗口（`window == null` 或 `isDestroyed()`）**立刻 throw `approvalDeniedText(req, 'unavailable')`**（不让模型干等 5 分钟）→ `requestApproval`。
+
+**四结局话术**（`approvalDeniedText`，模块内私有）：拒绝 =「用户拒绝了 … 不要原地重试同一个调用：换一种做法，或先问清用户想要什么。」；超时 =「等待确认超时（5 分钟没人点，按拒绝处理）… 先把不依赖它的部分做完，收尾时提醒用户点一下确认。」；取消 =「这次确认被取消了（这一轮已中止）…」；不可用 =「没有可用的审批通道（没有打开的应用窗口）… 这属于环境问题，提醒用户打开主窗口，别换个参数绕过去。」。全部 **throw Error**，由 `toolPipeline` 的 catch 变成 `[工具失败] <原因>`（与角色写域同一口子，零管线改动）。
+
+**MCP 侧**（`src/main/mcp/server.ts`）：`applyToolGuard` 的两个 `requestApproval` 调用点改读 `outcome.decision`；「没有窗口」已自带 fail-safe 话术（保持）。
+
+**测试**：新建 `tests/main/ipc/aiAgentCoreApproval.test.ts` **9 例**（mock `requestApproval`）：无窗口 → 拒且不弹窗；窗口已销毁同；全权直通不写规则；本轮 approved 直通；以前记的规则直通；always 落规则并见附录；拒绝/超时/取消三句不同；builder 写 src/ 直接拒且不弹窗；builder 写流程文件照常弹。`aiAgentCore-ipc.test.ts` 37 例里更新 deny 断言为 `rejects`（原因里含「被用户拒绝了」）并新增"四种结局"三例。
+
+### 60.5 能力账
+
+`docs/ai/ai-capability-layering-2026-10-08.md`：`ai` 行 63→65、小计 X **89→91**、合计 **289→291**；附录 A 加 `ai.getThreadTitleRefresh = X` 与 `ai.setThreadTitleRefresh = X`（两条都是主进程内部开关，不进模型工具表）。`node scripts/gen-capability-catalog.mjs` → 两份 generated 同步（291 条）。`tests/guards/ipcPayloadContract.test.ts` 在 EXEMPT 里补这两条载荷说明（闸门要求每个新 `ai:` 通道表态）。
+
+### 60.6 涉及文件行数
+
+新增：`aiAgentCoreApproval.ts`(201)、`threadTitleSettings.ts`(113)、`threadTitleTypes.ts`(31)。改动：`threadTitles.ts`(214→447)、`toolApproval.ts`(→169)、`prompt.ts`(179→226)、`runTurn.ts`(→315)、`aiAgentCore.ts`(1167→988)、`mcp/server.ts`(→511)、`AIProviderConfig.tsx`(+55)、`ai.ts`(+32)、`schemas/ai.ts`(+8)、`paths.ts`(+2)、`index.ts`(+5)、`preload/index.ts`(+4)、`types/ipc.ts`(+3)、i18n 两份各 +8 行。
+
+测试：`threadTitles.test.ts`(19 例)、`aiAgentCore-ipc.test.ts`(40 例)、`aiAgentCoreApproval.test.ts`(9 例)、`prompt.test.ts`(11 例)、`runTurn.test.ts`(14 例)、`threadTitleSettings.test.ts`(17 例)、`ipcPayloadContract.test.ts`(+2 EXEMPT)。
+
+### 60.7 闸门
+
+typecheck node/web 均 `EXIT=0`；全量 vitest 见提交说明（本次全绿后才提交）；`fileGrowth` 4/4、`styleContract` 4/4、`deadExports`/`i18n`/`orphanKeys`/`capability*` 全绿；新文件过 prettier。

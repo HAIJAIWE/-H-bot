@@ -1089,6 +1089,9 @@ export interface QqbatApi {
       enabled: boolean,
       maxParallel: number,
     ) => Promise<ApiResult<{ enabled: boolean; maxParallel: number }>>
+    /** 每轮自动刷新会话标题设置（第 60 批）：off = 标题不动，auto = 每轮重写一次 */
+    getThreadTitleRefresh: () => Promise<ApiResult<{ mode: 'off' | 'auto' }>>
+    setThreadTitleRefresh: (mode: 'off' | 'auto') => Promise<ApiResult<{ mode: 'off' | 'auto' }>>
   }
   // 控制/状态统一走 botManager:*；这里只剩观测（日志/节点事件）与测试注入
   runtime: {

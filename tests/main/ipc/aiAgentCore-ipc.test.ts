@@ -35,6 +35,10 @@ const h = vi.hoisted(() => ({
   readPresetUndo: vi.fn(),
   /** 第 56 批：线程首轮后的标题生成（旁路请求，这里挡掉） */
   maybeGenerateThreadTitle: vi.fn(),
+  /** 第 60 批：首轮之后的每轮刷新标题（同样挡掉） */
+  maybeRefreshThreadTitle: vi.fn(),
+  /** 第 60 批：设置里的开关（默认关 = 只跑首轮那条路径） */
+  titleAutoRefresh: vi.fn(),
   /** 主进程发出去的事件（只在回调里发的那些，比如 ai:compact，要靠它断言） */
   send: vi.fn(),
   /** 旧 27 工具适配器：这里只验接线（真适配器另有 legacyTools 的测试） */
@@ -63,7 +67,10 @@ vi.mock('@main/ipc/aiAgentCoreOnboarding', () => ({
   runOnboardingTurn: h.runOnboarding,
 }))
 vi.mock('@main/services/ai/trace', () => ({ appendTrace: h.appendTrace }))
-vi.mock('@main/services/ai/toolApproval', () => ({ requestApproval: h.requestApproval }))
+vi.mock('@main/services/ai/toolApproval', () => ({
+  requestApproval: h.requestApproval,
+  APPROVAL_TIMEOUT_MS: 5 * 60 * 1000,
+}))
 vi.mock('@main/services/agent-core/runTurn', () => ({ runAgentTurn: h.runAgentTurn }))
 vi.mock('@main/services/agent-core/legacyTools', () => ({
   adaptLegacyTools: h.adaptLegacyTools,
@@ -88,6 +95,10 @@ vi.mock('@main/services/ai/presetLock', () => ({
 vi.mock('@main/services/ai/presetUndo', () => ({ readPresetUndo: h.readPresetUndo }))
 vi.mock('@main/services/ai/threadTitles', () => ({
   maybeGenerateThreadTitle: h.maybeGenerateThreadTitle,
+  maybeRefreshThreadTitle: h.maybeRefreshThreadTitle,
+}))
+vi.mock('@main/services/ai/threadTitleSettings', () => ({
+  threadTitleAutoRefreshEnabled: h.titleAutoRefresh,
 }))
 vi.mock('@main/services/infra/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -121,7 +132,7 @@ describe('ai:agentCoreRun 接线', () => {
     h.handlers.clear()
     h.resolveConfig.mockReset().mockResolvedValue(CONFIG)
     h.runAgentTurn.mockReset().mockResolvedValue(RESULT)
-    h.requestApproval.mockReset().mockResolvedValue('allow')
+    h.requestApproval.mockReset().mockResolvedValue({ decision: 'allow', reason: 'user' })
     h.appendTrace.mockReset()
     // 预设默认"按名字能查到"；查不到/坏了的分支各自在用例里改
     h.resolvePresetForRun
@@ -152,6 +163,8 @@ describe('ai:agentCoreRun 接线', () => {
     h.writePresetSession.mockReset().mockResolvedValue(undefined)
     h.readPresetUndo.mockReset().mockResolvedValue({ available: false })
     h.maybeGenerateThreadTitle.mockReset().mockResolvedValue(null)
+    h.maybeRefreshThreadTitle.mockReset().mockResolvedValue(null)
+    h.titleAutoRefresh.mockReset().mockReturnValue(false)
     h.send.mockReset()
     h.runOnboarding.mockReset().mockResolvedValue({ ok: true, finalText: '开荒好了' })
     h.validateProposal.mockReset().mockResolvedValue({ issues: [], introduced: [] })
@@ -274,12 +287,35 @@ describe('ai:agentCoreRun 接线', () => {
     const ids = h.requestApproval.mock.calls.map(c => (c[0] as { callId: string }).callId)
     expect(new Set(ids).size).toBe(ids.length)
 
-    h.requestApproval.mockResolvedValue('deny')
-    await expect(approval({ kind: 'command', summary: 'pnpm test' })).resolves.toBe(false)
+    h.requestApproval.mockResolvedValue({ decision: 'deny', reason: 'user' })
+    await expect(approval({ kind: 'command', summary: 'pnpm test' })).rejects.toThrow(/用户拒绝了/)
     expect(h.requestApproval.mock.calls.at(-1)?.[0]).toMatchObject({
       toolName: 'run_command',
       args: { command: 'pnpm test' },
     })
+  })
+
+  it('★ 第 60 批（M2）：拒绝的三种原因各自说清"该换做法 / 别干等 / 等重新发起"', async () => {
+    await invoke({ projectPath: 'D:/p', requirement: '改一下', agentMode: 'code' })
+    const approval = (
+      h.runAgentTurn.mock.calls[0][0] as {
+        approval: (req: unknown) => Promise<boolean>
+      }
+    ).approval
+
+    // 用户看过并拒绝 → 换做法，别原地重试
+    h.requestApproval.mockResolvedValue({ decision: 'deny', reason: 'user' })
+    await expect(approval({ kind: 'write', summary: 'src/a.ts' })).rejects.toThrow(/用户拒绝了/)
+    await expect(approval({ kind: 'write', summary: 'src/a.ts' })).rejects.toThrow(/不要原地重试/)
+
+    // 超时 → 是"没人点"，不是"不同意"：先把不依赖它的部分做完，收尾提醒
+    h.requestApproval.mockResolvedValue({ decision: 'deny', reason: 'timeout' })
+    await expect(approval({ kind: 'write', summary: 'src/a.ts' })).rejects.toThrow(/没人点「允许」/)
+    await expect(approval({ kind: 'write', summary: 'src/a.ts' })).rejects.toThrow(/点一下确认/)
+
+    // 取消 → 这一轮已经不作数：等重新发起，别在同一个方向上重试
+    h.requestApproval.mockResolvedValue({ decision: 'deny', reason: 'aborted' })
+    await expect(approval({ kind: 'write', summary: 'src/a.ts' })).rejects.toThrow(/被取消了/)
   })
 
   it('★ 先计划：planFirst 变成循环的 planOnly（只读工具由 runTurn 那层物理裁掉）', async () => {
@@ -779,6 +815,72 @@ describe('ai:agentCoreRun 接线', () => {
     try {
       await invoke({ projectPath: dir, requirement: '第二轮需求' })
       expect(h.maybeGenerateThreadTitle).not.toHaveBeenCalled()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  /**
+   * 第 60 批：首轮之后的每一轮都要刷新标题，但**开关、中止、首轮**三个条件缺一不可。
+   *
+   * 这里只验"该不该发起、发的是什么"；prompt 折叠、2 秒去抖、revision 栅栏都在
+   * `threadTitles.test.ts` 里测（那是服务自己的事）。
+   */
+  it('★ 第 60 批：非首轮 + 开关开 → 用"历史里的用户消息 + 本轮要求"刷新标题', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-refresh-'))
+    mkdirSync(join(dir, '.qqbat'), { recursive: true })
+    writeFileSync(
+      join(dir, '.qqbat', 'ai-history.jsonl'),
+      [
+        JSON.stringify({ ts: '2026-10-26T07:00:00.000Z', role: 'user', content: '旧需求' }),
+        JSON.stringify({ ts: '2026-10-26T07:00:01.000Z', role: 'assistant', content: '旧回答' }),
+      ].join('\n') + '\n',
+      'utf-8',
+    )
+    h.titleAutoRefresh.mockReturnValue(true)
+    try {
+      await invoke({ projectPath: dir, requirement: '第二轮需求' })
+      expect(h.maybeGenerateThreadTitle).not.toHaveBeenCalled()
+      const arg = h.maybeRefreshThreadTitle.mock.calls[0][0] as {
+        projectPath: string
+        threadId: string
+        messages: string[]
+        config: unknown
+      }
+      expect(arg.projectPath).toBe(dir)
+      expect(arg.threadId).toBe('default')
+      // 助手回答**不进**刷新输入：把某次工具细节折叠进标题会把标题带偏
+      expect(arg.messages).toEqual(['旧需求', '第二轮需求'])
+      expect(arg.config).toEqual(CONFIG)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('★ 第 60 批：开关关着 → 非首轮也不刷新（用户选的是"只起一次标题"）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-refresh-off-'))
+    mkdirSync(join(dir, '.qqbat'), { recursive: true })
+    writeFileSync(
+      join(dir, '.qqbat', 'ai-history.jsonl'),
+      JSON.stringify({ ts: '2026-10-26T07:00:00.000Z', role: 'user', content: '旧需求' }) + '\n',
+      'utf-8',
+    )
+    h.titleAutoRefresh.mockReturnValue(false)
+    try {
+      await invoke({ projectPath: dir, requirement: '第二轮需求' })
+      expect(h.maybeRefreshThreadTitle).not.toHaveBeenCalled()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('★ 第 60 批：首轮只走 generate，不走 refresh（两路不能同时发）', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qqbat-agentcore-refresh-first-'))
+    h.titleAutoRefresh.mockReturnValue(true)
+    try {
+      await invoke({ projectPath: dir, requirement: '给机器人加定时提醒' })
+      expect(h.maybeGenerateThreadTitle).toHaveBeenCalledTimes(1)
+      expect(h.maybeRefreshThreadTitle).not.toHaveBeenCalled()
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

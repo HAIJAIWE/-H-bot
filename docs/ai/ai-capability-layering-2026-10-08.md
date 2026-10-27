@@ -170,7 +170,7 @@ terminal = 终端
 | audit           | 3    | –   | 2   | –   | –   | –   | 1   | 只读可查                       |
 | backup          | 4    | –   | 1   | 3   | –   | –   | –   | restore ★★★                    |
 | dataTransfer    | 4    | –   | 2   | 2   | –   | –   | –   | import ★★                      |
-| ai              | 63   | –   | –   | –   | –   | –   | 63  | **元域：助手自身，不归位**     |
+| ai              | 65   | –   | –   | –   | –   | –   | 65  | **元域：助手自身，不归位**     |
 | data            | 5    | –   | –   | –   | –   | –   | 5   | 渲染层内部管道                 |
 | panel           | 4    | –   | 3   | –   | 1   | –   | –   | 发布=用户触发                  |
 | debug           | 11   | –   | 2   | 8   | –   | –   | 1   | 仅调试会话，低危               |
@@ -190,7 +190,7 @@ terminal = 终端
 | docker          | 3    | –   | –   | 1   | 1   | –   | 1   | 生成部署件                     |
 | ssh             | 3    | –   | 1   | 1   | –   | –   | 1   | **★★★ 远程部署**               |
 
-**小计**：R **0** · Q **85** · M **104** · P **8** · ⛔ **3** · X **89**（合计 **289** ✓）
+**小计**：R **0** · Q **85** · M **104** · P **8** · ⛔ **3** · X **91**（合计 **291** ✓）
 
 > X + ⛔ = **92** 个能力**不进模型工具表**；Q + M = **189 个**是「谁控制」意义上的候选 —— **是否放行仍由附录 B / C 决定**（层不说明「已开放」）。
 
@@ -355,6 +355,7 @@ ai.importPresets = X
 ai.getPresets = X
 ai.getProjectBotConfig = X
 ai.getParallelToolCalls = X
+ai.getThreadTitleRefresh = X
 ai.getToolBudget = X
 ai.isRunning = X
 ai.listAiTurns = X
@@ -383,6 +384,7 @@ ai.setConfig = X
 ai.setPresetDefault = X
 ai.setProjectBotConfig = X
 ai.setParallelToolCalls = X
+ai.setThreadTitleRefresh = X
 ai.setToolBudget = X
 ai.testConfig = X
 ai.tools = X

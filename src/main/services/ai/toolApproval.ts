@@ -24,6 +24,23 @@ import { logger } from '../infra/logger';
 
 export type ApprovalDecision = 'allow' | 'deny' | 'always';
 
+/**
+ * 「没通过」的**原因**（第 60 批，M2，对齐上游审批结局的拆分）。
+ *
+ * 为什么拒绝还要分三种：模型该做的事完全不同 ——
+ *  · `user`：用户看过并拒绝了 → 换做法，**别原地重试**；
+ *  · `timeout`：5 分钟没人管 → 用户只是不在，不是不同意，先做别的；
+ *  · `aborted`：这一轮被停止/被顶掉 → 连结论都还没有，等重新发起。
+ * 只回一个 `deny` 的话，三种情况模型都会理解成"用户不喜欢"，于是反复重试同一个动作。
+ */
+export type ApprovalReason = 'user' | 'timeout' | 'aborted';
+
+/** 一次审批的完整结果：决定 + 原因（原因只在 deny 时有意义，但总是带上） */
+export interface ApprovalResult {
+  decision: ApprovalDecision;
+  reason: ApprovalReason;
+}
+
 export interface ApprovalRequest {
   projectPath: string;
   /** 工具调用 id（渲染层回决定时带回来） */
@@ -35,7 +52,7 @@ export interface ApprovalRequest {
 }
 
 interface Pending extends ApprovalRequest {
-  resolve: (d: ApprovalDecision) => void;
+  resolve: (r: ApprovalResult) => void;
   timer: NodeJS.Timeout;
 }
 
@@ -47,9 +64,9 @@ export const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * 请求用户批准一次工具调用。**会一直等**，直到：
- * · 渲染层回 `allow` / `deny` / `always`；
- * · 超时（按 deny）；
- * · 调用方 `signal` 被 abort（按 deny）。
+ * · 渲染层回 `allow` / `deny` / `always`（原因为 `user`）；
+ * · 超时（按 deny，原因 `timeout`）；
+ * · 调用方 `signal` 被 abort（按 deny，原因 `aborted`）。
  */
 export function requestApproval(
   req: ApprovalRequest,
@@ -59,7 +76,7 @@ export function requestApproval(
     signal?: AbortSignal;
     timeoutMs?: number;
   },
-): Promise<ApprovalDecision> {
+): Promise<ApprovalResult> {
   /**
    * 同一个 callId 又来了：把**旧的那条按拒绝收掉**，再登记新的。
    *
@@ -70,38 +87,42 @@ export function requestApproval(
    */
   const stale = PENDING.get(req.callId);
   if (stale) {
-    logger.warn('[approval] 同一个 callId 重复请求，旧的按拒绝收掉:', req.callId);
-    stale.resolve('deny');
+    logger.warn('[approval] 同一个 callId 重复请求，旧的按取消收掉:', req.callId);
+    stale.resolve({ decision: 'deny', reason: 'aborted' });
   }
 
   const timeoutMs = opts.timeoutMs ?? APPROVAL_TIMEOUT_MS;
-  return new Promise<ApprovalDecision>((resolve) => {
-    const settle = (d: ApprovalDecision, why: string): void => {
+  return new Promise<ApprovalResult>((resolve) => {
+    const settle = (result: ApprovalResult, why: string): void => {
       const p = PENDING.get(req.callId);
       if (!p) return; // 纪律 3：只解一次
       PENDING.delete(req.callId);
       clearTimeout(p.timer);
       opts.signal?.removeEventListener('abort', onAbort);
-      logger.info(`[approval] ${req.toolName} -> ${d}（${why}）`);
+      logger.info(`[approval] ${req.toolName} -> ${result.decision}/${result.reason}（${why}）`);
       opts.emit('ai:approvalResolved', {
         projectPath: req.projectPath,
         callId: req.callId,
-        decision: d,
+        decision: result.decision,
       });
-      resolve(d);
+      resolve(result);
     };
 
     // 纪律 2：取消要连带解掉等待
-    const onAbort = (): void => settle('deny', '已取消');
+    const onAbort = (): void => settle({ decision: 'deny', reason: 'aborted' }, '已取消');
 
     const timer = setTimeout(
-      () => settle('deny', `超时 ${Math.round(timeoutMs / 1000)}s`),
+      () => settle({ decision: 'deny', reason: 'timeout' }, `超时 ${Math.round(timeoutMs / 1000)}s`),
       timeoutMs,
     );
-    PENDING.set(req.callId, { ...req, resolve: (d) => settle(d, '用户决定'), timer });
+    PENDING.set(req.callId, {
+      ...req,
+      resolve: (r) => settle(r, r.reason === 'user' ? '用户决定' : '等待结束'),
+      timer,
+    });
 
     if (opts.signal?.aborted) {
-      settle('deny', '已取消');
+      settle({ decision: 'deny', reason: 'aborted' }, '已取消');
       return;
     }
     opts.signal?.addEventListener('abort', onAbort, { once: true });
@@ -121,7 +142,8 @@ export function requestApproval(
 export function resolveApproval(callId: string, decision: ApprovalDecision): boolean {
   const p = PENDING.get(callId);
   if (!p) return false;
-  p.resolve(decision);
+  // 界面回来说的 = 用户自己的决定（哪怕他点的是 deny，原因也是 `user`）
+  p.resolve({ decision, reason: 'user' });
   return true;
 }
 
@@ -130,7 +152,7 @@ export function cancelApprovalsFor(projectPath: string): number {
   let n = 0;
   for (const [callId, p] of [...PENDING]) {
     if (p.projectPath !== projectPath) continue;
-    p.resolve('deny');
+    p.resolve({ decision: 'deny', reason: 'aborted' });
     n += 1;
     logger.info('[approval] 取消等待中的批准:', callId);
   }
@@ -141,7 +163,7 @@ export function cancelApprovalsFor(projectPath: string): number {
 export function _resetApprovals(): void {
   for (const p of PENDING.values()) {
     clearTimeout(p.timer);
-    p.resolve('deny');
+    p.resolve({ decision: 'deny', reason: 'aborted' });
   }
   PENDING.clear();
 }

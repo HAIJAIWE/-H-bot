@@ -19,6 +19,11 @@ import {
   currentParallelToolCallsSetting,
   writeParallelToolCallsSetting,
 } from '../services/ai/parallelToolCallsSettings'
+import {
+  applyThreadTitleRefreshSetting,
+  currentThreadTitleRefreshSetting,
+  writeThreadTitleRefreshSetting,
+} from '../services/ai/threadTitleSettings'
 import { testLlmConfig } from '../services/ai/testConfig'
 import { init_logger, logger } from '../services/infra/logger'
 import {
@@ -37,6 +42,7 @@ import {
   aiThreadSchema,
   aiGetParallelToolCallsSchema,
   aiSetParallelToolCallsSchema,
+  aiSetThreadTitleRefreshSchema,
   approvalDecisionSchema,
   rewindToSchema,
   rollbackTurnSchema,
@@ -274,6 +280,32 @@ function registerAiIpc(projectService) {
         `[ai] 并行工具调用数已更新：${parsed.data.enabled ? `${parsed.data.maxParallel} 个` : '已关闭（串行执行）'}`,
       )
       return currentParallelToolCallsSetting()
+    })
+  })
+  /**
+   * ai:getThreadTitleRefresh / ai:setThreadTitleRefresh —— 「每轮自动刷新会话标题」（第 60 批）。
+   *
+   * 为什么要有这个开关：自动改标题每轮会多一次**很小的模型调用**（`services/ai/threadTitles.ts`
+   * 在轮次末尾调），再小的调用也是用户的钱与延迟，必须能关；默认 auto = 加开关之前的行为。
+   */
+  electron.ipcMain.handle('ai:getThreadTitleRefresh', async () => {
+    return tryIpc(() => currentThreadTitleRefreshSetting())
+  })
+  electron.ipcMain.handle('ai:setThreadTitleRefresh', async (_event, args) => {
+    const parsed = aiSetThreadTitleRefreshSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败：${parsed.error.message}（mode 只能是 off / auto）`,
+      }
+    return tryIpcAsync(async () => {
+      await writeThreadTitleRefreshSetting(parsed.data)
+      // 写盘成功才应用：写失败却让运行时改了，重启就"设置回退"，比不改更难查
+      applyThreadTitleRefreshSetting(parsed.data)
+      logger.info(
+        `[ai] 会话标题自动刷新已${parsed.data.mode === 'auto' ? '开启（每轮重写一次标题）' : '关闭（标题保持不动）'}`,
+      )
+      return currentThreadTitleRefreshSetting()
     })
   })
   /**

@@ -90,15 +90,15 @@ version:uuid, createdAt, updatedAt}`，`updatedAt >= createdAt` 由 zod `refine`
 | 第 60 批 | 每轮刷新标题（M）+ 审批 M1/M2（策略句 + 四结局话术）                           | `others.md` §5、`approval.md` §10      |
 | 不做     | 智能体团队 / Ralph / 语音 / CoT 翻译 / 网页搜索 / DevTools / 两类 CLI 子智能体 | 依赖外部服务、本机模型或我方不存在的层 |
 
-## 四、落地状态（2026-10-27 第 58 批收口）
+## 四、落地状态（2026-10-28 第 60 批收口）
 
 | 项                 | 状态                             | 落点                                                                                                                                                                                                                                                                    |
 | ------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 消息反馈           | **已落地**                       | `src/shared/ai/messageFeedback.ts`、`src/main/services/ai/messageFeedback.ts`、`ai:getThreadFeedback` / `ai:putMessageFeedback` / `ai:deleteMessageFeedback`、`MessageActions` + `MessageFeedbackDialog` + `AgentTranscript`、落盘 `.qqbat/ai-feedback/<threadId>.json` |
 | @ 文件引用         | **已落地**                       | `src/shared/ai/fileReference.ts`、`src/main/services/ai/fileReference.ts`、`file:searchReferences`、`useAtReference` + `AtReferenceMenu`、`agent-core/prompt.ts` 的 `file-reference` 节（order 35，条件注入）                                                           |
 | 工具审批白名单记忆 | **核对结论：早已存在**，本批未动 | `toolApproval.ts` 三值决策 + `allowRules.ts` 可撤销规则表 + `ai:getAllowRules` / `ai:removeAllowRule` / `ai:clearAllowRules` + `ChatPanel.tsx` 撤销口                                                                                                                   |
-| 第 59 批候选       | 未开工                           | 会话检索工具 / 并行工具调用数设置 / 持久终端 6 工具（见 `others.md` §7）                                                                                                                                                                                                |
-| 第 60 批候选       | 未开工                           | 每轮刷新标题（`others.md` §5）+ 审批策略句与四结局话术（`approval.md` §10）                                                                                                                                                                                             |
+| 第 59 批           | **已落地**（`c23b7c2`）          | 会话检索工具 / 并行工具调用数设置 / 持久终端 6 工具（见 `others.md` §7；细节 `agent-core-wiring.md` §59）                                                                                                                                                               |
+| 第 60 批           | **已落地**（本次提交）           | 每轮刷新标题（`others.md` §5）+ 审批策略句与四结局话术（`approval.md` §10；细节 `agent-core-wiring.md` §60）                                                                                                                                                            |
 
 实现细节、闸门数字与真机实证写在 `agent-core-wiring.md` §58（58.1–58.9）。本批新增 9 个测试文件，
 全量 304 文件 / 3795 例，`electron-vite build` EXIT 0；真机走了 11 步，其中揪出两个只有真机才能

@@ -925,6 +925,14 @@
         "value": "Concurrent",
         "offHint": "Off: tool calls run one at a time (equivalent to 1).",
         "saveFailed": "Failed to save"
+      },
+      "threadTitleRefresh": {
+        "title": "Refresh title every round",
+        "hint": "Rewrite the thread title from the conversation after each round so it is recognizable in the thread list. The cost is one extra, very small model call per round.",
+        "auto": "Auto refresh",
+        "off": "Keep title",
+        "offHint": "Off: the title is generated once and then left alone (rename it manually in the thread list if needed).",
+        "saveFailed": "Failed to save"
       }
     },
     "botState": {

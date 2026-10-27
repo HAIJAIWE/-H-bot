@@ -26,24 +26,28 @@ import {
   aiSetPresetDefaultSchema,
 } from '../schemas/ai'
 import { resolveAuthorAiConfig } from '../services/ai/appAiConfig'
-import { maybeGenerateThreadTitle } from '../services/ai/threadTitles'
+import {
+  maybeGenerateThreadTitle,
+  maybeRefreshThreadTitle,
+} from '../services/ai/threadTitles'
+import type { ThreadTitleRecord } from '@shared/ai/threadTitleTypes'
 import { describeMissingFileReferences } from '../services/ai/fileReference'
 import { effectiveMaxParallelToolCalls } from '../services/ai/parallelToolCallsSettings'
+import { threadTitleAutoRefreshEnabled } from '../services/ai/threadTitleSettings'
 import { appendTrace } from '../services/ai/trace'
-import { requestApproval } from '../services/ai/toolApproval'
+import { createApprovalGate } from './aiAgentCoreApproval'
 import {
   appendHistoryEntries,
   describeDropped,
   historyToMessages,
   loadHistory,
 } from '../services/ai/historyStore'
-import { addAllowRule, readAllowRules, ruleMatches, toolRuleMatch } from '../services/ai/allowRules'
+import { addAllowRule, readAllowRules } from '../services/ai/allowRules'
 import { DEFAULT_THREAD_ID, threadFile } from '../services/ai/threads'
 import { saveSpillText } from '../services/ai/spillStore'
 import { loadInbox, saveInbox, type PendingInbox } from '../services/ai/inboxStore'
 import { beginTurn, endTurn, recordFileBefore } from '../services/flow/turnJournal'
 import type { RunTurnResult } from '../services/agent-core/runTurn'
-import { isAbsolute, relative } from 'path'
 import { runAgentTurn } from '../services/agent-core/runTurn'
 import { runOnboardingTurn } from './aiAgentCoreOnboarding'
 import { assistantHistoryEntry } from '../services/agent-core/uiTrace'
@@ -78,57 +82,13 @@ import { makeTurnSummarizer } from '../services/agent-core/contextGate'
 import { AUTHOR_PROFILE } from '@shared/agent/policy'
 import {
   ROLE_OF_MODE,
-  mayRoleWritePath,
-  rolePathBoundaryMessage,
   type AgentRole,
 } from '@shared/ai/roleDomains'
 import { AGENT_ROLE_HINT } from '@shared/ai/roleHints'
 import { activeFileHintFor, withImageNote } from '../services/ai/promptHints'
 import { summarizeDroppedHistory } from '../services/ai/contextDigest'
 import { buildTimeContext } from '../services/ai/timeContext'
-import type { ApprovalRequest } from '../services/agent-core/contracts'
 import { logger } from '../services/infra/logger'
-
-/** 审批弹窗里的工具名：沿用助手那套名字，界面上的文案就不会出现第二套说法 */
-const TOOL_NAME: Record<ApprovalRequest['kind'], string> = {
-  write: 'write_file',
-  command: 'run_command',
-  irreversible: 'run_command',
-  tool: 'tool',
-}
-
-/**
- * 弹窗标题里的工具名。`tool` 类用**真名**（插件工具叫什么就显示什么）——
- * 拿一个占位的 "tool" 去问"要不要允许 tool"，等于什么都没说。
- */
-function toolNameOf(req: ApprovalRequest): string {
-  return req.kind === 'tool' ? (req.tool ?? req.summary) : TOOL_NAME[req.kind]
-}
-
-/** 审批弹窗里要展示的结构化参数（"改哪个文件 / 跑什么命令 / 哪个工具的什么参数"） */
-function approvalArgs(req: ApprovalRequest): Record<string, unknown> {
-  if (req.kind === 'write') return { path: req.summary, ...req.detail }
-  if (req.kind === 'tool') return { tool: req.tool ?? req.summary, ...req.detail }
-  return { command: req.summary, ...req.detail }
-}
-
-/**
- * 工具类审批的正文。summary 只有工具名 —— 光问"要不要允许 market_coin"，
- * 用户没法判断这次要花什么、动哪里；参数太长就截断（弹窗不该是一屏滚动 JSON）。
- */
-function describeToolRequest(req: ApprovalRequest): string {
-  const name = req.tool ?? req.summary
-  const args = req.detail?.args
-  if (args === undefined) return '工具 ' + name + ' 要在项目里做改动'
-  let text: string
-  try {
-    text = JSON.stringify(args) ?? String(args)
-  } catch {
-    text = String(args)
-  }
-  if (text.length > 160) text = text.slice(0, 157) + '…'
-  return '工具 ' + name + ' 想这样调用：' + text
-}
 
 /**
  * 正在跑的循环（按项目）：`ai:cancelChat` 与 `ai:isRunning` 要能看见它。
@@ -359,8 +319,6 @@ export function registerAiAgentCoreIpc(): void {
         .filter(Boolean)
         .join('\n\n')
       // 每一轮的要求在**轮循环里**记（一次调用可能连续跑多轮，见下方）
-
-      let seq = 0
       /**
        * 本轮内已选"别再问"的动作类别（write / command）。
        *
@@ -374,30 +332,6 @@ export function registerAiAgentCoreIpc(): void {
        * 与内存里的 `approved` 分工：内存管"这一轮"，表管"以后"。
        */
       const allowRules = await readAllowRules(projectPath)
-      /**
-       * 规则里的写路径存**项目内相对路径**（POSIX 分隔符）：
-       * 绝对路径写进规则表会让项目一搬家就全部失效，而且界面上也难读。
-       */
-      /**
-       * 规则表只认 write / command / tool 三类：'irreversible' 归到 command
-       * （它是"改动很大的一种命令"，与命令共用审批弹窗与撤销语义）。
-       */
-      const ruleKindOf = (kind: ApprovalRequest['kind']): 'write' | 'command' | 'tool' => {
-        if (kind === 'write') return 'write'
-        return kind === 'tool' ? 'tool' : 'command'
-      }
-      const matchOf = (req: ApprovalRequest): string => {
-        // 工具类：同名 + 同参数才算同一个动作（见 toolRuleMatch 的说明）
-        if (req.kind === 'tool') {
-          const args = (req.detail?.args ?? {}) as Record<string, unknown>
-          return toolRuleMatch(req.tool ?? req.summary, args)
-        }
-        if (req.kind !== 'write') return req.summary.trim()
-        const rel = relative(projectPath, req.summary)
-        return rel && !rel.startsWith('..') && !isAbsolute(rel)
-          ? rel.split('\\').join('/')
-          : req.summary.trim()
-      }
       /**
        * 轮与轮之间的正文要隔开：模型第一轮说"我先看看文件"、第二轮才是答案，
        * 两条直接拼在一起会变成一句话。工具开始 = 这一轮正文结束的信号。
@@ -595,6 +529,25 @@ export function registerAiAgentCoreIpc(): void {
        * 自己收尾时，界面手上没有 id 就挂不出反馈按钮 —— 同一条回答于是"有时能反馈、
        * 有时不能"。带上它，两条路都能拿到同一个 id。
        */
+      /**
+       * 这次运行里**逐轮攒下来的用户要求**（第 60 批）。
+       *
+       * `past` 是循环开始前读的历史，排队进来的下一轮不在里面；而标题刷新要"这个线程
+       * 至今说过的全部需求"，所以这里单独记一份（顺序 = 时间序，含本轮）。
+       */
+      const runRequirements: string[] = []
+      /**
+       * 标题落盘后通知界面：首轮生成与每轮刷新共用同一种事件形状
+       * （渲染层只认 `ai:threadTitle`，两处各拼一遍迟早会漂）。
+       */
+      const emitThreadTitle = (record: ThreadTitleRecord): void => {
+        emit('ai:threadTitle', {
+          projectPath,
+          threadId,
+          title: record.title,
+          source: record.source,
+        })
+      }
       let lastMessageId: string | null = null
       /** 当前轮次 id（trace 带它，轮次投影才归得了组；beginTurn 之前是 undefined） */
       let traceTurnId: string | undefined
@@ -625,6 +578,8 @@ export function registerAiAgentCoreIpc(): void {
           ],
           memoryFile,
         )
+        // 第 60 批：标题刷新要"这个线程说过的全部需求"，本轮的也要在内
+        runRequirements.push(currentRequirement)
         lastMessageAt = turnTs
         streamed = false
         boundary = false
@@ -653,64 +608,21 @@ export function registerAiAgentCoreIpc(): void {
           requirement: currentRequirement,
           config,
           /**
-           * 每次写盘 / 跑命令都要问。callId 每轮唯一（`requestApproval` 按它去重，
-           * 重复的 callId 会把**上一次**的等待按拒绝收掉）。
+           * 审批闸门（角色写域闸 → 全权直通 → 已记住的规则 → 问人）：
+           * 实现在 `aiAgentCoreApproval.ts`，这里只喂上下文（第 60 批抽出）。
            */
-          approval: async (req, signal) => {
-            /**
-             * **角色的写域闸**（2026-10-24）：越界的写**先拒**，连弹窗都不弹 ——
-             * 让用户点"允许"来绕过角色边界，等于边界不存在。
-             *
-             * 拒绝用 throw 而不是 return false：调度器会把异常变成
-             * `[工具失败] <原因>` 回灌给模型，原因里带"这是谁的活、怎么才能做"，
-             * 模型才有可执行的下一步；return false 只会得到一句"未通过闸门"。
-             */
-            if (req.kind === 'write') {
-              const rel = relative(projectPath, req.summary)
-              const inside = rel && !rel.startsWith('..') && !isAbsolute(rel)
-              const relPath = (inside ? rel : req.summary).split('\\').join('/')
-              if (!mayRoleWritePath(role, relPath)) {
-                const message = rolePathBoundaryMessage(role, relPath)
-                logger.warn('[ipc/aiAgentCore] 角色写域拒绝：' + message)
-                throw new Error(message)
-              }
-            }
-            /**
-             * **完全权限**：跳过「问人」，但**不**跳过角色的写域闸（上面那段在它之前），
-             * 也不写 allowRules —— 它只对这一次运行有效（界面文案就是「本次运行」）。
-             * 口径可能是调用方开关，也可能是预设的 permissionMode，所以判 effectiveFullAccess。
-             */
-            if (effectiveFullAccess) return true
-            const match = matchOf(req)
-            const ruleKind = ruleKindOf(req.kind)
-            // ① 本轮内说过"别再问" ② 以前点过"以后别再问" → 都直接放行（不再弹窗）
-            if (approved.has(ruleKind) || ruleMatches(allowRules, { kind: ruleKind, match })) {
-              logger.info(`[ipc/aiAgentCore] 按已记住的规则放行：${req.kind} ${match}`)
-              return true
-            }
-            seq += 1
-            const decision = await requestApproval(
-              {
-                projectPath,
-                callId: `agentcore-${seq}-${Date.now()}`,
-                toolName: toolNameOf(req),
-                args: approvalArgs(req),
-                // hint 是弹窗正文：工具类说清"哪个工具要动什么"（summary 就是工具名，光它不够）
-                hint: req.kind === 'tool' ? describeToolRequest(req) : req.summary,
-              },
-              {
-                emit: (channel, payload) => win?.webContents.send(channel, payload),
-                ...(signal ? { signal } : {}),
-              },
-            )
-            if (decision === 'always') {
-              approved.add(ruleKind)
-              // 落盘：以后同类动作不再问（界面里能看见、能删，见 ChatPanel 的「已记住」）
-              await addAllowRule(projectPath, { kind: ruleKind, match })
-              allowRules.push({ kind: ruleKind, match, addedAt: new Date().toISOString() })
-            }
-            return decision !== 'deny'
-          },
+          approval: createApprovalGate({
+            projectPath,
+            role,
+            effectiveFullAccess,
+            allowRules,
+            approved,
+            window: win,
+            addRule: async rule => {
+              await addAllowRule(projectPath, rule)
+            },
+          }),
+
           // trace 补上轮次 id —— 投影按它归组；循环自己不知道"这是第几轮"
           trace: (p, e) =>
             appendTrace(p, {
@@ -730,6 +642,11 @@ export function registerAiAgentCoreIpc(): void {
            * 以前 `turnTools` 算完就丢 —— 界面上选了预设，循环里照样拿全量工具，
            * 「权限配置」其实不生效；先计划也只改了提示词，写工具仍然调得到。
            */
+          /**
+           * **审批口径进提示**（M1，第 60 批）：完全权限时系统提示要说清"没有审批点了"，
+           * 否则模型会按旧提示"等用户点允许"，白白停在那里。见 prompt.ts 的 approval-policy 段。
+           */
+          approvalMode: effectiveFullAccess ? 'never' : 'ask',
           ...(turnTools ? { tools: turnTools } : {}),
           ...(planFirst ? { planOnly: true } : {}),
           // 图只进第一轮的用户回合（见上面的 pendingImages）
@@ -935,13 +852,22 @@ export function registerAiAgentCoreIpc(): void {
           })
         emit('ai:agentState', { projectPath, state: 'idle' })
         /**
-         * 会话自动标题（第 56 批）：**只在线程的第一轮**试一次。
+         * 会话自动标题（第 56 批 + 第 60 批的"每轮刷新"）。
          *
-         * 判据是 `past`（循环开始前读的历史）：其中没有任何用户消息，说明这一轮就是这个线程的首轮。
-         * 生成是**旁路请求**（fire-and-forget）：没 key / 失败 / 结果为空都静默，fallback 顶上，
-         * 绝不影响这一轮已经收尾的事实。用户重命名过（user 来源）不会再生成 —— 判据在服务里。
+         * 两条路分工（对齐上游 `session-title` 的 per-turn refresh，但首轮保留本仓更准的做法）：
+         *   · **首轮**（循环开始前历史里没有任何用户消息）：用「需求 + 首段回答」生成一次。
+         *     早一点的节点没有"多轮消息"可折叠，回答里的主题词反而更有用。
+         *   · **之后每一轮**：把到本轮为止**全部用户消息**折叠进去刷新一次，受设置开关控制
+         *     （`settings.aiProvider.threadTitleRefresh`）。模型被明确要求"没变就原样返回"，
+         *     所以大多数轮次是零改动、零落盘。
+         *
+         * 两条都是**旁路请求**（fire-and-forget）：没 key / 失败 / 结果为空 / 被取消都静默，
+         * fallback 顶上，绝不影响这一轮已经收尾的事实；用户重命名过的线程（user 来源）
+         * 在服务里被 pin 住，两条路都不会覆盖它。过期判定（生成期间用户改了名、
+         * 或另一条刷新先落盘）也在服务里用修订号栅栏做掉。
          */
-        if (!past.some(entry => entry.role === 'user') && result.finalText.trim()) {
+        const isFirstTurn = !past.some(entry => entry.role === 'user')
+        if (isFirstTurn && result.finalText.trim()) {
           void maybeGenerateThreadTitle({
             projectPath,
             threadId,
@@ -950,14 +876,21 @@ export function registerAiAgentCoreIpc(): void {
             config,
             signal: ctrl.signal,
           }).then(record => {
-            if (record) {
-              emit('ai:threadTitle', {
-                projectPath,
-                threadId,
-                title: record.title,
-                source: record.source,
-              })
-            }
+            if (record) emitThreadTitle(record)
+          })
+        } else if (!isFirstTurn && !ctrl.signal.aborted && threadTitleAutoRefreshEnabled()) {
+          const userMessages = [
+            ...past.filter(entry => entry.role === 'user').map(entry => String(entry.content ?? '')),
+            ...runRequirements,
+          ]
+          void maybeRefreshThreadTitle({
+            projectPath,
+            threadId,
+            messages: userMessages,
+            config,
+            signal: ctrl.signal,
+          }).then(record => {
+            if (record) emitThreadTitle(record)
           })
         }
         /**

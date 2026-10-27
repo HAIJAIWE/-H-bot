@@ -47,6 +47,42 @@ describe('★ 总入口：模型 → 工具 → 落盘（默认拒绝写）', ()
     expect(first[1]).toEqual({ role: 'user', content: '读一下 project.json' })
   })
 
+  it('★ 第 60 批（M1）：approvalMode 真的进了系统提示（never 与默认 ask 两副口径）', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'))
+    const capture = async () => {
+      let system = ''
+      const call = (async (_c: unknown, m: any[], _t: unknown, cb: any) => {
+        system = m[0].content
+        cb.onComplete('ok')
+      }) as never
+      return { call, get: () => system }
+    }
+
+    const plain = await capture()
+    await runAgentTurn({
+      projectPath: ws,
+      requirement: '读项目',
+      config,
+      call: plain.call,
+      maxRounds: 1,
+    })
+    // 默认 = ask：四种结局都要讲清
+    expect(plain.get()).toContain('审批策略：ask')
+    expect(plain.get()).toContain('没有可用的审批通道')
+
+    const full = await capture()
+    await runAgentTurn({
+      projectPath: ws,
+      requirement: '读项目',
+      config,
+      call: full.call,
+      maxRounds: 1,
+      approvalMode: 'never',
+    })
+    expect(full.get()).toContain('审批策略：never')
+    expect(full.get()).not.toContain('审批策略：ask')
+  })
+
   it('★ 跨轮记忆：历史拼在系统提示之后、本轮要求之前（顺序错了模型会以为那是刚说的）', async () => {
     const ws = await mkdtemp(join(tmpdir(), 'qqbat-turn-'))
     let first: any[] = []

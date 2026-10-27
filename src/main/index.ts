@@ -19,6 +19,7 @@ import { stopUntrustedWorkerIfRunning } from './runtime/untrustedWorkerHost';
 import { logger } from './services/infra/logger';
 import { loadAndApplyToolBudget } from './services/ai/budgetSettings';
 import { loadAndApplyParallelToolCalls } from './services/ai/parallelToolCallsSettings';
+import { loadAndApplyThreadTitleRefresh } from './services/ai/threadTitleSettings';
 import { initCrashLogger } from './services/ops/crashLogger';
 import { initErrorMonitoring, flushAndClose } from './services/ops/errorMonitoring';
 import { createMcpServer } from './mcp/server';
@@ -98,6 +99,10 @@ async function bootstrap(): Promise<void> {
   // 并行工具调用数（第 59 批）：同样必须在使用 AI 之前应用 —— 轮次里每轮同步读这个模块级状态。
   // 读失败不阻断启动（内部兜底为默认值 10 / 启用）。
   await loadAndApplyParallelToolCalls();
+
+  // 每轮刷新会话标题（第 60 批）：同样必须在使用 AI 之前应用 —— 轮次末尾每轮同步读这个模块级状态。
+  // 读失败不阻断启动（内部兜底为默认值 auto）。
+  await loadAndApplyThreadTitleRefresh();
 
   registerAllIpc(projectBase);
 

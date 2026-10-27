@@ -145,6 +145,14 @@ export interface RunTurnInput {
    */
   maxParallelToolCalls?: number
   /**
+   * **审批口径进提示**（第 60 批，M1）：`ask` = 写盘/跑命令要弹窗（默认）；
+   * `never` = 完全权限、不弹。只影响**系统提示怎么描述审批**，不改变闸门本身
+   * （闸门在 `approval` 回调里，完全权限时那条回调直接放行）。
+   *
+   * 不传 = `ask`，与批次之前渲染出的提示逐字相同（脚本/测试/其它链路的默认）。
+   */
+  approvalMode?: 'ask' | 'never'
+  /**
    * 当前会话（线程）id（第 59 批）：透传给循环 → `ToolContext.threadId`，
    * 供 `search_sessions` 排除调用方自己那条线程。不传 = 不排除。
    */
@@ -240,7 +248,11 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
           buildSystemPrompt(
             input.projectPath,
             [],
-            effectiveTools ? { tools: effectiveTools.map(t => t.name) } : {},
+            {
+              ...(effectiveTools ? { tools: effectiveTools.map(t => t.name) } : {}),
+              // 第 60 批（M1）：审批口径决定"会不会弹窗"这句话怎么说
+              ...(input.approvalMode ? { approvalPolicy: input.approvalMode } : {}),
+            },
           ) +
           (input.planOnly ? '\n\n' + PLAN_ONLY_NOTE : '') +
           (input.roleNote ? '\n\n' + input.roleNote : '') +

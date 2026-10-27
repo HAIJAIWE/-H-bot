@@ -67,6 +67,12 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
    */
   const [parallel, setParallel] = useState({ enabled: true, maxParallel: 10 });
   const [parallelError, setParallelError] = useState('');
+  /**
+   * 每轮自动刷新会话标题（第 60 批）。初值同样给默认值而不是 null ——
+   * 与上面两块一个理由：先显示"当前是什么"，读盘回来再覆盖，避免下拉闪一下 off。
+   */
+  const [titleRefresh, setTitleRefresh] = useState<'off' | 'auto'>('auto');
+  const [titleRefreshError, setTitleRefreshError] = useState('');
   const [form, setForm] = useState<ProviderForm>({
     provider: 'glm',
     apiKey: '',
@@ -222,6 +228,10 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
     void window.qqbat.ai.getParallelToolCalls().then((res) => {
       if (res?.ok && res.data) setParallel(res.data);
     });
+    // 每轮刷新标题：同理（这三块都是应用级设置，一次挂载读完）
+    void window.qqbat.ai.getThreadTitleRefresh().then((res) => {
+      if (res?.ok && res.data) setTitleRefresh(res.data.mode);
+    });
   }, []);
 
   /**
@@ -254,6 +264,21 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
       return;
     }
     if (res.data) setParallel(res.data);
+  };
+
+  /**
+   * 存"每轮刷新标题"：与 saveBudget / saveParallel 同形（改完立即生效，不跟 provider 表单走）。
+   * 这里是两档下拉，选中即落盘 —— 没有中间态，不需要"失焦才存"那套。
+   */
+  const saveTitleRefresh = async (mode: 'off' | 'auto') => {
+    setTitleRefresh(mode);
+    setTitleRefreshError('');
+    const res = await window.qqbat.ai.setThreadTitleRefresh(mode);
+    if (!res?.ok) {
+      setTitleRefreshError(res?.error || t('settings.aiProvider.threadTitleRefresh.saveFailed'));
+      return;
+    }
+    if (res.data) setTitleRefresh(res.data.mode);
   };
 
   return (
@@ -483,6 +508,36 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
             </p>
           )}
           {parallelError && <p className="mt-1 text-xs text-red-400">{parallelError}</p>}
+        </div>
+
+        {/* ── 每轮刷新会话标题（第 60 批）──────────────────────────────
+            与前两块同一个性质：应用级、立即生效、单独落盘。
+            为什么默认 auto：标题是会话列表里唯一的辨识手段，默认关掉的话新线程会一直叫
+            「新会话」，用户第一步就得自己改名；开着的代价只是每轮多一次很小的模型调用。 */}
+        <div className="border-t border-zinc-700 pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-sm text-zinc-400">
+              {t('settings.aiProvider.threadTitleRefresh.title')}
+            </label>
+            <Dropdown
+              value={titleRefresh}
+              onChange={(v) => void saveTitleRefresh(v as 'off' | 'auto')}
+              options={[
+                { value: 'auto', label: t('settings.aiProvider.threadTitleRefresh.auto') },
+                { value: 'off', label: t('settings.aiProvider.threadTitleRefresh.off') },
+              ]}
+            />
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            {t('settings.aiProvider.threadTitleRefresh.hint')}
+          </p>
+
+          {titleRefresh === 'off' && (
+            <p className="mt-1 text-xs text-amber-400/80">
+              {t('settings.aiProvider.threadTitleRefresh.offHint')}
+            </p>
+          )}
+          {titleRefreshError && <p className="mt-1 text-xs text-red-400">{titleRefreshError}</p>}
         </div>
       </div>
     </Modal>

@@ -303,6 +303,12 @@ var aiSetParallelToolCallsSchema = z.object({
   enabled: z.boolean(),
   maxParallel: z.number().int().min(1).max(50),
 })
+/** 获取每轮自动刷新会话标题设置（第 60 批） */
+var aiGetThreadTitleRefreshSchema = z.object({})
+/** 设置每轮自动刷新会话标题（第 60 批）：off = 标题不动，auto = 每轮重写一次 */
+var aiSetThreadTitleRefreshSchema = z.object({
+  mode: z.enum(['off', 'auto']),
+})
 
 export {
   aiNoteTurnSchema,
@@ -332,4 +338,6 @@ export {
   aiRemoveAllowRuleSchema,
   aiGetParallelToolCallsSchema,
   aiSetParallelToolCallsSchema,
+  aiGetThreadTitleRefreshSchema,
+  aiSetThreadTitleRefreshSchema,
 }

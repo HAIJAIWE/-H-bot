@@ -70,6 +70,8 @@ export const USER_DATA_LAYOUT = {
   aiToolBudget: ['config', 'ai-tool-budget.json'],
   /** 并行工具调用数设置（第 59 批） */
   aiParallelToolCalls: ['config', 'ai-parallel-tool-calls.json'],
+  /** 每轮自动刷新会话标题设置（第 60 批） */
+  aiThreadTitleRefresh: ['config', 'ai-thread-title-refresh.json'],
   /** 开发者模式开关 */
   devModeSetting: ['config', 'dev-mode.json'],
   /** 用户项目根 */

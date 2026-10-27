@@ -18,6 +18,14 @@ export interface PromptContext {
   workspace: string
   /** 当前注册的工具名（顺序同注册表） */
   toolNames: string[]
+  /**
+   * 审批口径（第 60 批，M1）：`ask` = 写盘/跑命令要弹窗；`never` = 完全权限、不弹。
+   *
+   * 不传按 `ask` 渲染 —— 与批次之前的行为逐字相同（脚本/测试/开荒都不显式传）。
+   * 为什么值得单独一段而不是塞进规矩里：**同一个规矩在两种口径下说的是反话**
+   * （"会先弹审批"在完全权限下是假的），提示里留着假话，模型会停在那里等人点允许。
+   */
+  approvalPolicy?: 'ask' | 'never'
 }
 
 export interface PromptSection {
@@ -82,7 +90,7 @@ registerPromptSection({
 registerPromptSection({
   id: 'rules',
   order: 30,
-  render: ({ workspace }) => {
+  render: ({ workspace, approvalPolicy }) => {
     // 开荒没有工作区：项目内那套"相对路径/审批/flow.json"规矩在这里全是噪音
     if (!workspace) {
       return [
@@ -99,11 +107,46 @@ registerPromptSection({
       '1. 只能通过工具动手 —— 没调用工具就说明你只是在回答，不是在做事。',
       '2. 改文件前先读它；不确定的内容不要凭印象写。',
       '3. 路径一律用**工作区内的相对路径**；绝对路径与越界路径会被拒绝。',
-      '4. 写文件、跑命令会先弹审批给人点。被拒绝时**不要原地重试** —— 换一种做法，或直接说明卡在哪。',
+      // 第 60 批：这句话在两种审批口径下是**反的**，不能写死
+      approvalPolicy === 'never'
+        ? '4. 写文件、跑命令**不再弹审批**（本次运行是完全权限）：照需要直接做；但角色写域边界仍然有效，越界的写会被直接拒绝。'
+        : '4. 写文件、跑命令会先弹审批给人点。被拒绝时**不要原地重试** —— 换一种做法，或直接说明卡在哪。',
       '5. 流程文件是 .qqbat/flow.json；改完跑一次 validate_flow 再回话。',
       '6. 收尾用两三句话说清：做了什么、改了哪些文件、还剩什么要人决定。',
     ].join('\n')
   },
+})
+
+/**
+ * 「审批怎么运作」的说明（第 60 批，M1，对齐上游 approval-policy 的注入）。
+ *
+ * 为什么要独立一段：上面规矩里的第 4 条只说"会弹审批"，但模型还需要知道
+ * **弹不出来时算什么**（超时/取消/没有窗口）—— 否则它会把"没通过"一律理解成
+ * "用户不喜欢这个做法"，于是换着花样重试同一个危险动作。
+ *
+ * 有工作区才渲染：开荒阶段没有写盘/跑命令，讲审批只会变成噪音。
+ */
+const APPROVAL_POLICY_PROMPT: Record<'ask' | 'never', string> = {
+  ask: [
+    '审批策略：ask。写盘、跑命令、以及个别不可撤回的工具调用，会先弹窗等用户点「允许」；没点之前调用不会执行。',
+    '四种结局分别怎么反应：',
+    '- 用户拒绝 → 换做法或先问清楚，**别原地重试**（重试等于再问同一个人一遍）。',
+    '- 超时（5 分钟没人点）→ 用户多半不在；先做不受影响的部分，收尾时提醒需要点一下确认。',
+    '- 这一轮被取消 → 立刻停，等用户重新发起。',
+    '- 没有可用的审批通道（窗口不在）→ 是环境问题，提醒用户打开主窗口，别换个参数绕过去。',
+  ].join('\n'),
+  never: [
+    '审批策略：never。本次运行里**不会再弹任何审批窗**：需要审批的动作会直接执行（用户明确选了完全权限）。',
+    '- 不必等待或请求许可；也不存在"请求升级权限"这种参数 —— 本应用没有这个口子，不要尝试。',
+    '- 但角色写域边界依然有效：越界的写会被直接拒绝，别换路径重试。',
+  ].join('\n'),
+}
+
+registerPromptSection({
+  id: 'approval-policy',
+  order: 32,
+  render: ({ workspace, approvalPolicy }) =>
+    workspace ? APPROVAL_POLICY_PROMPT[approvalPolicy ?? 'ask'] : '',
 })
 
 /**
@@ -166,12 +209,16 @@ export function buildSystemPrompt(
    * **实际可用的工具名**（预设白名单 / 先计划裁过之后）。传了就**只**列这些，
    * 不再并上注册表全量 —— 提示里广告了模型却调不到，是它最容易白白烧轮次的一种坑。
    */
-  opts: { tools?: readonly string[] } = {},
+  opts: { tools?: readonly string[]; approvalPolicy?: 'ask' | 'never' } = {},
 ): string {
   const toolNames = opts.tools
     ? [...opts.tools]
     : [...new Set([...listTools().map(t => t.name), ...extraTools])]
-  const ctx: PromptContext = { workspace, toolNames }
+  const ctx: PromptContext = {
+    workspace,
+    toolNames,
+    ...(opts.approvalPolicy ? { approvalPolicy: opts.approvalPolicy } : {}),
+  }
   return listPromptSections()
     .map(s => s.render(ctx).trim())
     .filter(text => text.length > 0)

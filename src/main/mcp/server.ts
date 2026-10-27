@@ -193,7 +193,7 @@ function createMcpServer(ctx) {
         ),
       }
     }
-    const decision = await requestApproval(
+    const outcome = await requestApproval(
       {
         projectPath: ctx.projectPath,
         callId: `mcp-${(0, node_crypto.randomUUID)()}`,
@@ -203,16 +203,23 @@ function createMcpServer(ctx) {
       },
       { emit: (channel, payload) => win.webContents.send(channel, payload) },
     )
-    if (decision === 'deny') {
-      logger.info(`[mcp] 用户拒绝（或超时）工具调用：${name}`)
+    if (outcome.decision === 'deny') {
+      // 第 60 批（M2）：拒绝的三种原因分开说 —— 外部客户端拿到的话要能指导它下一步
+      const why =
+        outcome.reason === 'user'
+          ? '用户拒绝了'
+          : outcome.reason === 'timeout'
+            ? '等待确认超时（5 分钟没人点，按拒绝处理）'
+            : '这次确认被取消（连接/窗口关闭）'
+      logger.info(`[mcp] ${why}工具调用：${name}`)
       return {
         ok: false,
         result: errorResult(
-          `用户拒绝了 ${name}（工具闸；超时也按拒绝处理）。这一步**没有执行**，也没有产生任何改动。不要重复同一个调用，先问用户。`,
+          `${why} ${name}（工具闸）。这一步**没有执行**，也没有产生任何改动。不要重复同一个调用，先问用户。`,
         ),
       }
     }
-    if (decision === 'always') {
+    if (outcome.decision === 'always') {
       approvedTools.add(name)
       logger.info(`[mcp] 本连接内不再询问：${name}`)
     }

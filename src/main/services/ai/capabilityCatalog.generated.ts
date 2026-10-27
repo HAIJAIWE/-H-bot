@@ -36,7 +36,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityLayer, string> = {
   X: '助手自身或内部管道，不对外开放',
 }
 
-/** 台账：289 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 89） */
+/** 台账：291 条（R 0 / Q 85 / M 104 / P 8 / F 3 / X 91） */
 export const CAPABILITY_CATALOG: CapabilityEntry[] = [
   {
     id: 'adapter.current',
@@ -225,6 +225,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:getThreadFeedback',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.getThreadTitleRefresh',
+    ns: 'ai',
+    method: 'getThreadTitleRefresh',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:getThreadTitleRefresh',
     channelKind: 'invoke',
   },
   {
@@ -594,6 +603,15 @@ export const CAPABILITY_CATALOG: CapabilityEntry[] = [
     layer: 'X',
     domain: '内部',
     channel: 'ai:setProjectBotConfig',
+    channelKind: 'invoke',
+  },
+  {
+    id: 'ai.setThreadTitleRefresh',
+    ns: 'ai',
+    method: 'setThreadTitleRefresh',
+    layer: 'X',
+    domain: '内部',
+    channel: 'ai:setThreadTitleRefresh',
     channelKind: 'invoke',
   },
   {

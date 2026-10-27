@@ -778,6 +778,10 @@ const api = {
     getParallelToolCalls: () => ipcRenderer.invoke('ai:getParallelToolCalls'),
     setParallelToolCalls: (enabled: boolean, maxParallel: number) =>
       ipcRenderer.invoke('ai:setParallelToolCalls', { enabled, maxParallel }),
+    /** 每轮自动刷新会话标题设置（第 60 批）：off = 标题不动，auto = 每轮重写一次 */
+    getThreadTitleRefresh: () => ipcRenderer.invoke('ai:getThreadTitleRefresh'),
+    setThreadTitleRefresh: (mode: 'off' | 'auto') =>
+      ipcRenderer.invoke('ai:setThreadTitleRefresh', { mode }),
   },
   data: {
     notifyChange: (projectPath: string, table: string, action: string, qq?: string) =>
