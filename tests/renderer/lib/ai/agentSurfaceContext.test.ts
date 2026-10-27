@@ -14,6 +14,16 @@ beforeEach(() => {
   useAiStore.setState({
     conversationPath: projectPath,
     activeThreadId: 'default',
+    threads: [
+      {
+        id: 'default',
+        title: '旧对话',
+        titleSource: 'user',
+        updatedAt: 11,
+        messageCount: 3,
+        stats: {},
+      },
+    ],
     messages: [msg('hi')],
     streaming: false,
     mainProcessRunning: false,
@@ -33,6 +43,13 @@ describe('★ 智能体窗口输入契约（agent surface context）', () => {
     expect(a.streaming).toBe(false)
     expect(a.running).toBe(false)
     expect(a.pendingApproval).toBeNull()
+    expect(a.threads).toEqual([{ id: 'default', title: '旧对话', updatedAt: 11, messageCount: 3 }])
+  })
+
+  it('线程列表是摊平的只读副本：内部字段（stats 等）不外泄', () => {
+    const ctx = createAgentSurfaceContext()
+    const [thread] = ctx.getSnapshot().threads
+    expect(Object.keys(thread).sort()).toEqual(['id', 'messageCount', 'title', 'updatedAt'])
   })
 
   it('★ store 变化 → 换新快照并通知订阅者；快照里能看到新值', () => {
@@ -109,6 +126,25 @@ describe('★ 智能体窗口输入契约（agent surface context）', () => {
 
     await ctx.actions.switchThread('thread-2')
     expect(switchThread).toHaveBeenCalledWith(projectPath, 'thread-2')
+  })
+
+  it('★ 创建时是空的，之后 store 变化也能看到（第 71 批：懒订阅会让快照停在创建那一刻）', () => {
+    useAiStore.setState({ messages: [] } as never)
+    const ctx = createAgentSurfaceContext()
+    expect(ctx.getSnapshot().messages).toHaveLength(0)
+    useAiStore.setState({ messages: [msg('后来的消息')] } as never)
+    expect(ctx.getSnapshot().messages[0]?.content).toBe('后来的消息')
+  })
+
+  it('dispose 后释放 store 订阅（窗口卸载不泄漏）', () => {
+    useAiStore.setState({ streaming: false } as never)
+    const ctx = createAgentSurfaceContext()
+    const listener = vi.fn()
+    ctx.subscribe(listener)
+    ctx.dispose()
+    useAiStore.setState({ streaming: true } as never)
+    expect(listener).not.toHaveBeenCalled()
+    expect(ctx.getSnapshot().streaming).toBe(false)
   })
 
   it('最后一个订阅者退订后不再转发（避免泄漏）', () => {

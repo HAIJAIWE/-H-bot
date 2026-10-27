@@ -24,12 +24,22 @@ export interface AgentSurfaceApproval {
   hint: string
 }
 
+/** 线程列表项（只留窗口需要的字段，不带 stats 等内部结构） */
+export interface AgentSurfaceThread {
+  id: string
+  title: string
+  updatedAt: number
+  messageCount: number
+}
+
 /** 贡献方需要的一切状态：只读，且同一状态内引用稳定 */
 export interface AgentSurfaceSnapshot {
   /** 当前对话所属项目（没有项目时是空串） */
   projectPath: string
   /** 当前任务线程 id */
   threadId: string
+  /** 线程列表（按 store 里的顺序；窗口据此画会话列表/恢复历史） */
+  threads: AgentSurfaceThread[]
   messages: ChatMessageWithTrace[]
   streaming: boolean
   /** 主进程是否真有请求在飞（与 streaming 可能不一致，见 aiStore 注释） */
@@ -53,11 +63,26 @@ export interface AgentSurfaceContext {
   actions: AgentSurfaceActions
 }
 
+/**
+ * 宿主用的上下文句柄：比公开契约多一个 `dispose`（窗口卸载时释放 store 订阅）。
+ * 窗口拿到的类型永远是 `AgentSurfaceContext`，看不到 `dispose`。
+ */
+export interface AgentSurfaceContextHandle extends AgentSurfaceContext {
+  dispose: () => void
+}
+
 function readSnapshot(): AgentSurfaceSnapshot {
   const s = useAiStore.getState()
   return {
     projectPath: s.conversationPath,
     threadId: s.activeThreadId,
+    // 摊平成只读副本：窗口不应该拿到能改的内部结构（threads 里还有 stats 等）
+    threads: s.threads.map(thread => ({
+      id: thread.id,
+      title: thread.title,
+      updatedAt: thread.updatedAt,
+      messageCount: thread.messageCount,
+    })),
     messages: s.messages,
     streaming: s.streaming,
     running: s.mainProcessRunning,
@@ -68,11 +93,19 @@ function readSnapshot(): AgentSurfaceSnapshot {
 /**
  * 建一份窗口上下文的实例。`AgentSurfaceHost` 每次挂载建一份（`useMemo` 保稳定），
  * 同一个实例给当前生效的那个窗口用。
+ *
+ * **必须从创建起就订阅 store**（第 71 批修）：上下文在 Host 挂载时创建，而默认窗口
+ * `ChatPanel` 不吃契约、不会 subscribe；若懒订阅，快照会停在"创建那一刻"——
+ * 切到示例窗口时看到的还是空消息（真机上踩到：内置窗口有 47 条，示窗 0 条）。
+ * 一条 zustand 订阅随 Host 生命周期存在，成本可忽略。
  */
-export function createAgentSurfaceContext(): AgentSurfaceContext {
+export function createAgentSurfaceContext(): AgentSurfaceContextHandle {
   let cached = readSnapshot()
   const listeners = new Set<() => void>()
-  let unsubscribeStore: (() => void) | null = null
+  const unsubscribeStore = useAiStore.subscribe(() => {
+    cached = readSnapshot()
+    for (const listener of listeners) listener()
+  })
 
   const projectPath = (): string => useAiStore.getState().conversationPath
 
@@ -90,20 +123,14 @@ export function createAgentSurfaceContext(): AgentSurfaceContext {
     getSnapshot: () => cached,
     subscribe: listener => {
       listeners.add(listener)
-      if (!unsubscribeStore) {
-        unsubscribeStore = useAiStore.subscribe(() => {
-          cached = readSnapshot()
-          for (const l of listeners) l()
-        })
-      }
       return () => {
         listeners.delete(listener)
-        if (listeners.size === 0 && unsubscribeStore) {
-          unsubscribeStore()
-          unsubscribeStore = null
-        }
       }
     },
     actions,
+    dispose: () => {
+      listeners.clear()
+      unsubscribeStore()
+    },
   }
 }

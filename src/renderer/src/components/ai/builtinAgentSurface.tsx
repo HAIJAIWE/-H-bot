@@ -8,6 +8,7 @@
 import { t } from '../../i18n'
 import { registerAgentSurface } from '../../lib/ai/agentSurface'
 import { ChatPanel } from './ChatPanel'
+import { registerCompactAgentSurface } from './compactAgentSurface'
 
 registerAgentSurface({
   id: 'chat',
@@ -15,3 +16,7 @@ registerAgentSurface({
   label: () => t('settings.aiProvider.agentSurface.builtin'),
   render: () => <ChatPanel />,
 })
+
+// 第 71 批：示例窗口（order=2000，不抢默认）。它只用 AgentSurfaceContext，
+// 是「第三方能写窗口」的最小可用样板，也是契约守卫的静态样本。
+registerCompactAgentSurface()

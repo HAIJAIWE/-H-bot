@@ -4321,3 +4321,22 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；agentSurface 8 例 + 契约 6 例、guards 19 文件 128 例全绿；全量 vitest 见提交说明。
 
 **下一步**：① 给契约配一个**示例窗口**（只拿 ctx 写一个紧凑列表面板，注册 order=2000，设置页可选中）—— 证明第三方真的写得出来，也给 P4 的插件模板打样；② 内置 `ChatPanel` 逐步改吃 ctx（现在还是特权直读），一次挪一块（发送 / 停止 / 审批）。
+
+## §71 第 71 批：一个示例窗口，把契约跑起来（P3 第四刀，2026-10-28）
+
+**为什么**：第 70 批定义了 `AgentSurfaceContext`，但"能被别人写"只是口头结论 —— 没有一份**不 import 任何私有 store** 的真实窗口，契约就没有被证明过。而且第 70 批的测试只在 node 里驱动契约本身，没有守卫阻止后来者绕回 `useAiStore`。示例窗口同时干三件事：证明可用、给 P4 插件模板打样、当活体守门员。
+
+**做了什么**：
+
+- 新增 `src/renderer/src/components/ai/compactAgentSurface.tsx`（约 180 行）：只 import 契约、i18n 与 `useLocaleSubscription`；`useSyncExternalStore(ctx.subscribe, ctx.getSnapshot)` 读快照；渲染「线程 id + 运行点 + 消息数」头部、最近 6 条消息（每条截 240 字）、待审批条（批准/拒绝→`ctx.actions.resolveApproval`）、输入框（Enter 发送、Shift+Enter 换行、流式中显示停止）。注册 `id='compact'`、`order=2000`（排在默认对话窗口之后，**不抢默认**，可在设置里选）。
+- 内置注册模块 `builtinAgentSurface.tsx` 末尾 `registerCompactAgentSurface()`（import 即注册，与内置对话窗口同一手法）。
+- i18n：`settings.aiProvider.agentSurface.compact` / `.empty` / `.approval` 三键，中英同步。
+- 新增 `tests/guards/agentSurfaceContract.test.ts`（4 例，纯静态扫描、不渲染）：① 示例窗口剥掉注释后不得出现 `stores/aiStore` / `useAiStore`；② 契约文件不得 import `components/`、React、`.tsx`（保证它是 node 可跑的纯 TS）；③ 内置注册模块必须 import 并调用 `registerCompactAgentSurface`；④ `RightPanel` 侧挂载点仍在（`import '../ai/builtinAgentSurface'`）。第 ① 条先踩了"注释里出现关键词"的假阳性，改成剥注释行再匹配（同第 62 批 Electron-free 闸门的教训）。
+
+**分工结论（要带进 P4 文档）**：内置窗口是**特权**的（可直读 store），外部窗口只有契约。示例窗口故意放在内置侧，但**代码里只用契约** —— 它就是"外部窗口该长什么样"的样本；将来 P4 把它原样搬进插件沙箱时，唯一要删的是注册方式（改成 manifest 声明）。
+
+**涉及文件行数**：新增 `compactAgentSurface.tsx`(~180)、`agentSurfaceContract.test.ts`(67)；改 `builtinAgentSurface.tsx`(+7)、`zh-CN.json`/`en-US.json`(+3 each)。**未新增 IPC 通道**，能力台账不动。
+
+**闸门**：typecheck node/web `EXIT=0`；agentSurfaceContract 4 例、agentSurface 8 例、契约 6 例全绿；全量 vitest 与守卫见提交。
+
+**下一步**：① 内置 `ChatPanel` 逐步改吃 ctx（先拆"发送/停止"，再拆"审批"）—— 每挪一块跑一次全量，防止特权与契约两套路径长期并存；② P4 生态包装（manifest v2 + 插件脚手架 + 这份示例当模板）；③ 三栏骨架/命令面板等视觉肌理。

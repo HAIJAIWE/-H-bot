@@ -9,7 +9,7 @@
 //
 // 与 `uiSlots.tsx` 同一套纪律：注册返回 dispose、订阅版本号重渲染、重名直接抛错、
 // 刻意不做沙箱与权限（那是插件宿主的事）——这里只解决「谁渲染整个窗口」和「可撤销」。
-import { useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { createAgentSurfaceContext, type AgentSurfaceContext } from './agentSurfaceContext'
 
 export interface AgentSurfaceEntry {
@@ -86,6 +86,9 @@ export function AgentSurfaceHost({ preferredId }: { preferredId?: string | null 
   useSyncExternalStore(subscribeAgentSurfaces, getAgentSurfaceVersion, getAgentSurfaceVersion)
   // 上下文实例在挂载期内保持同一份：窗口切换时复用，不因为重渲染换实例（否则订阅会反复重建）
   const context = useMemo(() => createAgentSurfaceContext(), [])
+  // 第 71 批：上下文从创建起就订阅 store（默认窗口不吃契约，懒订阅会让快照停在创建那一刻），
+  // 所以卸载时必须显式释放。
+  useEffect(() => () => context.dispose(), [context])
   const active = getAgentSurface(preferredId)
   return active ? <>{active.render(context)}</> : null
 }
