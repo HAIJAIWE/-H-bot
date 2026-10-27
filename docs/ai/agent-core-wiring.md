@@ -4088,3 +4088,17 @@ typecheck node/web `EXIT=0`；guards 16 文件 114 例全绿（含新增 7 例�
 ### 61.7 下一步（P1/P2 待排）
 
 P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `runtime-boundary` 的审计文档已并行产出，落在 `docs/ai/agent-runtime-boundary.md`）；P2：291 条通道收敛成"公共 SDK / 内部通道"两层并在 preload 统一 dispatch；P3：agent 窗口做成可替换 surface；P4：manifest v2 + 生态包装。
+
+## §62 第 62 批：AgentRuntime 缝（P1 第一步，2026-10-28）
+
+**做了什么事**：新增 `src/main/services/agent-runtime/index.ts` —— 宿主只需要 `emit` + `approval` 两个洞，运行时把"在干什么"翻译成事件流（`text / reasoning / step / work/start / work/end / stats / compacted`）。本批是 `runAgentTurn` 的**薄包装，行为零变更**；目的不是省代码，是先把边界钉住，让下一批能把 `aiAgentCore.ts:240-961` 的运行体搬进来而不改语义。
+
+**为什么不是"能编译就行"的验收**：`AgentRuntimeTurnInput = Omit<RunTurnInput, 流式回调>`（那组回调是宿主的事），`AgentRuntimeResult = RunTurnResult`（不另造一层）。真正的证明在测试里：假宿主（没有窗口、没有 Electron）驱动纯文本一轮、默认拒绝写盘一轮、放开审批后落盘一轮。
+
+**守卫**：`tests/guards/agentRuntimeElectronFree.test.ts`（2 例）——目录内不许 `from 'electron'` / `BrowserWindow` / `.webContents`，入口不许 `ipcMain` / `callLlm`；注释行先剥掉（本模块头注释就写着"不碰 BrowserWindow"，那是说明不是依赖）。
+
+**测试**：`tests/main/services/agent-runtime/runtime.test.ts` **3 例**（`// @vitest-environment node`），同一批断言在下一批搬迁后必须原样全绿。
+
+**文档**：新增 `docs/ai/bidirectional-adaptation.md` —— 双向适配（DSH 驱动我 / 我驱动 DSH）的形态、传输层、P1 验收、版本与退出、批次计划 62–65。
+
+**闸门**：typecheck node/web `EXIT=0`；新增 5 例 + 全量 vitest 见提交说明；新文件过 prettier。

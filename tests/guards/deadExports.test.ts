@@ -112,6 +112,9 @@ const BASELINE_NAMES: Record<string, string> = {
  * 所以**两类都管**：新增的仅测试引用同样红。
  */
 const BASELINE_TEST_ONLY: Record<string, string> = {
+  'src\\main\\services\\agent-runtime\\index.ts:createAgentRuntime':
+    '⚠️ 进行中（P1 第一步）：宿主缝，当前只有测试用「假宿主」驱动（证明运行时不需要 Electron）；' +
+    '第 63 批把 aiAgentCore 的运行体搬进来后由 main 装配，届时删掉本条。',
   'src\\main\\services\\agent-core\\runTurn.ts:isToolCall':
     '⚠️ 进行中：供调用方做类型收窄（避免 UI 层写 as），接线时使用。',
   'src\\main\\services\\agent-core\\modelAdapter.ts:createModelFn':
