@@ -16,8 +16,11 @@ export interface AgentSurfaceEntry {
   id: string
   /** 越小越优先；内置对话窗口是 1000，外部注册想接管就用更小的值 */
   order?: number
-  /** 给人看的名字（可选；将来设置页的切换下拉用它，界面文案要走 i18n） */
-  label?: string
+  /**
+   * 给人看的名字（可选）：用函数而不是字符串 —— 界面文案要走 i18n，
+   * 注册时取一次会把当时语言定死，函数每次渲染时现算。
+   */
+  label?: () => string
   render: () => ReactNode
 }
 
@@ -41,13 +44,23 @@ export function registerAgentSurface(entry: AgentSurfaceEntry): () => void {
   }
 }
 
-/** 当前生效的智能体窗口：按 order 取第一个；没有注册返回 undefined */
-export function getAgentSurface(): AgentSurfaceEntry | undefined {
-  let best: AgentSurfaceEntry | undefined
-  for (const entry of REGISTRY.values()) {
-    if (!best || (entry.order ?? 100) < (best.order ?? 100)) best = entry
+/** 已注册的窗口（按 order 排序；设置页的下拉用它） */
+export function listAgentSurfaces(): AgentSurfaceEntry[] {
+  return [...REGISTRY.values()].sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+}
+
+/**
+ * 当前生效的智能体窗口：
+ * - 指定了 `preferredId` 且该窗口仍在注册表里 → 用它（用户在设置页选过）；
+ * - 否则按 order 取第一个（默认行为）。
+ * 指定的窗口被撤销时自动回落到默认，不会白屏。
+ */
+export function getAgentSurface(preferredId?: string | null): AgentSurfaceEntry | undefined {
+  if (preferredId) {
+    const picked = REGISTRY.get(preferredId)
+    if (picked) return picked
   }
-  return best
+  return listAgentSurfaces()[0]
 }
 
 /** 订阅注册表变化（启停窗口时界面跟着变） */
@@ -60,9 +73,12 @@ function getAgentSurfaceVersion(): number {
   return VERSION
 }
 
-/** 在右侧面板放这个组件 = 「智能体窗口」的位置（注册表变化后会自动重渲染） */
-export function AgentSurfaceHost(): ReactNode {
+/**
+ * 在右侧面板放这个组件 = 「智能体窗口」的位置（注册表变化后会自动重渲染）。
+ * `preferredId` 来自设置页的选择（`uiStore.agentSurfaceId`，null = 自动）。
+ */
+export function AgentSurfaceHost({ preferredId }: { preferredId?: string | null }): ReactNode {
   useSyncExternalStore(subscribeAgentSurfaces, getAgentSurfaceVersion, getAgentSurfaceVersion)
-  const active = getAgentSurface()
+  const active = getAgentSurface(preferredId)
   return active ? <>{active.render()}</> : null
 }

@@ -40,6 +40,9 @@ interface UiState {
   setLeftPanelWidth: (w: number) => void;
   rightPanelWidth: number;
   setRightPanelWidth: (w: number) => void;
+  /** 智能体窗口（第 69 批）：null = 自动，按注册表 order 选第一个；否则是注册的 surface id */
+  agentSurfaceId: string | null;
+  setAgentSurfaceId: (id: string | null) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -72,14 +75,19 @@ export const useUiStore = create<UiState>()(
       setLeftPanelWidth: (w: number) => set({ leftPanelWidth: Math.max(160, Math.min(500, w)) }),
       rightPanelWidth: 320,
       setRightPanelWidth: (w: number) => set({ rightPanelWidth: Math.max(200, Math.min(600, w)) }),
+      agentSurfaceId: null,
+      /** 选择「智能体窗口」（智能体面板整块界面由哪个已注册的 surface 渲染） */
+      setAgentSurfaceId: (id: string | null) => set({ agentSurfaceId: id }),
     }),
     {
       name: STORAGE_KEYS.ui,
-      version: 2,
+      version: 3,
       /**
        * v1：主页面（home）成为默认落点。旧存档里存的是 'dashboard' 或用户最后停的页签，
        * 不迁移的话升级后根本看不到新主页面 —— 所以 v0/v1 → v2 一次性强制落到 home，
        * 之后按用户自己的选择记住（再进仪表盘也不会被改回来）。
+       * v3：新增 agentSurfaceId（第 69 批）—— 老存档没有这个键，读出来是 undefined，
+       * 视同 null（自动按 order 选），不需要迁移动作。
        */
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as Partial<UiState>;
@@ -96,6 +104,7 @@ export const useUiStore = create<UiState>()(
         mode: state.mode,
         launchTab: state.launchTab,
         centerTab: state.centerTab,
+        agentSurfaceId: state.agentSurfaceId,
       }),
     },
   ),

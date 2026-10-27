@@ -10,6 +10,8 @@ import { findLlmPreset } from '@shared/types/llm-presets';
 import type { AiProvider } from '@shared/types/ai';
 import { useLocaleSubscription } from '../../stores/i18nStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useUiStore } from '../../stores/uiStore';
+import { listAgentSurfaces } from '../../lib/ai/agentSurface';
 
 interface Props {
   onClose: () => void;
@@ -73,6 +75,12 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
    */
   const [titleRefresh, setTitleRefresh] = useState<'off' | 'auto'>('auto');
   const [titleRefreshError, setTitleRefreshError] = useState('');
+  /**
+   * 智能体窗口（第 69 批）：窗口本身是注册出来的（第 68 批），这里只选「用哪个」。
+   * null = 自动：按注册表 order 选默认（内置对话窗口 order=1000），落盘在 uiStore。
+   */
+  const agentSurfaceId = useUiStore((s) => s.agentSurfaceId);
+  const setAgentSurfaceId = useUiStore((s) => s.setAgentSurfaceId);
   const [form, setForm] = useState<ProviderForm>({
     provider: 'glm',
     apiKey: '',
@@ -538,6 +546,34 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
             </p>
           )}
           {titleRefreshError && <p className="mt-1 text-xs text-red-400">{titleRefreshError}</p>}
+        </div>
+
+        {/* ── 智能体窗口（第 69 批）────────────────────────────────────
+            窗口是注册出来的（第 68 批）：内置对话窗口 order=1000，贡献方注册更小的
+            order 即可接管。这里只负责「选哪一个」并记住（uiStore 持久化）；
+            null = 自动，注册表为空/被撤销时也不会白屏（自动回落）。 */}
+        <div className="border-t border-zinc-700 pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-sm text-zinc-400">
+              {t('settings.aiProvider.agentSurface.title')}
+            </label>
+            <Dropdown
+              value={agentSurfaceId ?? ''}
+              onChange={(v) => setAgentSurfaceId(v === '' ? null : v)}
+              options={[
+                { value: '', label: t('settings.aiProvider.agentSurface.auto') },
+                ...listAgentSurfaces().map((surface) => ({
+                  value: surface.id,
+                  label: surface.label ? surface.label() : surface.id,
+                })),
+              ]}
+            />
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            {t('settings.aiProvider.agentSurface.hint', {
+              count: listAgentSurfaces().length,
+            })}
+          </p>
         </div>
       </div>
     </Modal>

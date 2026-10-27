@@ -934,6 +934,12 @@
         "off": "Keep title",
         "offHint": "Off: the title is generated once and then left alone (rename it manually in the thread list if needed).",
         "saveFailed": "Failed to save"
+      },
+      "agentSurface": {
+        "title": "Agent window",
+        "auto": "Auto (default by order)",
+        "hint": "The agent window in the right panel is provided by registered surfaces; {count} registered. If the selected one is unloaded, it falls back to the default instead of going blank.",
+        "builtin": "Built-in chat window"
       }
     },
     "botState": {

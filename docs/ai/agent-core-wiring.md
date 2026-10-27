@@ -4276,3 +4276,27 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；agentSurface + aiSlots 8 例；guards 19 文件 128 例；全量 vitest 见提交说明。未新增 IPC 通道，能力台账不动。
 
 **下一步**：① 设置页里的「智能体窗口」选择（`label?` 可选字段已留好；内置窗口本批不填 label，避免硬编码文案，届时文案走 i18n）与持久化；② 窗口的**输入契约**（现在它直接读 `useAiStore`，插件化后应改成只读投影 + 命令事件，见 `agent-runtime-boundary.md`）；③ 把 provider/模型选择、工具呈现器、节点面板也逐项变成贡献点。
+
+---
+
+## §69 第 69 批：智能体窗口的选择与持久化（P3 第二刀，2026-10-28）
+
+**为什么**：第 68 批把窗口变成贡献点，但「哪个窗口生效」还是死的 order（内置 `order=1000`）。只要注册了第二个窗口，用户就没法选；而用户的选择也不该写进代码。
+
+**做了什么**：
+
+- `uiStore` 新增 `agentSurfaceId: string | null`（null = 自动按 order）+ `setAgentSurfaceId`，进 `partialize` 持久化（localStorage）；`version` 2→3，老存档没有该键 → 读出来 undefined 视同 null，不需要迁移动作。
+- `agentSurface.tsx`：`getAgentSurface(preferredId?)` —— 指定的窗口还在注册表里就用它，否则回落 order 默认；新增 `listAgentSurfaces()`（按 order 排序，设置页下拉用）；`AgentSurfaceHost` 收 `preferredId` 并转发。**窗口被撤销时自动回落，不白屏**。
+- `RightPanel`：从 `uiStore` 读 `agentSurfaceId`，传给 `<AgentSurfaceHost preferredId={agentSurfaceId} />`。
+- 设置页（`AIProviderConfig`）新增「智能体窗口」下拉：`自动（按顺序取默认）` + 每个已注册窗口（用 `label()` 现算 i18n，缺省显示 id）+ 已注册数量提示。
+- i18n：zh/en 各 4 个键（`settings.aiProvider.agentSurface.title / auto / hint / builtin`）；`builtin` 由内置窗口的 `label()` 使用。
+
+**为什么把 `label` 改成函数**：注册时取一次 i18n 会把当时语言定死（切语言后下拉还是旧语言）。`label?: () => string` 让每次渲染现算。
+
+**守卫与测试**：`tests/renderer/lib/ai/agentSurface.test.ts` 8 例 —— 新增「preferredId 优先于 order」「指定窗口撤销后回落」「未知 id 回落默认」「`listAgentSurfaces` 按 order 排序」；挂载点守卫改为断言 `<AgentSurfaceHost` 且 **`preferredId={agentSurfaceId}` 真的接上了**（否则下拉形同虚设）。
+
+**涉及文件行数**：改 `uiStore.ts`(+8)、`agentSurface.tsx`(+25/-5)、`builtinAgentSurface.tsx`(label)、`RightPanel.tsx`(+3)、`AIProviderConfig.tsx`(+30)、`zh-CN.json` / `en-US.json`(+6)、测试(+45)。**未新增 IPC 通道**（窗口选择是声明的 UI 偏好，主进程不需要知道），能力台账不动。
+
+**闸门**：typecheck node/web `EXIT=0`；agentSurface 8 例、i18n 7 文件 77 例、guards 19 文件 128 例全绿；全量 vitest 见提交说明。
+
+**下一步**：① 窗口的**输入契约**（现在仍直读 `useAiStore`；插件化窗口应只拿只读投影 + 命令事件）；② 外部插件的 surface 注册（P4 manifest 化，`label()` 已按 i18n 备好）。

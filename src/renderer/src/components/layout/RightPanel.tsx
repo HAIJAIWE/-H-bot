@@ -51,6 +51,8 @@ export function RightPanel() {
   const agentState = useAiStore((s) => s.agentState);
   const rightTab = useUiStore((s) => s.rightTab);
   const setRightTab = useUiStore((s) => s.setRightTab);
+  // 第 69 批：设置页里选过的智能体窗口（null = 自动按 order 选默认）
+  const agentSurfaceId = useUiStore((s) => s.agentSurfaceId);
   const initDebugListener = useDebugStore((s) => s.initDebugListener);
 
   // 订阅主进程的 `debug:stateChanged`。
@@ -126,7 +128,7 @@ export function RightPanel() {
             <div className="flex-1 min-w-0 min-h-0 flex flex-col">
               {/* 第 68 批：这里不再是写死的 ChatPanel，而是「当前生效的智能体窗口」
                   —— 内置对话窗口以 order=1000 注册；贡献方注册更小的 order 即可接管 */}
-              <AgentSurfaceHost />
+              <AgentSurfaceHost preferredId={agentSurfaceId} />
             </div>
             <AiSidebar />
           </div>
