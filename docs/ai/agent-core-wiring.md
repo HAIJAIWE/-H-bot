@@ -4193,3 +4193,27 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；新增/相关测试 57 例全绿；guards 与 main 受影响面 29 文件 262 例全绿；全量 vitest 见提交说明。
 
 **下一步（P2b）**：节点包拆分 —— `groups/*` 17 文件按平台分组（qq / lark / dingtalk / wechat），`builtinCatalog.ts` 的静态 import 改成「平台包注册」，同一张注册表做可见性 + 能力校验（本批的 `findPlatformMismatches` 直接复用，不需要再写一遍判定）。
+
+## §66 第 66 批：平台节点包（P2b，结构性切包）
+
+**为什么**：第 64 批把「平台归属的判定口径」收进 `src/shared/domain/platform/registry.ts`，但节点目录本身仍是「17 个 `groups/*` 静态拼成一个数组」，平台归属只写在每个节点的 `platform` / `tags` 里。后果是：加一个新平台只能往数组里塞节点；没法回答「哪些节点属于 QQ 包」；将来 P4 想把一整个包换成外部插件时，没有可交接的单位。**包是交付单位，注册表是判定口径**——两者分开。
+
+**做了什么**：
+- 新增 `src/shared/nodes/packs.ts`：`buildNodePacks(specs)` 按平台族把目录切成 `NodePack[]`（`id: NodePackId` = 平台族或 `'common'`，`families: readonly PlatformFamily[]`，`specs: readonly NodeSpecV2[]`）；`common` 永远排第一，其余按节点在目录里第一次出现的顺序（顺序跟着目录走，不额外维护清单，少一处会漂的地方）。
+- `src/shared/nodes/builtinCatalog.ts` 尾部新增 `export const NODE_PACKS = buildNodePacks(NODE_CATALOG_V2)`：**目录仍是唯一清单，包只是视图**，两个 Annotation 循环不动。
+- **行为零变化**：`NODE_CATALOG_V2` 的内容/顺序未动，`getAllSpecs` / `findSpec` / `subscribeCatalog` 等调用方零改动，未新增 IPC 通道，能力台账不动。
+
+**切包规则（唯一规则在 `packIdOf`，不复制到别处）**：显式 `platform` → 该平台族；否则 `tags` 里的历史平台词 → 该族（`'QQ'` → `qq`）；`platform: 'all'`（目录回填默认值）与完全无标注 → `common`。**一个节点只能属于一个包**；多平台标注没有真实节点，真出现时由闸门报出来再定语义（拆节点 or 扩包语义）。
+
+**为什么这一批只做结构**：真实数据还没分层——目录里显式 `platform: 'qq'` 的节点为 0（`builtinCatalog.ts:126` 把无标注节点回填成 `'all'`），带历史 `tags: ['QQ']` 的节点才进 `qq` 包。先立边界、再迁内容：下一批才让消费方（按项目平台收窄 / 外部包注册）真的按包取节点。
+
+**守卫与测试**：
+- `tests/guards/nodePackContract.test.ts`（6 例）：扫描非空 / **不丢失不重复**（`NODE_PACKS` 展开的 kind 集合等于目录，且无重复）/ 包归属与平台标注一致（`common` 只装无标注节点，其余包 id 必须等于节点唯一平台族）/ 无多平台节点 / 包 id 都在平台注册表里且 `common` 排第一。
+- `tests/shared/nodes/packs.test.ts`（5 例）：切包规则（显式 platform、`'all'`、无标注、历史 tags 兜底）/ 顺序 / `families` 对应 / 空目录与只有通用节点。
+- deadExports：最初多导出了 `packOfKind` / `packLabel`（只有测试引用 → 红），按「不预埋没人调的出口」收窄为**只导出 `buildNodePacks` + 类型**，不加 baseline 条目。
+
+**涉及文件行数**：新增 `src/shared/nodes/packs.ts`(60)、`tests/shared/nodes/packs.test.ts`(63)、`tests/guards/nodePackContract.test.ts`(67)；改动 `builtinCatalog.ts`(+10，只加 import 与尾部视图；该文件 HEAD 即分号风格、非 prettier 合规，未整份重排)。
+
+**闸门**：typecheck node/web `EXIT=0`；nodePackContract + packs + deadExports 21 例全绿；guards 19 文件 127 例全绿；全量 vitest 见提交说明。
+
+**下一步（P2b-2）**：① 消费方接包——`NodePalette` 按项目平台族收窄可见包（`specVisibleOnPlatform` 已有，改用包遍历）；② 外部包注册接口——把 `NODE_PACKS` 从常量改成注册表（内部包与将来的外部插件包同一接口）；③（可选）`groups/*` 物理拆成 `groups/qq/`、`groups/common/` 目录。
