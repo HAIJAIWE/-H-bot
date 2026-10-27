@@ -1,5 +1,6 @@
 // src/shared/types/nodeV2.ts
 
+import type { NodePlatformTag } from '../domain/platform/registry';
 /** 节点类型（扩展自旧 NodeType，加 'custom'） */
 export type NodeTypeV2 = 'trigger' | 'action' | 'logic' | 'data' | 'ai' | 'custom';
 
@@ -65,10 +66,11 @@ export interface NodeSpecV2 {
   /**
    * 平台兼容性标注（多平台项目过滤可用节点用）。
    * - 'all'：跨平台可用（默认，未标注时视为 'all'）
-   * - 'qq'：QQ 官方 Bot API 专属
-   * UI 可据此在多平台项目中提示哪些节点仅 QQ 可用，避免用户误用。
+   * - 平台族 id：该平台专属（'qq' / 'lark' / 'dingtalk' / …，见
+   *   `shared/domain/platform/registry.ts` 的 PlatformFamily）
+   * UI 据此在多平台项目里挡掉别的平台的专属节点，避免用户误用。
    */
-  platform?: 'all' | 'qq';
+  platform?: NodePlatformTag;
 
   /**
    * 节点要求的绑定能力（细粒度，机器可校验；见 shared/domain/common/capabilities.ts）。

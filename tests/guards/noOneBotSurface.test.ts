@@ -52,8 +52,13 @@ describe('OneBot 不是可选协议端（用户可见面已清理）', () => {
     for (const kind of ['message_edit', 'api_call', 'group_op', 'message_op']) {
       expect(block).toContain(kind)
     }
-    expect(read('src/shared/types/nodeV2.ts')).toContain("platform?: 'all' | 'qq'")
-    expect(read('src/shared/types/flow.ts')).toContain("platform?: 'all' | 'qq'")
+    // 2026-10-28 第 64 批：`all | qq` 这个联合值收到 `platform/registry.ts` 的 NodePlatformTag，
+    // 类型字段只引用它；平台族清单的边界由 tests/guards/platformTagCoverage.test.ts 守。
+    expect(read('src/shared/types/nodeV2.ts')).toContain('platform?: NodePlatformTag')
+    expect(read('src/shared/types/flow.ts')).toContain('platform?: NodePlatformTag')
+    expect(read('src/shared/domain/platform/registry.ts')).toContain(
+      "export type NodePlatformTag = 'all'",
+    )
   })
 
   it('删掉的多平台适配器配置没有回来', () => {

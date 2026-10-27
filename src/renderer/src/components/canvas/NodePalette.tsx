@@ -46,7 +46,12 @@ import { Spinner } from '../ui/Spinner';
 import { Button } from '../ui/Button';
 import { inputForm } from '../ui/inputStyles';
 import { getAllSpecs } from '../../lib/node/nodeCatalog';
-import { specVisibleForBotType } from '@shared/domain/project/botTypeConfig';
+import {
+  nodePlatformTags,
+  platformLabel,
+  projectPlatformFamily,
+  specVisibleOnPlatform,
+} from '@shared/domain/platform/registry';
 import { STORAGE_KEYS } from '../../lib/infra/storageKeys';
 
 /** 分组折叠状态持久化 key */
@@ -317,11 +322,16 @@ export function NodePalette() {
    * 老项目里已经摆着的节点照常显示、照常运行 ✓（这是与"历史事故"的关键区别，见 botTypeConfig.ts）。
    */
   const botType = useProjectStore((s) => s.currentProject?.botType);
-  // 通用节点始终可见；只挡**别的平台**的专属节点（见 botTypeConfig 的 PLATFORM_TAGS）
+  // 当前项目平台族（接入方式优先；见 shared/domain/platform/registry）——
+  // 决定节点库过滤与平台横幅文案，与 botType 一起构成"这个项目属于哪个平台"
+  const projectFamily = useProjectStore((s) =>
+    s.currentProject ? projectPlatformFamily(s.currentProject) : undefined,
+  );
+  // 通用节点始终可见；只挡**别的平台**的专属节点（标注来源见 platform/registry）
   const allSpecs = useMemo(() => getAllSpecs(), [catalogVersion]);
   const visibleSpecs = useMemo(
-    () => allSpecs.filter((s) => specVisibleForBotType(s, botType)),
-    [allSpecs, botType],
+    () => allSpecs.filter((s) => specVisibleOnPlatform(s, projectFamily ?? null)),
+    [allSpecs, projectFamily],
   );
   const hiddenCount = allSpecs.length - visibleSpecs.length;
   const groups = useMemo(() => groupByGroup(visibleSpecs), [visibleSpecs, locale]); // 扫描完成/切语言/切项目类型后重新分组
@@ -412,6 +422,9 @@ export function NodePalette() {
         : spec.group === '自定义'
           ? Package
           : getNodeIcon(spec.kind);
+    // 平台徽标：显式 platform 与历史 tags 统一由注册表推导（见 platform/registry）
+    const platformFams = nodePlatformTags(spec);
+    const platformName = platformFams.length > 0 ? platformLabel(platformFams[0], locale) : null;
     const q = search.trim().toLowerCase();
     return (
       <div
@@ -446,12 +459,12 @@ export function NodePalette() {
               {t('palette.composed')}
             </span>
           )}
-          {spec.platform === 'qq' && (
+          {platformName && (
             <span
               className="text-[10px] leading-4 px-1 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40"
-              title={t('palette.qqOfficialTitle')}
+              title={t('palette.platformOnlyTitle', { platform: platformName })}
             >
-              {t('palette.qqOfficial')}
+              {t('palette.platformOnly', { platform: platformName })}
             </span>
           )}
         </div>
@@ -468,7 +481,9 @@ export function NodePalette() {
       {hiddenCount > 0 && (
         <div className="px-2 py-1.5 border-b border-zinc-800 bg-zinc-900/60 text-[11px] text-zinc-400 shrink-0 leading-tight">
           {t('palette.typeFilterHint', {
-            type: t(`launch.botType.${botType ?? 'general'}`),
+            type: projectFamily
+              ? platformLabel(projectFamily, locale)
+              : t(`launch.botType.${botType ?? 'general'}`),
             count: String(hiddenCount),
           })}
         </div>

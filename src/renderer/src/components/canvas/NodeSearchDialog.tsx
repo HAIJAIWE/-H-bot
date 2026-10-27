@@ -7,7 +7,8 @@ import { getNodeIcon } from '../blocks/iconMap';
 import { recordNodeUsage } from '../../lib/infra/recentStore';
 import { CommandPalette } from '../ui/CommandPalette';
 import type { NodeSpec } from '@shared/types/flow';
-import { t } from '../../i18n';
+import { nodePlatformTags, platformLabel } from '@shared/domain/platform/registry';
+import { t, getLocale } from '../../i18n';
 import { useLocaleSubscription } from '../../stores/i18nStore';
 
 export function NodeSearchDialog() {
@@ -87,6 +88,10 @@ export function NodeSearchDialog() {
         ) : (
           filtered.map((spec: NodeSpec, index: number) => {
             const SpecIcon = getNodeIcon(spec.kind);
+            // 平台徽标：与节点库同一份推导（见 shared/domain/platform/registry）
+            const platformFams = nodePlatformTags(spec);
+            const platformName =
+              platformFams.length > 0 ? platformLabel(platformFams[0], getLocale()) : null;
             return (
               <div
                 key={spec.kind}
@@ -106,9 +111,9 @@ export function NodeSearchDialog() {
                   <div className="text-sm truncate">{spec.label}</div>
                   <div className="text-xs text-zinc-500 truncate">{spec.group}</div>
                 </div>
-                {spec.platform === 'qq' && (
+                {platformName && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/40 shrink-0">
-                    {t('palette.qqOfficial')}
+                    {t('palette.platformOnly', { platform: platformName })}
                   </span>
                 )}
               </div>

@@ -1,5 +1,7 @@
 // src/shared/types/flow.ts
 
+import type { NodePlatformTag } from '../domain/platform/registry';
+
 export type NodeType = 'trigger' | 'action' | 'logic' | 'data' | 'ai' | 'plugin' | 'custom';
 export type PortKind = 'control' | 'data';
 
@@ -177,8 +179,8 @@ export interface NodeSpec {
   summary?: string; // 节点简短说明（抽屉中展示）
   tags?: string[]; // 标签（抽屉中展示）
   sideEffects?: string[]; // 副作用列表
-  /** 平台兼容性：'all'=跨平台（默认）, 'qq'=QQ 官方专属 */
-  platform?: 'all' | 'qq';
+  /** 平台兼容性：'all'=跨平台（默认），平台族 id=该平台专属（见 shared/domain/platform/registry.ts） */
+  platform?: NodePlatformTag;
   defaultConfig: Record<string, unknown>;
   inputs: Port[];
   outputs: Port[];

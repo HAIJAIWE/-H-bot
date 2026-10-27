@@ -4126,3 +4126,33 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；guards 17 文件 116 例全绿；`agent-runtime` 与 `aiAgentCore*` 测试 43 例全绿；全量 vitest 见提交说明；`projectTurn.ts`、`aiAgentCore.ts` 过 prettier。
 
 **下一步（P1 收尾）**：64 批把 MCP 前端接到 SDK 上（DSH 能连我们），65 批做 `@deepseek-ai/dsh-headless` 适配器实验。本批没跑真机，行为等价靠旧断言。
+
+## §64 第 64 批：平台注册表（P2a 多平台第一步，2026-10-28）
+
+**批次变更说明**：§63 原计划 64 批做 MCP 前端（让 DSH 连我们），用户 10-28 明确「先别让 dsh 连上我们了」，改为先把「多平台/多产品」的地基做掉 —— 对应 P2 的第一步 P2a。
+
+**做了什么事**：把散在 `botTypeConfig.ts`（`@ts-nocheck` 还原文件）、`capabilities.ts`、`builtinCatalog.ts`、`NodePalette`、`NodeSearchDialog` 里的「哪个节点属于哪个平台」收成一份数据表 `src/shared/domain/platform/registry.ts`。用户价值：以后接飞书/钉钉/微信的节点能从同一张表推导可见性，不用改画布。
+
+**为什么只做注册表、不做节点包**：节点库（`src/shared/nodes/`，43 文件）和画布是「保留不动」的产品核心，P2a 只把平台语义抽出来；真正把节点拆成插件包放 P2b（`groups/*` 17 文件是天然切分单位）。
+
+**数据形状**：
+
+- `PlatformFamily` 10 个：`qq / lark / dingtalk / wechat / kook / telegram / discord / slack / sandbox / minecraft`。
+- 每族声明 `platformIds`（覆盖 `capabilities.ts` 的 12 个 `PlatformIdSchema` 值）、`projectAdapters`（`official→qq / lark→lark / dingtalk→dingtalk`）、`legacyTags`（`QQ / 飞书 / 微信 / 钉钉`）与中英显示名。
+- `projectPlatformFamily(project)`：**adapter 优先于 botType**（飞书项目即使 `botType:'general'` 也算飞书）；`botType:'general'` 且无 adapter → `undefined`（不绑平台）。
+- `nodePlatformTags(spec)`：显式 `platform` 与历史 `tags` 取并集去重；`'all'` 展开为空（通用）。
+- `specVisibleOnPlatform(spec, family)`：通用节点永远可见；专属节点只在本族可见（`family === null` 时不可见）。
+
+**类型迁移**：`nodeV2.ts` / `flow.ts` 的 `platform?: 'all' | 'qq'` 改为 `platform?: NodePlatformTag`（值联合搬到注册表）。`botTypeConfig.ts` 是还原文件，**不改**；两边漂移由闸门守。
+
+**UI**：`NodePalette` 的徽标从 `spec.platform === 'qq'` 改为按 `nodePlatformTags(spec)` 取第一个族 + `platformLabel(family, locale)`；筛选从 `specVisibleForBotType(spec, botType)` 改为 `specVisibleOnPlatform(spec, projectFamily ?? null)`（先按项目平台收窄，`botType` 选择器仍在）；`NodeSearchDialog` 同步。i18n 键 `palette.qqOfficialTitle / qqOfficial` 换成 `palette.platformOnlyTitle / platformOnly`（中英各两条，带 `{platform}` 参数），用户可见面不再出现「QQ 专属」。
+
+**守卫**：新增 `tests/guards/platformTagCoverage.test.ts`（5 例）：每个节点 `platform` 标注都能在注册表找到；`tags` 里的历史平台标签都已登记；`PlatformIdSchema` 每个值归属唯一族（平台词表漂移即红）；每族有中英显示名且 `AdapterType` 全部有归属。`noOneBotSurface` 的字段断言同步改为 `platform?: NodePlatformTag`。
+
+**测试**：`tests/shared/domain/platform/registry.test.ts` 12 例（项目族判定、标注推导、可见性、与 `botTypeConfig` 词表不漂、显示名）。
+
+**涉及文件行数**：新增 `shared/domain/platform/registry.ts`(约 230)、`tests/shared/domain/platform/registry.test.ts`(约 150)、`tests/guards/platformTagCoverage.test.ts`(约 100)；改动 `nodeV2.ts`(+1 import/+1 类型)、`flow.ts`(同)、`NodePalette.tsx`(+约 20)、`NodeSearchDialog.tsx`(+8)、`zh-CN.json`/`en-US.json`（各 2 键）、`tests/guards/noOneBotSurface.test.ts`(+4)。**未新增 IPC 通道**，能力台账不动。
+
+**闸门**：typecheck node/web `EXIT=0`；guards 18 文件 121 例全绿；新增测试 17 例；全量 vitest 见提交说明。
+
+**下一步（P2b）**：节点库按平台拆包 —— 先 `groups/qq-*` 与 `groups/{lark,dingtalk,wechat}-*` 分组，节点贡献点从 `builtinCatalog.ts` 的静态 import 改成「平台包注册」，同一张注册表做可见性/依赖校验。
