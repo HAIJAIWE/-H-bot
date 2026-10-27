@@ -9,7 +9,8 @@
 //
 // 与 `uiSlots.tsx` 同一套纪律：注册返回 dispose、订阅版本号重渲染、重名直接抛错、
 // 刻意不做沙箱与权限（那是插件宿主的事）——这里只解决「谁渲染整个窗口」和「可撤销」。
-import { useSyncExternalStore, type ReactNode } from 'react'
+import { useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { createAgentSurfaceContext, type AgentSurfaceContext } from './agentSurfaceContext'
 
 export interface AgentSurfaceEntry {
   /** 全局唯一：重复注册直接报错 */
@@ -21,7 +22,11 @@ export interface AgentSurfaceEntry {
    * 注册时取一次会把当时语言定死，函数每次渲染时现算。
    */
   label?: () => string
-  render: () => ReactNode
+  /**
+   * 画整个窗口。参数是**输入契约**（第 70 批）：只读快照 + 命令，
+   * 贡献方不需要也不应该直接 import aiStore —— 内部结构才换得动。
+   */
+  render: (context: AgentSurfaceContext) => ReactNode
 }
 
 const REGISTRY = new Map<string, AgentSurfaceEntry>()
@@ -79,6 +84,8 @@ function getAgentSurfaceVersion(): number {
  */
 export function AgentSurfaceHost({ preferredId }: { preferredId?: string | null }): ReactNode {
   useSyncExternalStore(subscribeAgentSurfaces, getAgentSurfaceVersion, getAgentSurfaceVersion)
+  // 上下文实例在挂载期内保持同一份：窗口切换时复用，不因为重渲染换实例（否则订阅会反复重建）
+  const context = useMemo(() => createAgentSurfaceContext(), [])
   const active = getAgentSurface(preferredId)
-  return active ? <>{active.render()}</> : null
+  return active ? <>{active.render(context)}</> : null
 }

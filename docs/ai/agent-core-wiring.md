@@ -4300,3 +4300,24 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；agentSurface 8 例、i18n 7 文件 77 例、guards 19 文件 128 例全绿；全量 vitest 见提交说明。
 
 **下一步**：① 窗口的**输入契约**（现在仍直读 `useAiStore`；插件化窗口应只拿只读投影 + 命令事件）；② 外部插件的 surface 注册（P4 manifest 化，`label()` 已按 i18n 备好）。
+
+---
+
+## §70 第 70 批：智能体窗口的输入契约（P3 第三刀，2026-10-28）
+
+**为什么**：第 68/69 批已经能让第三方窗口接管右栏，但 `AgentSurfaceEntry.render()` 没有参数 —— 贡献方想画消息只能自己 `import { useAiStore }`。那等于把渲染层的私有状态当成公开 API：store 一改字段、一拆 slice，所有第三方窗口一起砸。契约不清，贡献点就只是"能换组件"，不是"能被别人写"。
+
+**做了什么**：
+
+- 新增 `src/renderer/src/lib/ai/agentSurfaceContext.ts`（109 行）：定义 `AgentSurfaceSnapshot`（`projectPath` / `threadId` / `messages` / `streaming` / `running` / `pendingApproval`）、`AgentSurfaceActions`（`send` / `steer` / `stop` / `resolveApproval` / `newThread` / `switchThread`）与 `AgentSurfaceContext`（`getSnapshot` / `subscribe` / `actions`），并提供 `createAgentSurfaceContext()`。
+- 三条设计约束：① **快照引用稳定** —— 同一份 store 状态内 `getSnapshot()` 返回同一对象，store 变了才新建；因此贡献方可直接 `useSyncExternalStore(ctx.subscribe, ctx.getSnapshot)`，不会无限重渲染。② **只有命令，没有 setter** —— 动作转发到 aiStore 的方法，贡献方无法直接改状态。③ **单一 store 订阅** —— 第一个 listener 才订阅 zustand，最后一个退订后释放。
+- `agentSurface.tsx`：`render` 改成 `(context: AgentSurfaceContext) => ReactNode`；`AgentSurfaceHost` 用 `useMemo(() => createAgentSurfaceContext(), [])` 在挂载期内保持同一实例再传给当前窗口（切换窗口不重建订阅）。
+- 内置窗口 `builtinAgentSurface.tsx` 的 `render: () => <ChatPanel />` 不用改（少参函数可赋给多参签名）—— 内置窗口是**特权**的，继续直读 store；外部窗口只拿契约。这条差异要写进将来 P4 的 manifest 文档。
+
+**测试**（`tests/renderer/lib/ai/agentSurfaceContext.test.ts`，6 例）：快照字段一一对应且引用稳定；store 变化 → 换新快照并通知订阅者；待审批透出；`send`（含 images/agentMode）、`steer`、`stop`、`resolveApproval` 转发到 store；`newThread` / `switchThread` 用当前项目；最后一个订阅者退订后不再转发。
+
+**涉及文件行数**：新增 `agentSurfaceContext.ts`(109)、测试(106)；改 `agentSurface.tsx`(+10/-3)。**未新增 IPC 通道**、能力台账不动。
+
+**闸门**：typecheck node/web `EXIT=0`；agentSurface 8 例 + 契约 6 例、guards 19 文件 128 例全绿；全量 vitest 见提交说明。
+
+**下一步**：① 给契约配一个**示例窗口**（只拿 ctx 写一个紧凑列表面板，注册 order=2000，设置页可选中）—— 证明第三方真的写得出来，也给 P4 的插件模板打样；② 内置 `ChatPanel` 逐步改吃 ctx（现在还是特权直读），一次挪一块（发送 / 停止 / 审批）。
