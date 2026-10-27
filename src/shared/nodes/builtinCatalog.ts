@@ -30,6 +30,7 @@ import { storagePlayerNodes } from './groups/storagePlayer';
 import { textNodes } from './groups/text';
 import { triggerNodes } from './groups/trigger';
 import { buildNodePacks } from './packs';
+import { registerNodePack } from './packRegistry';
 
 // 配置表默认库路径的唯一真相在 storageDb 分片里，这里保持对外导出不变
 // （databaseWrite.ts / PropertyDrawer.tsx 从本模块 import DEFAULT_DB_PATH）。
@@ -132,9 +133,10 @@ for (const node of NODE_CATALOG_V2) {
 }
 
 /**
- * 平台节点包（第 66 批 P2b）。
+ * 平台节点包（第 66 批 P2b 视图，第 67 批起改为注册）。
  *
- * 目录是唯一的节点清单，本数组只是它的**视图**：按平台族切包（规则在 `./packs.ts`），
- * `common` 永远排第一。消费方（按项目平台收窄、外部包注册）下一批再接，本批行为零变化。
+ * 目录是唯一的节点清单，包只是它的**视图**：按平台族切包（规则在 `./packs.ts`），
+ * 注册进 `./packRegistry` 后由消费方（节点库 / 命令面板）按项目平台取可见 kind。
+ * 外部插件包将来走同一个 `registerNodePack(..., 'external')`，内置包永远先注册。
  */
-export const NODE_PACKS = buildNodePacks(NODE_CATALOG_V2);
+for (const pack of buildNodePacks(NODE_CATALOG_V2)) registerNodePack(pack, 'builtin');

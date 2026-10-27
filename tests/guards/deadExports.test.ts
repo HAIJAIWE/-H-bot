@@ -315,6 +315,8 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
     '测试夹具用；生产侧不需要主动清空 —— 缓冲有 300 条上限，自己会收敛（接上或删除时从基线移除）',
   'src\\main\\vendor\\dsh\\tool-pipeline\\pipeline.ts:fuseToolSignals':
     'vendored 纯函数；本仓 dispatch 直接用 caller 的 signal（不另建 wrapper），生产侧不调它。保留供以后接内部取消源时用。',
+  'src\\shared\\nodes\\packRegistry.ts:getNodePacks':
+    '契约闸门（tests/guards/nodePackContract.test.ts）用来断言「包与目录不许漂」；生产侧只经 visibleNodeKinds / isPackNodeKind 取视图。',
 }
 
 /**

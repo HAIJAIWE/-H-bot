@@ -48,12 +48,8 @@ import { Spinner } from '../ui/Spinner';
 import { Button } from '../ui/Button';
 import { inputForm } from '../ui/inputStyles';
 import { getAllSpecs } from '../../lib/node/nodeCatalog';
-import {
-  nodePlatformTags,
-  platformLabel,
-  projectPlatformFamily,
-  specVisibleOnPlatform,
-} from '@shared/domain/platform/registry';
+import { nodePlatformTags, platformLabel, projectPlatformFamily } from '@shared/domain/platform/registry';
+import { isPackNodeKind, visibleNodeKinds } from '@shared/nodes/packRegistry';
 import { STORAGE_KEYS } from '../../lib/infra/storageKeys';
 
 /** 分组折叠状态持久化 key */
@@ -329,12 +325,14 @@ export function NodePalette() {
   const projectFamily = useProjectStore((s) =>
     s.currentProject ? projectPlatformFamily(s.currentProject) : undefined,
   );
-  // 通用节点始终可见；只挡**别的平台**的专属节点（标注来源见 platform/registry）
+  // 通用节点始终可见；只挡**别的平台**的专属节点（包归属见 nodes/packs.ts，第 67 批）
   const allSpecs = useMemo(() => getAllSpecs(), [catalogVersion]);
-  const visibleSpecs = useMemo(
-    () => allSpecs.filter((s) => specVisibleOnPlatform(s, projectFamily ?? null)),
-    [allSpecs, projectFamily],
-  );
+  // 包内节点按「当前项目平台族」取可见 kind；不属于任何包的节点（自定义/插件/AI）
+  // 不参与平台收窄，始终可见。
+  const visibleSpecs = useMemo(() => {
+    const visibleKinds = visibleNodeKinds(projectFamily ?? null);
+    return allSpecs.filter((s) => !isPackNodeKind(s.kind) || visibleKinds.has(s.kind));
+  }, [allSpecs, projectFamily]);
   const hiddenCount = allSpecs.length - visibleSpecs.length;
   const groups = useMemo(() => groupByGroup(visibleSpecs), [visibleSpecs, locale]); // 扫描完成/切语言/切项目类型后重新分组
 

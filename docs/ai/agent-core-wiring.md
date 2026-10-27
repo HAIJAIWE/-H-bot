@@ -4217,3 +4217,27 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；nodePackContract + packs + deadExports 21 例全绿；guards 19 文件 127 例全绿；全量 vitest 见提交说明。
 
 **下一步（P2b-2）**：① 消费方接包——`NodePalette` 按项目平台族收窄可见包（`specVisibleOnPlatform` 已有，改用包遍历）；② 外部包注册接口——把 `NODE_PACKS` 从常量改成注册表（内部包与将来的外部插件包同一接口）；③（可选）`groups/*` 物理拆成 `groups/qq/`、`groups/common/` 目录。
+
+## §67 第 67 批：平台节点包注册表 + 消费方接包（P2b-2）
+
+**为什么**：第 66 批的 `NODE_PACKS` 只是目录的静态视图常量，消费方（节点库）还在逐节点判 `specVisibleOnPlatform`，外部来源无法注册包。本批把「包」升级成**运行时注册表**，并把两个消费方接上，为 P4 的外部插件包留同一个接口。
+
+**做了什么**：
+- 新增 `src/shared/nodes/packRegistry.ts`：`registerNodePack(pack, source = 'external')`（重复 id 抛错——包是交付单位，来源必须唯一）/ `getNodePacks()` / `isPackNodeKind(kind)` / `visibleNodeKinds(family)`（`family` 为 `null|undefined` → 全部包内节点；否则 `common` + 该平台族）。
+- `src/shared/nodes/builtinCatalog.ts`：`NODE_PACKS` 常量删除，改为模块加载时 `for (const pack of buildNodePacks(NODE_CATALOG_V2)) registerNodePack(pack, 'builtin')`——内置包永远先注册，`common` 排第一。
+- 消费方接包：
+  - `NodePalette.tsx`：过滤从「逐节点 `specVisibleOnPlatform`」换成「`isPackNodeKind(s.kind)` → 查 `visibleNodeKinds(projectFamily)`」；**不属于任何包的节点**（自定义 / 插件 / AI 生成）不参与平台收窄，始终可见。
+  - `NodeSearchDialog.tsx`：命令面板补上同一套包可见性（第 65 批的守卫注释写着「列表已滤过」，此前实际只在插入时拦，现在真的滤了）。
+
+**行为等价性**：包内节点的归属规则与第 65 批的逐节点判定同源（`packIdOf` ↔ `nodePlatformTags`），闸门逐平台族比对两个集合必须相等——所以这次切换**只换数据通路，不换可见结果**。
+
+**守卫与测试**：
+- `tests/guards/nodePackContract.test.ts` 更新：改用 `getNodePacks()` 读内置包，并新增「可见性视图与逐节点判定等价」一例（对每个平台族比对 kind 集合）。
+- 新增 `tests/shared/nodes/packRegistry.test.ts`（5 例）：内置包已注册且 common 第一 / 外部包注册与来源 / 重复 id 抛错 / `visibleNodeKinds` 含 common 且排除别的平台 / `isPackNodeKind`。
+- deadExports：`getNodePacks` 仅契约闸门引用 → 按既有惯例在 `BASELINE_TEST_ONLY` 登记（理由写明「生产侧只经 visibleNodeKinds / isPackNodeKind 取视图」）。
+
+**涉及文件行数**：新增 `packRegistry.ts`(88)、`tests/shared/nodes/packRegistry.test.ts`(76)；改动 `builtinCatalog.ts`(注册替代常量)、`NodePalette.tsx`(过滤 10 行)、`NodeSearchDialog.tsx`(过滤 +15)、`nodePackContract.test.ts`(重写 96)、`deadExports.test.ts`(+2)。未新增 IPC 通道，能力台账不动。
+
+**闸门**：typecheck node/web `EXIT=0`；packs / packRegistry / nodePackContract / deadExports 21 例全绿；guards 19 文件 128 例全绿；全量 vitest 见提交说明。
+
+**下一步（P4 前的地基）**：① 包的**按项目收窄内部实现**仍是一次性构造（`visibleNodeKinds` 每次遍历），节点量大了再 memo；② 外部包加载（`plugins/*/manifest.json` → `registerNodePack(..., 'external')`）需要先定外部节点的 handler 装载方式，与插件沙箱一起排；③（可选）`groups/*` 物理拆分目录。

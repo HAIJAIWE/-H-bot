@@ -7,7 +7,9 @@ import { getNodeIcon } from '../blocks/iconMap';
 import { recordNodeUsage } from '../../lib/infra/recentStore';
 import { CommandPalette } from '../ui/CommandPalette';
 import type { NodeSpec } from '@shared/types/flow';
-import { nodePlatformTags, platformLabel } from '@shared/domain/platform/registry';
+import { nodePlatformTags, platformLabel, projectPlatformFamily } from '@shared/domain/platform/registry';
+import { isPackNodeKind, visibleNodeKinds } from '@shared/nodes/packRegistry';
+import { useProjectStore } from '../../stores/projectStore';
 import { t, getLocale } from '../../i18n';
 import { useLocaleSubscription } from '../../stores/i18nStore';
 import { nodePlatformBlockReason } from '../../lib/node/platformGuard';
@@ -22,21 +24,30 @@ export function NodeSearchDialog() {
   // 订阅目录版本：自定义/插件节点扫描完成后结果立即可见（原 useMemo([query]) 会缓存空目录）
   const catalogVersion = useSyncExternalStore(subscribeCatalog, getCatalogVersion);
 
+  // 第 67 批：命令面板与节点库共用一套包可见性 —— 别的平台的专属节点不进搜索结果
+  // （不绑平台的节点、以及不在任何包里的自定义/插件/AI 节点照常可见）
+  const projectFamily = useProjectStore((s) =>
+    s.currentProject ? projectPlatformFamily(s.currentProject) : undefined,
+  );
+
   // 使用 getAllSpecs() 统一数据源（V2 catalog + 自定义 + 插件节点），
   // 不再直接引用已废弃的老 NODE_CATALOG。
   const filtered = useMemo(() => {
     // catalogVersion 仅作失效信号：版本递增时强制重读 getAllSpecs()
     void catalogVersion;
-    const all = getAllSpecs();
-    if (!query.trim()) return all;
+    const visibleKinds = visibleNodeKinds(projectFamily ?? null);
+    const visible = getAllSpecs().filter(
+      (s: NodeSpec) => !isPackNodeKind(s.kind) || visibleKinds.has(s.kind),
+    );
+    if (!query.trim()) return visible;
     const q = query.toLowerCase();
-    return all.filter(
+    return visible.filter(
       (s: NodeSpec) =>
         s.label.toLowerCase().includes(q) ||
         s.description.toLowerCase().includes(q) ||
         s.group.toLowerCase().includes(q),
     );
-  }, [query, catalogVersion]);
+  }, [query, catalogVersion, projectFamily]);
 
   // 全局快捷键：Ctrl+K / Cmd+K 切换
   useEffect(() => {
