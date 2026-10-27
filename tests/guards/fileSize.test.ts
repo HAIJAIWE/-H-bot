@@ -107,11 +107,12 @@ const BASELINE: Record<string, string> = {
     '`list_node_examples`（示例库查询）后越线。拆的路径已经很清楚：**把各域声明按域拆出去**' +
     '（已有 codegen / capability / template 等 registeredXxxDefinitions 的先例，直接照搬），' +
     'dispatch 表本身保持一处。下次动它时按这条拆',
-  'src\\main\\ipc\\aiAgentCore.ts':
-    '**刚过 800 线（810 行 / 11 次）**：循环的 IPC 接线中枢 —— 轮循环、16 条 \`ai:*\` 事件、审批/记忆/提案。' +
-    '2026-10-25 加了「过程痕迹落盘（思考 / 工具行 / 耗时）」，越线 10 行。' +
-    '拆的路径清楚：把事件发射抽成 \`agentCoreEvents.ts\` —— 但要先改 \`agentCoreEventContract\` 闸门' +
-    '（它逐条盯着**本文件里**的 emit 列表），所以**不为这 10 行硬拆**，下次动它时再拆',
+  'src\\main\\ipc\\ai.ts':
+    '**第 63 批后成为最大的 IPC 接线中枢（975 行）**：60+ 条 `ai:*` 通道的 handler 全集，' +
+    '加上审批/标题/预设/记忆各自的校验与兜底。第 61 批起对外已有 SDK 门面' +
+    '（`src/preload/agentSdk.ts` 只露 26 条），所以拆的路径已经明确：' +
+    '**按 SDK 面把 会话 / 审批 / 设置 / 标题 四组 handler 抽成模块**，门面与通道都不变；' +
+    '拆之前先把 protocolContract 闸门从「通道对账」扩到「handler 归属」。下次动它时按这条拆',
   'src\\main\\services\\ai\\index.ts':
     '待拆（725 行 / 29 次）：AI 对话的**编排入口**（分轮、跑工具、发提案、落记忆）——' +
     '又长又热，但它是「一根线穿下来」的流程，拆之前得先把每轮的边界用测试钉住' +

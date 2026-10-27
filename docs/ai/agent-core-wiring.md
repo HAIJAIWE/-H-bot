@@ -4102,3 +4102,27 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **文档**：新增 `docs/ai/bidirectional-adaptation.md` —— 双向适配（DSH 驱动我 / 我驱动 DSH）的形态、传输层、P1 验收、版本与退出、批次计划 62–65。
 
 **闸门**：typecheck node/web `EXIT=0`；新增 5 例 + 全量 vitest 见提交说明；新文件过 prettier。
+
+## §63 第 63 批：运行体搬进 agent-runtime（P1 第二步，2026-10-28）
+
+**做了什么事**：`src/main/ipc/aiAgentCore.ts` 从 989 行降到 284 行 —— 项目内一轮运行体（记忆、预设/角色、工具表、轮循环、提案、标题刷新）整体搬到 `src/main/services/agent-runtime/projectTurn.ts`（789 行）。`ai:agentCoreRun` 的 handler 只剩装配：`RUNNING`/`STEER` 登记、inbox、`emit` 转发、构造两个注入点、`finally` 清理。
+
+**接口**：
+
+- `ProjectTurnInput`：`projectPath / requirement / threadId / memoryFile / signal / emit / stepQueue / turnQueue / persistInbox` + 可选项（`images / fullAccess / planFirst / maxRounds / activeFilePath / preset / agentMode / allowedTools`）。参数名与原 handler 完全一致，搬完后 `emit('ai:…')` 的每一行都没改。
+- `ProjectTurnDeps`：`approval(ctx)` —— 宿主手里才有窗口，所以「问人」那一环由宿主用 `createApprovalGate` 组装，运行时只交上下文（角色 / 全权 / 规则表 / 本轮已放行）；`dispatch(instruction)` —— 旧工具里要界面执行的指令（等回执，超时/无窗口都收敛成失败）。
+- 开荒分支（`projectPath === ''`）留在宿主，因为它本来就是另一套装配（`runOnboardingTurn`），且没有项目路径可作 `RUNNING` 的键。
+
+**为什么旧链路断言零改动**：实现方式是纯切片搬运 + 3 处注入点替换（`emit` 闭包、审批闸门、`dispatchInstruction`），`aiAgentCoreApproval.ts` 原样复用；四个旧测试文件的断言真的一行没改就全绿。搬运后 `projectTurn.ts` 里不出现 `BrowserWindow` / `win` / `createApprovalGate`。
+
+**顺手做的守卫对账**：
+
+- `tests/guards/agentCoreEventContract.test.ts`：原来把「循环这一侧」写死成 `ipc/aiAgentCore.ts`；改为 `LOOP_FILES`（宿主 + `projectTurn.ts` 两个文件），事件清单与工具事件的 `name/args` 断言不变。
+- `tests/guards/fileGrowth.test.ts`：`projectTurn.ts` 压到 800 行以下（789）；`aiAgentCore.ts` 降到 284 后按幽灵规则从登记表删掉。
+- `tests/guards/fileSize.test.ts`：`ipc/ai.ts`（975 行）因此进入「又长又热」前几名，按队列规则补一条待拆登记，拆法写清：**按 SDK 面把会话 / 审批 / 设置 / 标题四组 handler 抽成模块**，门面与通道都不变。
+
+**涉及文件行数**：新增 `services/agent-runtime/projectTurn.ts`(789)；`ipc/aiAgentCore.ts` 989 → 284；`tests/guards/agentCoreEventContract.test.ts`(+13)；`tests/guards/fileSize.test.ts`（换一条登记）；`tests/guards/file-size-baseline.json`（删 `aiAgentCore.ts`、更新 `ai.ts`）。
+
+**闸门**：typecheck node/web `EXIT=0`；guards 17 文件 116 例全绿；`agent-runtime` 与 `aiAgentCore*` 测试 43 例全绿；全量 vitest 见提交说明；`projectTurn.ts`、`aiAgentCore.ts` 过 prettier。
+
+**下一步（P1 收尾）**：64 批把 MCP 前端接到 SDK 上（DSH 能连我们），65 批做 `@deepseek-ai/dsh-headless` 适配器实验。本批没跑真机，行为等价靠旧断言。

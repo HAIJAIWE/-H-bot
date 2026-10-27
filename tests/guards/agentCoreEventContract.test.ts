@@ -201,13 +201,22 @@ export function auditEmissions(emissions: readonly Emission[], subscribed: Set<s
 
 const MAIN_FILES = walk(join(ROOT, 'src', 'main'))
 
+/**
+ * 第 63 批起，循环的事件发送在 `agent-runtime/projectTurn.ts`（运行体搬出了 IPC 层）；
+ * 宿主的 `ipc/aiAgentCore.ts` 只剩 `emit` 的转发实现。两个文件都算「循环这一侧」。
+ */
+const LOOP_FILES = new Set([
+  'src/main/ipc/aiAgentCore.ts',
+  'src/main/services/agent-runtime/projectTurn.ts',
+])
+
 describe('★ 事件契约：主进程发 → preload 收 → 渲染层读', () => {
   const emissions = collectEmissions(MAIN_FILES)
   const subscribed = subscribedChannels()
 
   it('扫描确实在工作（且认得出 agent-core 的 emit 包装）', () => {
     expect(emissions.length).toBeGreaterThan(20)
-    const fromLoop = emissions.filter(e => e.file === 'src/main/ipc/aiAgentCore.ts')
+    const fromLoop = emissions.filter(e => LOOP_FILES.has(e.file))
     expect(fromLoop.map(e => e.channel).sort()).toEqual([
       'ai:agentState',
       'ai:agentState',
@@ -236,9 +245,7 @@ describe('★ 事件契约：主进程发 → preload 收 → 渲染层读', () 
   })
 
   it('★ agent-core 的工具事件必须有 name + args（工具行靠第一发立卡片）', () => {
-    const loopTools = emissions.filter(
-      e => e.file === 'src/main/ipc/aiAgentCore.ts' && e.channel === 'ai:toolCall',
-    )
+    const loopTools = emissions.filter(e => LOOP_FILES.has(e.file) && e.channel === 'ai:toolCall')
     expect(loopTools.length).toBe(2)
     for (const e of loopTools) {
       expect(e.keys, `${e.file}:${e.line}`).toEqual(expect.arrayContaining(['name', 'args']))

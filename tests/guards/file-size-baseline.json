@@ -56,9 +56,6 @@
   "src/shared/nodes/subflowTemplateDefs.ts": {
     "lines": 1073
   },
-  "src/main/ipc/aiAgentCore.ts": {
-    "lines": 1056
-  },
   "src/renderer/src/components/canvas/CanvasNode.tsx": {
     "lines": 1023
   },
@@ -75,7 +72,7 @@
     "lines": 965
   },
   "src/main/ipc/ai.ts": {
-    "lines": 943
+    "lines": 975
   },
   "src/renderer/src/components/launch/TableDesignModal.tsx": {
     "lines": 878
