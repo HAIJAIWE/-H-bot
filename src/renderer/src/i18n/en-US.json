@@ -918,6 +918,13 @@
         "unit": "code points (~1 token per Chinese char)",
         "offHint": "Off: nothing is trimmed. A single huge result can blow up the context (the request then fails rather than slows down).",
         "saveFailed": "Failed to save"
+      },
+      "parallelToolCalls": {
+        "title": "Parallel tool calls",
+        "hint": "When the model asks for several tool calls in one round, how many may run at the same time. Higher is faster but hits provider rate limits sooner; turn it off to run them one by one.",
+        "value": "Concurrent",
+        "offHint": "Off: tool calls run one at a time (equivalent to 1).",
+        "saveFailed": "Failed to save"
       }
     },
     "botState": {

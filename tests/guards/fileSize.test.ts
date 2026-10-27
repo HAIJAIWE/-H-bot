@@ -44,6 +44,12 @@ const QUEUE_TOP = 8
 
 /** **数据/声明类**：内容是"表"而不是"逻辑" */
 const DATA_FILES: Record<string, string> = {
+  'src\\main\\services\\agent-core\\core.ts':
+    '**循环骨架层**（Tool 接口定义、注册表、工具分组、循环控制流）—— 它是 agent-core 的"运行时"，不是静态数据；' +
+    '长是因为要放完整的技术栈：Tool 契约与现有 6 个内置工具 (read_file/write_file/run_command/validate_flow/list_dir/search_text/todo)、' +
+    'LOOP_DEFAULTS / MAX_ROUNDS_DEFAULT 等默认值、CORE_TOOLS 集合、registerTool/unregisterTool/listTools 等 API。' +
+    '已改 12 次（每次加新 Tool 或改循环行为），提交频率高但结构清晰（分区注释）。拆成多个文件只会让「调哪个 Tool」变复杂 —— ' +
+    '这应该是一眼看完的运行时文档，符合「长且热但可以接受」的特征 ✓',
   'src\\shared\\nodes\\builtinCatalog.ts':
     '声明式节点目录（每节点一条：端口/配置/文案）。**已改 65 次** —— "是数据"解释了它为什么长，' +
     '但没解释它为什么该一直这么长；真到改不动时按节点类别拆（当前接受这个摩擦力）',

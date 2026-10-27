@@ -30,6 +30,7 @@ import { applyCompaction, type CompactionOptions, type CompactionOutcome } from 
 import { compactForContextOverflow, isContextOverflowError } from './contextOverflow'
 import { MAX_TOOL_OUTPUT_CHARS, modelFacingOutput } from './toolOutput'
 import { TODO_TOOL } from './todoTool'
+import { SESSION_SEARCH_TOOL } from './sessionSearchTool'
 import { RepeatGuard, type RepeatGuardOptions } from './repeatGuard'
 import { retainEntries, streamOmittedNote } from './toolRetention'
 
@@ -480,6 +481,8 @@ for (const builtin of CORE_TOOLS) registerTool(builtin)
 // todo_write 不在 CORE_TOOLS 里（那 6 个由内置插件认领，插件加载时会校验"一个不漏"），
 // 单独注册：它不归任何插件，预设的 plugins 白名单删不掉它。
 registerTool(TODO_TOOL)
+// 同理：search_sessions 也不属于任何领域插件（第 59 批），单独注册。
+registerTool(SESSION_SEARCH_TOOL)
 
 export interface LoopOptions {
   workspace: string
@@ -520,6 +523,11 @@ export interface LoopOptions {
    * 默认**关**（runAgentLoop 的裸调用/测试行为不变）；生产入口 `ipc/aiAgentCore` 显式传 true。
    */
   fsObservation?: boolean
+  /**
+   * 当前会话（线程）id（第 59 批）：透传到 `ToolContext.threadId`，
+   * 供 `search_sessions` 排除调用方自己那条线程。不传 = 不排除。
+   */
+  threadId?: string
   /**
    * 工具**开始**执行（流式界面靠它先摆一行"运行中"）。
    *
@@ -672,6 +680,8 @@ export async function runAgentLoop(opts: LoopOptions): Promise<LoopResult> {
     ...(opts.onBeforeWrite ? { onBeforeWrite: opts.onBeforeWrite } : {}),
     // 文件观察门（第 55 批）：一次运行一个，随循环对象回收
     ...(opts.fsObservation ? { fsGate: new FsObservationGate() } : {}),
+    // 第 59 批：会话检索工具靠它排除调用方自己
+    ...(opts.threadId ? { threadId: opts.threadId } : {}),
   }
   const messages: ChatTurn[] = [...(opts.initialTurns ?? [])]
   // 与上游一致：不否决调用，只在事后把"你在重复"摆到模型眼前（链只活这一次运行）

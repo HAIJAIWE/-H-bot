@@ -18,6 +18,7 @@ import { stopAllTranslators } from './services/runner/eventBus';
 import { stopUntrustedWorkerIfRunning } from './runtime/untrustedWorkerHost';
 import { logger } from './services/infra/logger';
 import { loadAndApplyToolBudget } from './services/ai/budgetSettings';
+import { loadAndApplyParallelToolCalls } from './services/ai/parallelToolCallsSettings';
 import { initCrashLogger } from './services/ops/crashLogger';
 import { initErrorMonitoring, flushAndClose } from './services/ops/errorMonitoring';
 import { createMcpServer } from './mcp/server';
@@ -93,6 +94,10 @@ async function bootstrap(): Promise<void> {
   // 预算层是模块级状态，默认值在代码里（8192 码点），这里把用户改过的值覆盖上去。
   // 读失败不阻断启动（`loadAndApplyToolBudget` 内部兜底为默认值）。
   await loadAndApplyToolBudget();
+
+  // 并行工具调用数（第 59 批）：同样必须在使用 AI 之前应用 —— 轮次里每轮同步读这个模块级状态。
+  // 读失败不阻断启动（内部兜底为默认值 10 / 启用）。
+  await loadAndApplyParallelToolCalls();
 
   registerAllIpc(projectBase);
 

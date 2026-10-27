@@ -1083,6 +1083,12 @@ export interface QqbatApi {
     onError: (callback: (data: { projectPath?: string; message: string }) => void) => () => void
     /** 主进程侧的警告（已取消 / 超时但有部分计划）—— 同样要能收尾 */
     onWarning: (callback: (data: { projectPath?: string; message: string }) => void) => () => void
+    /** 并行工具调用数设置 */
+    getParallelToolCalls: () => Promise<ApiResult<{ enabled: boolean; maxParallel: number }>>
+    setParallelToolCalls: (
+      enabled: boolean,
+      maxParallel: number,
+    ) => Promise<ApiResult<{ enabled: boolean; maxParallel: number }>>
   }
   // 控制/状态统一走 botManager:*；这里只剩观测（日志/节点事件）与测试注入
   runtime: {

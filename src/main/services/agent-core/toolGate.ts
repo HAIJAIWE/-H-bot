@@ -54,6 +54,12 @@ export interface ToolContext {
    * —— 语义对齐上游 `fs/fs-observation-policy`，见 `./fsObservation`。
    */
   fsGate?: FsObservationGate
+  /**
+   * 当前会话（线程）id（第 59 批）：给"会检索会话"的工具用（`search_sessions`）——
+   * 它要把调用方自己那条线程排除掉，否则模型一搜就把"正在聊的这段"当成历史证据引用，
+   * 越搜越绕。不传 = 工具按"没有当前线程"处理（脚本/测试的默认）。
+   */
+  threadId?: string
 }
 
 /**

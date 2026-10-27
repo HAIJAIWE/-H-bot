@@ -24,6 +24,7 @@
     "src/renderer/src/lib/canvas/postDominator.ts": 24,
     "src/renderer/src/lib/expression/exprStructure.ts": 24,
     "src/renderer/src/lib/postDominator.ts": 24,
+    "src/main/services/agent-core/sessionSearchTool.ts": 23,
     "src/main/services/ai/promptSections.ts": 23,
     "src/renderer/src/components/ai/AiSidebar.tsx": 23,
     "src/renderer/src/lib/autoGroup.ts": 23,

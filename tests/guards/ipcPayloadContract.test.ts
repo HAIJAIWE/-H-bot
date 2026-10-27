@@ -167,6 +167,8 @@ const EXEMPT: Record<string, string> = {
   'ai:tools': '无载荷',
   'ai:getToolBudget': '无载荷',
   'ai:setToolBudget': '载荷是 setting 对象（非字面量），键名由 toolBudgetSchema 校验',
+  'ai:getParallelToolCalls': '无载荷',
+  'ai:setParallelToolCalls': '载荷是 { enabled, maxParallel }，键名由 aiSetParallelToolCallsSchema 校验',
   'ai:setConfig': '载荷是 config 对象（非字面量）',
   'ai:getAppConfig': '无载荷',
   'ai:setAppConfig': '载荷是 { config }，schema 只校验 config 段',

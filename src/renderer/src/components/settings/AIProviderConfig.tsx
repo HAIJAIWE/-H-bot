@@ -61,6 +61,12 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
    */
   const [budget, setBudget] = useState({ enabled: true, thresholdChars: 8192 });
   const [budgetError, setBudgetError] = useState('');
+  /**
+   * 并行工具调用数（第 59 批）。初值同样给默认值而不是 null ——
+   * 与上面 budget 一个理由：先显示"当前是什么"，读盘回来再覆盖，避免开关闪一下。
+   */
+  const [parallel, setParallel] = useState({ enabled: true, maxParallel: 10 });
+  const [parallelError, setParallelError] = useState('');
   const [form, setForm] = useState<ProviderForm>({
     provider: 'glm',
     apiKey: '',
@@ -212,6 +218,10 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
     void window.qqbat.ai.getToolBudget().then((res) => {
       if (res?.ok && res.data) setBudget(res.data);
     });
+    // 并行工具数：同一个 effect 里读，少一次挂载开销
+    void window.qqbat.ai.getParallelToolCalls().then((res) => {
+      if (res?.ok && res.data) setParallel(res.data);
+    });
   }, []);
 
   /**
@@ -228,6 +238,22 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
       return;
     }
     if (res.data) setBudget(res.data);
+  };
+
+  /**
+   * 存并行工具数：与 saveBudget 同形（改完立即生效，不跟 provider 表单的"保存"走）。
+   * 先乐观写本地再落盘：数字输入框失焦时才走到这里，界面上已经是用户输的值了，
+   * 失败就把错误显示出来（不回滚 —— 回滚会让用户以为自己没输进去）。
+   */
+  const saveParallel = async (next: { enabled: boolean; maxParallel: number }) => {
+    setParallel(next);
+    setParallelError('');
+    const res = await window.qqbat.ai.setParallelToolCalls(next.enabled, next.maxParallel);
+    if (!res?.ok) {
+      setParallelError(res?.error || t('settings.aiProvider.parallelToolCalls.saveFailed'));
+      return;
+    }
+    if (res.data) setParallel(res.data);
   };
 
   return (
@@ -411,6 +437,52 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
             </p>
           )}
           {budgetError && <p className="mt-1 text-xs text-red-400">{budgetError}</p>}
+        </div>
+
+        {/* ── 并行工具调用数（第 59 批）────────────────────────────────
+            与上面那个上限同一个性质：应用级、立即生效、单独落盘。
+            这个能力循环层早就有（默认 10），只是三层都没透传，所以一直改不了。 */}
+        <div className="border-t border-zinc-700 pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-sm text-zinc-400">
+              {t('settings.aiProvider.parallelToolCalls.title')}
+            </label>
+            <Switch
+              checked={parallel.enabled}
+              onChange={(v) => void saveParallel({ ...parallel, enabled: v })}
+            />
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            {t('settings.aiProvider.parallelToolCalls.hint')}
+          </p>
+
+          {parallel.enabled && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">
+                {t('settings.aiProvider.parallelToolCalls.value')}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                step={1}
+                className={`w-24 ${inputForm}`}
+                value={parallel.maxParallel}
+                onChange={(e) =>
+                  setParallel((prev) => ({ ...prev, maxParallel: Number(e.target.value) || 0 }))
+                }
+                // 失焦才落盘（与上限同一个理由：中间态 "1" 也算合法值，不该被写进去）
+                onBlur={() => void saveParallel(parallel)}
+              />
+            </div>
+          )}
+
+          {!parallel.enabled && (
+            <p className="mt-1 text-xs text-amber-400/80">
+              {t('settings.aiProvider.parallelToolCalls.offHint')}
+            </p>
+          )}
+          {parallelError && <p className="mt-1 text-xs text-red-400">{parallelError}</p>}
         </div>
       </div>
     </Modal>

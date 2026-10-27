@@ -28,6 +28,7 @@ import {
 import { resolveAuthorAiConfig } from '../services/ai/appAiConfig'
 import { maybeGenerateThreadTitle } from '../services/ai/threadTitles'
 import { describeMissingFileReferences } from '../services/ai/fileReference'
+import { effectiveMaxParallelToolCalls } from '../services/ai/parallelToolCallsSettings'
 import { appendTrace } from '../services/ai/trace'
 import { requestApproval } from '../services/ai/toolApproval'
 import {
@@ -740,6 +741,14 @@ export function registerAiAgentCoreIpc(): void {
            * 空串（绝大多数情况）不传，系统提示里不会多出一个空段。
            */
           ...(mentionNote ? { mentionNote } : {}),
+          /**
+           * 第 59 批：一批工具里最多几个同时跑。设置项改的是这个值；
+           * 关掉时 `effectiveMaxParallelToolCalls()` 返回 1（串行），不是 undefined
+           * （那会回落循环默认 10，等于"关了还在并行"）。
+           */
+          maxParallelToolCalls: effectiveMaxParallelToolCalls(),
+          /** 第 59 批：会话检索工具要靠它把"当前这段对话"排除掉 */
+          threadId,
           // 第 55 批：时间上下文（每轮一次采样）与文件观察门（覆盖既有文件前必须读过）
           timeNote,
           fsObservation: true,

@@ -296,6 +296,13 @@ var aiRemoveAllowRuleSchema = z.object({
   kind: z.enum(['write', 'command', 'tool']),
   match: z.string().min(1).max(500),
 })
+/** 获取并行工具调用数设置 */
+var aiGetParallelToolCallsSchema = z.object({})
+/** 设置并行工具调用数 */
+var aiSetParallelToolCallsSchema = z.object({
+  enabled: z.boolean(),
+  maxParallel: z.number().int().min(1).max(50),
+})
 
 export {
   aiNoteTurnSchema,
@@ -323,4 +330,6 @@ export {
   aiAgentCoreSteerSchema,
   aiSavePresetsSchema,
   aiRemoveAllowRuleSchema,
+  aiGetParallelToolCallsSchema,
+  aiSetParallelToolCallsSchema,
 }

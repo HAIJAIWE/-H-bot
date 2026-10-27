@@ -389,6 +389,21 @@ interface AiState {
   fullAccess: boolean
   setFullAccess: (on: boolean) => void
   /**
+   * 并行工具调用数（第 59 批）：一批工具调用里最多几个同时在跑。
+   *
+   * 主进程早就有这个能力（`core.ts` 的 `maxParallelToolCalls`，默认 10），
+   * 但 `runTurn` / `aiAgentCore` 三层都没透传 —— 于是永远跑默认值。这两个字段
+   * 是那条链路的界面上半截：改这里 → 落盘 → 下一轮读出来传下去。
+   */
+  maxParallelToolCalls: { enabled: boolean; maxParallel: number }
+  /** 读设置（进设置面板时） */
+  loadParallelToolCalls: () => Promise<void>
+  /** 写设置（点保存才调；返回失败原因给人看） */
+  saveParallelToolCalls: (
+    enabled: boolean,
+    maxParallel: number,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
+  /**
    * 「以后别再问」的已记住规则（跨轮、可撤销）。
    *
    * 这些动作现在**不问用户就直接执行**，所以界面上必须列出来、能删单条、能清空 ——
@@ -1008,6 +1023,8 @@ export const useAiStore = create<AiState>((set, get) => {
     preset: null,
     presetByThread: {},
     fullAccess: false,
+    /** 并行工具数默认 = 与主进程 MAX_PARALLEL_TOOL_CALLS_DEFAULT 一致（10） */
+    maxParallelToolCalls: { enabled: true, maxParallel: 10 },
     allowRules: [],
     threadsError: null,
     allThreads: [],
@@ -1276,6 +1293,41 @@ export const useAiStore = create<AiState>((set, get) => {
         },
       })),
     setFullAccess: on => set({ fullAccess: on }),
+
+    /**
+     * 读并行工具数设置。
+     *
+     * 桥缺失不报错（老 preload / 测试里没有）：设置面板显示默认值即可，
+     * 不为一个可选设置把整个面板弄红。
+     */
+    loadParallelToolCalls: async () => {
+      if (typeof window.qqbat?.ai?.getParallelToolCalls !== 'function') return
+      try {
+        const res = await window.qqbat.ai.getParallelToolCalls()
+        if (res.ok && res.data) set({ maxParallelToolCalls: res.data })
+        else if (!res.ok) console.error('[aiStore] getParallelToolCalls failed', res.error)
+      } catch (e) {
+        console.error('[aiStore] getParallelToolCalls failed', e)
+      }
+    },
+
+    /**
+     * 写并行工具数设置：**先落盘再改本地**（写失败就不要在界面上假装改成了）。
+     */
+    saveParallelToolCalls: async (enabled, maxParallel) => {
+      if (typeof window.qqbat?.ai?.setParallelToolCalls !== 'function') {
+        return { ok: false, error: 'ipc-missing' }
+      }
+      try {
+        const res = await window.qqbat.ai.setParallelToolCalls(enabled, maxParallel)
+        // `res.error` 在 ApiResult 里是可选的，这里必须归一成 string（返回类型要的是 string）
+        if (!res.ok) return { ok: false, error: res.error ?? 'unknown' }
+        if (res.data) set({ maxParallelToolCalls: res.data })
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
 
     steer: async (projectPath, text, target = 'step') => {
       if (!projectPath || !text.trim()) return false

@@ -3926,3 +3926,70 @@ prettier：本批新写的 6 个文件先 `--write` 再 `--check` 全过。4 个
 `tests/guards/ipcPayloadContract.test.ts`、`tests/main/ipc/aiAgentCore-ipc.test.ts`、
 `tests/main/services/agent-core/uiTrace.test.ts`、`docs/ai/ai-capability-layering-2026-10-08.md`、
 `docs/ai/dsh-source-adaptation-2026-10-24.md`、`README.md`。
+
+## §59 第 59 批：并行工具数设置 + 会话检索 + 持久终端（2026-10-27）
+
+### 59.1 为什么是这三件
+
+**并行工具调用数设置**对标上游 `dsh-client-ui-settings-agent-loop`（配置页里一个数字字段），让模型在「同一批里几个工具同时跑」这件事上有控制权。上游默认 10，我们这里也能关到 1（全串行）。这是真机撞出来的需求：有些任务串行更稳，但之前没开关。
+
+**会话检索工具**对标上游 `dsh-tool-session-query`（49 KB），让模型能搜这个项目的历史对话，而不是只会「瞎猜」。DSH 两条行为契约必须落地：①达上限 12 条要说「已达上限，可能还有更多」；②排除当前这段对话（自己不能当证据）。
+
+**持久终端 6 工具**对标上游 `dsh-tool-terminal`（terminal_open/send/read/signal/close/list），不是 run_command 的替代——后者是一次性进程（起→跑→退），这个是开着的 shell（可以连续 cd/build 看日志）。问题在于：`ShellSession` 在第 59 批前已经写完（78 行），但全仓零引用 → 死代码。这版把它活化成 6 个工具，并照 DSH 规则限制 4 个会话、256KB 输出截断。
+
+注意：审批白名单记忆**早已存在**且比上游强（always+ 可撤销规则表 +5min 超时），这一批不再动。
+
+### 59.2 并行工具数：设置层 + 运行时
+
+**服务文件**：新建 `src/main/services/ai/parallelToolCallsSettings.ts`（干净 TS，非 @ts-nocheck）—— 照 `budgetSettings.ts` 的「双读单写 + 应用进运行时」形状。导出常量 `MAX_PARALLEL_DEFAULT = 10`（与 `core.ts` 的 `MAX_PARALLEL_TOOL_CALLS_DEFAULT` 同值，注释说明为何不 import：避免反向依赖）、`MAX_PARALLEL_LIMIT = 50`、`MIN_PARALLEL = 1`；schema `parallelToolCallsSchema = z.object({ enabled: z.boolean(), maxParallel: z.number().int().min(1).max(50) })`；模块级 `let active`；`parallelSettingPath() = userDataPathOrThrow('aiParallelToolCalls', electron.app)`；`readParallelToolCallsSetting()`（缺失/非法 → 默认值 + warn）、`writeParallelToolCallsSetting()`（`atomicWrite`）、`applyParallelToolCallsSetting()`、`loadAndApplyParallelToolCalls()`、`currentParallelToolCallsSetting()`；关键函数 **`effectiveMaxParallelToolCalls(): number`** —— 关掉时返回 **1** 而不是 undefined，注释写明理由：undefined 会让循环回落默认 10，那就是静默失败。
+
+**paths.ts**：`USER_DATA_LAYOUT` 加 `aiParallelToolCalls: ['config', 'ai-parallel-tool-calls.json']`（`LEGACY_USER_DATA_LAYOUT` 不用加，这是新设置）。
+
+**IPC**：`src/main/ipc/ai.ts` 新增 `ai:getParallelToolCalls`（无载荷，直接回 `currentParallelToolCallsSetting()`）与 `ai:setParallelToolCalls`（校验 → 写盘 → apply → 回当前值），handler 插在 `ai:setToolBudget` 之后。
+
+**runTurn.ts**：`RunTurnInput` 末尾加 `maxParallelToolCalls?: number`；`runAgentLoop({...})` 参数末尾加 `...(input.maxParallelToolCalls ? { maxParallelToolCalls: input.maxParallelToolCalls } : {}),`。
+
+**aiAgentCore.ts**：import `effectiveMaxParallelToolCalls`；`runAgentTurn({...})` 的参数里加 `maxParallelToolCalls: effectiveMaxParallelToolCalls(),`。
+
+**index.ts**：在 `await loadAndApplyToolBudget();` 后加 `await loadAndApplyParallelToolCalls();`（注释：必须在使用 AI 之前应用）。
+
+**渲染层 store**：`aiStore.ts` 接口区加 `maxParallelToolCalls: { enabled; maxParallel }` + `loadParallelToolCalls(): Promise<void>` + `saveParallelToolCalls(enabled, maxParallel): Promise<{ok:true}|{ok:false;error:string}>`；初始 state `maxParallelToolCalls: { enabled: true, maxParallel: 10 }`；实现里 `loadParallelToolCalls` 桥缺失直接 return；`saveParallelToolCalls` 先落盘再改本地。
+
+**设置界面**：`AIProviderConfig.tsx`（418→约 480 行）—— `const [parallel, setParallel] = useState({ enabled: true, maxParallel: 10 })` 与 `parallelError`；`useEffect` 里 `void window.qqbat.ai.getParallelToolCalls().then(...)`；`saveBudget` 之后加 `saveParallel(next)`（乐观写本地 → 调 IPC → 失败显示 error）；toolBudget 块之后加一整块并行设置（Switch + 数字输入 `min=1 max=50 step=1` + 失焦落盘 + 关闭 amber 提示 + 错误行）。
+
+**i18n**：两份在 `settings.aiProvider.toolBudget` 之后各加 `parallelToolCalls: { title, hint, value, unit, defaultNote, offHint, saveFailed }`（zh/en 键集合一致）。
+
+**闸门**：tsc node/web 均 0；`tests/main/services/ai/parallelToolCallsSettings.test.ts` **17 例全绿**（mock paths/electron，用临时目录）：文件不存在→默认、默认值与 core 的 10 一致、正常读回、坏 JSON→默认、越界 (0/51/2.5)→默认、缺字段→默认、写盘带缩进 JSON、往返一致、apply 后 current 反映、current 返回副本、loadAndApply 应用、loadAndApply 遇坏文件回落、★关掉=1 非 undefined、默认=10、schema 接受 1/50 拒绝 0/51/1.5/缺 enabled。`tests/guards/ipcPayloadContract.test.ts` 在 EXEMPT 里加 `'ai:getParallelToolCalls': '无载荷'` 与 `'ai:setParallelToolCalls': '载荷是 { enabled, maxParallel }，键名由 aiSetParallelToolCallsSchema 校验'` → **5 例全绿**。
+
+### 59.3 会话检索工具：从 service 到 tool
+
+**新建工具**：`src/main/services/agent-core/sessionSearchTool.ts`（`export const SESSION_SEARCH_TOOL: Tool`）—— name='search_sessions'，readOnly=true，category='query'，executionMode='parallel'，timeoutMs=30_000，parameters `{ query(required), limit }`；MAX_RESULTS=12（THREAD_SEARCH_MAX_RESULTS）、MAX_TEXT_CHARS=6000；内部 `formatResult(payload, excludedThreadId)` 用 `excludedThreadId ? results.filter(r => r.id !== excludedThreadId) : results` 排除调用方，输出「`「query」命中 N 条历史会话（不含当前这段）：`」+ 每条 `## 标题` / `- 会话 id · 最后活动 YYYY-MM-DD HH:mm · N 条消息` / `- 用户/助手：片段`；**达上限时**追加「（已达上限 12 条，可能还有更多：把查询写得更具体，或分开搜几个不同的词。）」；超 6000 字截断加 `…（结果过长，已截断）`；空查询回「查询为空：请给出至少一个字的关键词。」；异常回「搜索历史会话时出错：…」（不崩整轮）。文件头注释记了 DSH 的两条契约与「不放进 CORE_TOOLS」的理由。
+
+**ToolContext.threadId**：`src/main/services/agent-core/toolGate.ts` 的 `ToolContext` 末尾加 `threadId?: string`（注释：给 search_sessions 排除调用方）。
+
+**core.ts**：`LoopOptions` 的 `fsObservation` 之后加 `threadId?: string`；`const ctx: ToolContext = {...}` 末尾加 `...(opts.threadId ? { threadId: opts.threadId } : {}),`；import `SESSION_SEARCH_TOOL`；`registerTool(TODO_TOOL)` 之后加 `registerTool(SESSION_SEARCH_TOOL)`（不入 CORE_TOOLS）。
+
+**prompt.ts**：新增 `SESSION_SEARCH_PROMPT` 常量 + `registerPromptSection({ id: 'session-search', order: 36, render: ({ workspace, toolNames }) => workspace && toolNames.includes('search_sessions') ? SESSION_SEARCH_PROMPT : '' })`（条件注入）。
+
+**测试**：`tests/main/services/agent-core/sessionSearchTool.test.ts` **11 例全绿**：搜到别的线程正文、★排除调用方自己、别的线程仍能搜到、无命中提示换说法、空查询拒绝、★达上限说「已达上限」+「更具体」、未达上限不多嘴、limit 收窄、带线程 id 与时间、工具声明只读/可并行/无 approval、空工作区不抛。
+
+**闸门**：`tests/main/services/agent-core/prompt.test.ts` 5→**8 例全绿**（+3 例 search_sessions 条件注入：可用时出现/不可用时不出现/无工作区不出现）。
+
+### 59.4 持久终端 6 工具：待收尾
+
+队友正在收尾 `ShellSession.send()` 的输出起点错位 bug，预计修好后能过全部 17 例。该部分包含：`terminal.ts`（`ShellSession` 的 `send/read/signal/close/list/run`）、`terminalTools.ts`（6 个 `Tool` 封装 + `killAllAgentTerminals`）、以及对应的两个测试文件。暂不纳入本次提交 gates，等 teammate 修复后一并加入。
+
+### 59.5 能力账
+
+`docs/ai/ai-capability-layering-2026-10-08.md`：`| ai |` 行 63→63、X 63→63；小计 X **89**、合计 **289**；X+⛔ **92**；附录 A 插入 `ai.getParallelToolCalls = X` 与 `ai.setParallelToolCalls = X`；附录小计 `X 89 = 289`。`node scripts/gen-capability-catalog.mjs` → `[capability-catalog] 已写入两份（289 条）`。
+
+### 59.6 涉及文件行数
+
+Lead-side 完整交付：`parallelToolCallsSettings.ts`(96)、`sessionSearchTool.ts`(152)、`runTurn.ts`(284)，`ai.ts`(924)，`aiAgentCore.ts`(1055)，`paths.ts`(194)，`AIProviderConfig.tsx`(约 480)，`capabilityCatalog.generated.ts`(289 条)，`capabilityPolicy.generated.ts`(289 条)。
+
+测试：`parallelToolCallsSettings.test.ts`(240 行/17 例)、`sessionSearchTool.test.ts`(150 行/11 例)、`prompt.test.ts`(210 行/8 例)、`ipcPayloadContract.test.ts`(258 行/5 例)。
+
+Terminal-b59 队友交付待定：`terminal.ts`(198)、`terminalTools.ts`(311)、`terminal.test.ts`(180 行/7 例)、`terminalTools.test.ts`(180 行/10 例) —— 6 个用例失败等待修复。
+
+TASK AS OF THIS BLOCK：并行工具数设置 + 会话检索工具已 Lead-side 完整落地并各自有测试（17+11+3+5 绿），tsc node/web 均 0；持久终端 6 工具由队友收尾（6 个失败正在修）；剩余 = 等队友完成 terminal 测试 → 全量 vitest → build → 真机（并行数设置 + search_sessions）→ wiring §59 补完 → 适配表第十三批一行 + README 数字更新 → 提交。
+Open objectives: 第 59 批「并行工具调用数设置 + 会话检索工具 + 持久终端 6 工具」做完并提交（用户 m03057/m03510/m03533「继续」延续 m01170「能搬就搬」）。

@@ -60,3 +60,27 @@ describe('★ 系统提示：段落注册与组装', () => {
     expect(() => registerPromptSection({ id: 'no-render' })).toThrow(/render/);
   });
 });
+
+/**
+ * 第 59 批：`search_sessions` 的指引段是**条件注入**。
+ *
+ * 与 `file-reference` 同一个理由：讲一个模型调不到的工具只会让它反复试一个
+ * 不存在的名字。所以只在（a）有工作区 且（b）该工具在这次的可用工具表里 时才出现。
+ */
+describe('★ search_sessions 指引段：条件注入', () => {
+  it('工具可用时出现，并说清"什么时候用"', () => {
+    const text = buildSystemPrompt('D:/ws', ['search_sessions'], { tools: ['search_sessions'] });
+    expect(text).toContain('搜索历史会话');
+    expect(text).toContain('上次');
+  });
+
+  it('工具不可用时不出现（不骗模型去调一个拿不到的工具）', () => {
+    const text = buildSystemPrompt('D:/ws', [], { tools: ['read_file'] });
+    expect(text).not.toContain('search_sessions 能搜');
+  });
+
+  it('没有工作区时不出现（没有项目就没有"这个项目的历史会话"）', () => {
+    const text = buildSystemPrompt('', [], { tools: ['search_sessions'] });
+    expect(text).not.toContain('search_sessions 能搜');
+  });
+});

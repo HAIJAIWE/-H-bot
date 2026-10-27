@@ -121,6 +121,27 @@ registerPromptSection({
 })
 
 /**
+ * 「会话检索」的说明（第 59 批）。
+ *
+ * **只在 `search_sessions` 真的可用时才出现**：与前一段同一个理由 ——
+ * 讲一个模型调不到的工具，只会让它反复试一个不存在的名字。
+ * 内容只讲"什么时候用、别拿它当万能钥匙"，工具本身的参数在 schema 里。
+ */
+const SESSION_SEARCH_PROMPT = [
+  '「搜索历史会话」：`search_sessions` 能搜**这个项目里当前这段对话之外**的历史线程正文。',
+  '什么时候用：用户说"上次/之前我们是不是……"、或你需要一条早就聊过的结论而当前上下文里没有。',
+  '别拿它当万能钥匙：它只回命中的片段与出处，看不到完整上下文；',
+  '真要按内容找文件，用 search_text / read_file 更直接。搜不到就照实说，不要凭印象补全。',
+].join('\n')
+
+registerPromptSection({
+  id: 'session-search',
+  order: 36,
+  render: ({ workspace, toolNames }) =>
+    workspace && toolNames.includes('search_sessions') ? SESSION_SEARCH_PROMPT : '',
+})
+
+/**
  * 「先计划」模式的追加说明（2026-10-18，对齐 DSH 的 plan 阶段）。
  *
  * 只靠这句话是不够的 —— 工具集本身也会被裁到只读（见 runTurn 的 planOnly）。

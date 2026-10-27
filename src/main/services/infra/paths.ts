@@ -68,6 +68,8 @@ export const USER_DATA_LAYOUT = {
   aiConfig: ['config', 'ai-config.json'],
   /** AI 工具结果预算设置 */
   aiToolBudget: ['config', 'ai-tool-budget.json'],
+  /** 并行工具调用数设置（第 59 批） */
+  aiParallelToolCalls: ['config', 'ai-parallel-tool-calls.json'],
   /** 开发者模式开关 */
   devModeSetting: ['config', 'dev-mode.json'],
   /** 用户项目根 */

@@ -12,6 +12,13 @@ import {
   toolBudgetSchema,
   writeToolBudgetSetting,
 } from '../services/ai/budgetSettings'
+import {
+  MAX_PARALLEL_LIMIT,
+  MIN_PARALLEL,
+  applyParallelToolCallsSetting,
+  currentParallelToolCallsSetting,
+  writeParallelToolCallsSetting,
+} from '../services/ai/parallelToolCallsSettings'
 import { testLlmConfig } from '../services/ai/testConfig'
 import { init_logger, logger } from '../services/infra/logger'
 import {
@@ -28,6 +35,8 @@ import {
   aiMessageFeedbackPutSchema,
   aiMessageFeedbackDeleteSchema,
   aiThreadSchema,
+  aiGetParallelToolCallsSchema,
+  aiSetParallelToolCallsSchema,
   approvalDecisionSchema,
   rewindToSchema,
   rollbackTurnSchema,
@@ -238,6 +247,33 @@ function registerAiIpc(projectService) {
         `[ai] 工具结果上限已更新：${parsed.data.enabled ? `${parsed.data.thresholdChars} 码点` : '已关闭（不裁剪）'}`,
       )
       return currentToolBudgetSetting()
+    })
+  })
+  /**
+   * ai:getParallelToolCalls / ai:setParallelToolCalls —— 「并行工具调用数」（第 59 批）。
+   *
+   * 为什么要现做设置：`agent-core/core.ts` 早就支持一批工具并行跑（默认 10），
+   * 但三层（RunTurnInput → runAgentTurn → aiAgentCore）都没透传这个值 ——
+   * 用户既看不到也改不了，等于这个能力从来没生效过。这两个通道是设置链路的最上面一层。
+   */
+  electron.ipcMain.handle('ai:getParallelToolCalls', async () => {
+    return tryIpc(() => currentParallelToolCallsSetting())
+  })
+  electron.ipcMain.handle('ai:setParallelToolCalls', async (_event, args) => {
+    const parsed = aiSetParallelToolCallsSchema.safeParse(args)
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: `参数校验失败：${parsed.error.message}（maxParallel 需在 ${MIN_PARALLEL}~${MAX_PARALLEL_LIMIT} 之间）`,
+      }
+    return tryIpcAsync(async () => {
+      await writeParallelToolCallsSetting(parsed.data)
+      // 写盘成功才应用：写失败却让运行时改了，重启就"设置回退"，比不改更难查
+      applyParallelToolCallsSetting(parsed.data)
+      logger.info(
+        `[ai] 并行工具调用数已更新：${parsed.data.enabled ? `${parsed.data.maxParallel} 个` : '已关闭（串行执行）'}`,
+      )
+      return currentParallelToolCallsSetting()
     })
   })
   /**

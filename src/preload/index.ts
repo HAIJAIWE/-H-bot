@@ -774,6 +774,10 @@ const api = {
       ipcRenderer.on('ai:warning', listener)
       return () => ipcRenderer.removeListener('ai:warning', listener)
     },
+    /** 并行工具调用数设置 */
+    getParallelToolCalls: () => ipcRenderer.invoke('ai:getParallelToolCalls'),
+    setParallelToolCalls: (enabled: boolean, maxParallel: number) =>
+      ipcRenderer.invoke('ai:setParallelToolCalls', { enabled, maxParallel }),
   },
   data: {
     notifyChange: (projectPath: string, table: string, action: string, qq?: string) =>

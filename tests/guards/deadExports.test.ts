@@ -143,6 +143,8 @@ const BASELINE_TEST_ONLY: Record<string, string> = {
     '⚠️ 进行中：列可调试页面，接线时由 computer_use 工具调用。',
   'src\\main\\services\\agent-core\\terminal.ts:ShellSession':
     '⚠️ 进行中：持久 shell 会话，**接进工具层（terminal 工具）时**由循环持有。接线后删掉本条。',
+  'src\\main\\services\\agent-core\\terminalTools.ts:killAllAgentTerminals':
+    '**测试清理**：仅测试引用，确保每个测试结束后杀掉所有 powershell 子进程，不留孤儿。生产走 tool cleanup hook。',
   'src\\main\\services\\agent-core\\adapters.ts:makeContextService':
     '⚠️ 进行中：上下文适配器，接线阶段由 main 注入 tokenBudget/spill。',
   'src\\main\\services\\agent-core\\adapters.ts:makeSessionStore':
@@ -563,3 +565,4 @@ describe('零引用导出', () => {
     expect(true).toBe(true)
   })
 })
+

@@ -136,6 +136,19 @@ export interface RunTurnInput {
    * `write_file` 覆盖既有文件前必须"这一轮读过且读完没变"。默认关；生产入口显式传 true。
    */
   fsObservation?: boolean
+  /**
+   * **一批工具调用里最多几个同时在跑**（第 59 批）。
+   *
+   * 循环层早就支持（`core.ts` 的 `maxParallelToolCalls`，默认 10），但这个字段一直没往上传 ——
+   * 三层（RunTurnInput → runAgentLoop → LoopOptions）都不传，生产上永远跑默认值。
+   * 不传 = 用循环默认值（脚本/测试的默认）。
+   */
+  maxParallelToolCalls?: number
+  /**
+   * 当前会话（线程）id（第 59 批）：透传给循环 → `ToolContext.threadId`，
+   * 供 `search_sessions` 排除调用方自己那条线程。不传 = 不排除。
+   */
+  threadId?: string
 }
 
 export interface RunTurnResult {
@@ -267,6 +280,12 @@ export async function runAgentTurn(input: RunTurnInput): Promise<RunTurnResult> 
     ...(input.compaction ? { compaction: input.compaction } : {}),
     ...(input.onCompact ? { onCompact: input.onCompact } : {}),
     ...(input.fsObservation ? { fsObservation: true } : {}),
+    // 第 59 批：并行工具数（不传 = 循环默认 10）
+    ...(input.maxParallelToolCalls
+      ? { maxParallelToolCalls: input.maxParallelToolCalls }
+      : {}),
+    // 第 59 批：会话检索工具靠它排除调用方自己（不传 = 不排除）
+    ...(input.threadId ? { threadId: input.threadId } : {}),
   })
   reportStats()
   return {
