@@ -4166,11 +4166,13 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **为什么运行时也要拦**：老项目里已经摆着专属节点，启动时若不拦，解释器遇到该节点会静默不工作，用户看到的是「机器人启动了但不回话」——这是最难排查的一类。运行时预检把错误提到「启动」这一下，并写进状态栏（`setStatus('error', …)`）。
 
 **校验口径（三条，都写进代码注释）**：
+
 - 项目没绑平台（`undefined` / `null`，如老项目 / `botType:'general'` 且无 adapter）：**不做校验**，历史项目照常跑——别把老项目判成坏项目；
 - 通用节点（无平台标注）永远兼容；
 - 目录里没有的 kind（插件 / 自定义节点）跳过，交给其它校验。
 
 **数据与接口**：
+
 - `src/shared/nodes/platformCheck.ts`(71)：`findPlatformMismatches(graph, projectPlatform)` → `PlatformMismatch[]`（`nodeId / kind / label / need`）；`describePlatformMismatch(mismatch, locale='zh-CN')` 一行可读文案（校验面板 / 运行时错误 / 添加提示共用）。
 - `src/shared/nodes/flowNormalize.ts`(633)：`validateFlow(graph, options?)` 新增 `ValidateFlowOptions { projectPlatform?: PlatformFamily | null }`；追加 `severity:'error'`、`code:'platform-mismatch'`、`fixHint:'换成当前平台可用的节点，或把节点移到对应平台的项目里'` 的问题（**error 级会让整图阻塞**，`hasBlockingIssues` 为 true）。
 - `src/main/services/project/projectPlatform.ts`(33)：`readProjectPlatform(projectPath)` 读 `.qqbat/project.json` 的 `adapter / botType`，经注册表的 `projectPlatformFamily` 推导。
@@ -4182,6 +4184,7 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **UI 入口统一**：`src/renderer/src/lib/node/platformEntries.ts`(32) 的 `TOOLBAR_PLATFORM_TAGS.commandPanel / factoryConfig` 与 `TOP_TAB_PLATFORM_TAGS.panels` 的标签从 `['QQ']` 改为平台族 `['qq']`；`platform/registry.ts` 新增 `platformTagsVisible(families, projectFamily)`（通用永远显示、专属只在本平台显示、不绑平台的项目一律藏）；`BlockToolbar` / `CenterPanel` 的调用从 `isPlatformVisible(tags, botType)` 改为 `platformTagsVisible(tags, projectPlatformFamily({ botType }))`。顺手删掉陈旧副本 `src/renderer/src/lib/platformEntries.ts`（无人 import，内容已漂移）。
 
 **守卫与测试**：
+
 - `tests/guards/platformTagCoverage.test.ts` +1 例：UI 专属入口声明的平台族都已登记（`PLATFORM_ENTRIES` 遍历）。
 - `tests/shared/nodes/platformCheck.test.ts`(80，8 例)：不绑平台不校验 / 通用不报 / QQ 专属进飞书项目报一条（带节点名与所需平台）/ 同平台不报 / 未知 kind 跳过 / 空图不炸 / 中英文案。
 - `tests/shared/flowNormalize.test.ts` +4 例：`platform-mismatch` 为 error、平台不匹配使整图阻塞、同平台与不传 options 均不报。
@@ -4199,6 +4202,7 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **为什么**：第 64 批把「平台归属的判定口径」收进 `src/shared/domain/platform/registry.ts`，但节点目录本身仍是「17 个 `groups/*` 静态拼成一个数组」，平台归属只写在每个节点的 `platform` / `tags` 里。后果是：加一个新平台只能往数组里塞节点；没法回答「哪些节点属于 QQ 包」；将来 P4 想把一整个包换成外部插件时，没有可交接的单位。**包是交付单位，注册表是判定口径**——两者分开。
 
 **做了什么**：
+
 - 新增 `src/shared/nodes/packs.ts`：`buildNodePacks(specs)` 按平台族把目录切成 `NodePack[]`（`id: NodePackId` = 平台族或 `'common'`，`families: readonly PlatformFamily[]`，`specs: readonly NodeSpecV2[]`）；`common` 永远排第一，其余按节点在目录里第一次出现的顺序（顺序跟着目录走，不额外维护清单，少一处会漂的地方）。
 - `src/shared/nodes/builtinCatalog.ts` 尾部新增 `export const NODE_PACKS = buildNodePacks(NODE_CATALOG_V2)`：**目录仍是唯一清单，包只是视图**，两个 Annotation 循环不动。
 - **行为零变化**：`NODE_CATALOG_V2` 的内容/顺序未动，`getAllSpecs` / `findSpec` / `subscribeCatalog` 等调用方零改动，未新增 IPC 通道，能力台账不动。
@@ -4208,6 +4212,7 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **为什么这一批只做结构**：真实数据还没分层——目录里显式 `platform: 'qq'` 的节点为 0（`builtinCatalog.ts:126` 把无标注节点回填成 `'all'`），带历史 `tags: ['QQ']` 的节点才进 `qq` 包。先立边界、再迁内容：下一批才让消费方（按项目平台收窄 / 外部包注册）真的按包取节点。
 
 **守卫与测试**：
+
 - `tests/guards/nodePackContract.test.ts`（6 例）：扫描非空 / **不丢失不重复**（`NODE_PACKS` 展开的 kind 集合等于目录，且无重复）/ 包归属与平台标注一致（`common` 只装无标注节点，其余包 id 必须等于节点唯一平台族）/ 无多平台节点 / 包 id 都在平台注册表里且 `common` 排第一。
 - `tests/shared/nodes/packs.test.ts`（5 例）：切包规则（显式 platform、`'all'`、无标注、历史 tags 兜底）/ 顺序 / `families` 对应 / 空目录与只有通用节点。
 - deadExports：最初多导出了 `packOfKind` / `packLabel`（只有测试引用 → 红），按「不预埋没人调的出口」收窄为**只导出 `buildNodePacks` + 类型**，不加 baseline 条目。
@@ -4223,6 +4228,7 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **为什么**：第 66 批的 `NODE_PACKS` 只是目录的静态视图常量，消费方（节点库）还在逐节点判 `specVisibleOnPlatform`，外部来源无法注册包。本批把「包」升级成**运行时注册表**，并把两个消费方接上，为 P4 的外部插件包留同一个接口。
 
 **做了什么**：
+
 - 新增 `src/shared/nodes/packRegistry.ts`：`registerNodePack(pack, source = 'external')`（重复 id 抛错——包是交付单位，来源必须唯一）/ `getNodePacks()` / `isPackNodeKind(kind)` / `visibleNodeKinds(family)`（`family` 为 `null|undefined` → 全部包内节点；否则 `common` + 该平台族）。
 - `src/shared/nodes/builtinCatalog.ts`：`NODE_PACKS` 常量删除，改为模块加载时 `for (const pack of buildNodePacks(NODE_CATALOG_V2)) registerNodePack(pack, 'builtin')`——内置包永远先注册，`common` 排第一。
 - 消费方接包：
@@ -4232,6 +4238,7 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **行为等价性**：包内节点的归属规则与第 65 批的逐节点判定同源（`packIdOf` ↔ `nodePlatformTags`），闸门逐平台族比对两个集合必须相等——所以这次切换**只换数据通路，不换可见结果**。
 
 **守卫与测试**：
+
 - `tests/guards/nodePackContract.test.ts` 更新：改用 `getNodePacks()` 读内置包，并新增「可见性视图与逐节点判定等价」一例（对每个平台族比对 kind 集合）。
 - 新增 `tests/shared/nodes/packRegistry.test.ts`（5 例）：内置包已注册且 common 第一 / 外部包注册与来源 / 重复 id 抛错 / `visibleNodeKinds` 含 common 且排除别的平台 / `isPackNodeKind`。
 - deadExports：`getNodePacks` 仅契约闸门引用 → 按既有惯例在 `BASELINE_TEST_ONLY` 登记（理由写明「生产侧只经 visibleNodeKinds / isPackNodeKind 取视图」）。
@@ -4241,3 +4248,31 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 **闸门**：typecheck node/web `EXIT=0`；packs / packRegistry / nodePackContract / deadExports 21 例全绿；guards 19 文件 128 例全绿；全量 vitest 见提交说明。
 
 **下一步（P4 前的地基）**：① 包的**按项目收窄内部实现**仍是一次性构造（`visibleNodeKinds` 每次遍历），节点量大了再 memo；② 外部包加载（`plugins/*/manifest.json` → `registerNodePack(..., 'external')`）需要先定外部节点的 handler 装载方式，与插件沙箱一起排；③（可选）`groups/*` 物理拆分目录。
+
+---
+
+## §68 第 68 批：智能体窗口贡献点（P3 第一刀，2026-10-28）
+
+**为什么先做窗口**：P3「agent 窗口插件化」原计划先切 `tool.presenter`，开工盘点发现**这条已经做完**——`src/renderer/src/lib/ai/toolPresenters.tsx` 早就有 `registerToolPresenter` / `getToolPresenter`，内置 `diff` / `files` 两个呈现器（第 40 批）。真正缺的是「整个会话窗口」这一层：`RightPanel.tsx` 写死 `<ChatPanel />`，想换一套对话界面只能改这个组件。
+
+**这次换掉了什么**：`RightPanel` 的 AI 标签页不再直接渲染 `ChatPanel`，而是渲染 `<AgentSurfaceHost />`——从注册表里取当前生效的窗口。
+
+**贡献点（`src/renderer/src/lib/ai/agentSurface.tsx`，约 70 行）**：
+
+- `AgentSurfaceEntry { id, order?, label?, render }`；`registerAgentSurface(entry)` 返回 dispose，空 id / 重名直接抛错。
+- `getAgentSurface()` 按 order 取第一个（同 order 按注册顺序，稳定）。
+- `subscribeAgentSurfaces(listener)` + 内部版本号；`AgentSurfaceHost` 用 `useSyncExternalStore` 订阅——注册/撤销后自动重渲染。
+- 纪律与 `uiSlots.tsx` 同源：**没有沙箱、没有权限模型**（那是插件宿主的事），只解决「谁渲染窗口」和「可撤销」。
+
+**接管规则**：内置对话窗口 `src/renderer/src/components/ai/builtinAgentSurface.tsx` 以 `id='chat'`、`order=1000` 注册（import 即生效，由 `RightPanel` 引入）。贡献方注册更小的 order 即可接管整个窗口；撤销后自动回落。等 P4 设置页出来再补「显式选择/持久化」，现在不占位。
+
+**守卫与测试**：
+
+- 新增 `tests/renderer/lib/ai/agentSurface.test.ts`（5 例）：order 接管与撤销回落 / 同 order 先注册优先 / 重名与空 id 抛错 / 订阅通知 / **挂载点守卫**（`RightPanel.tsx` 必须含 `<AgentSurfaceHost />` 且不再含 `<ChatPanel />`，防止有人改回去）。
+- guards 19 文件 128 例全绿（deadExports 无需登记：四个导出都有生产侧引用）。
+
+**涉及文件行数**：新增 `agentSurface.tsx`(70)、`builtinAgentSurface.tsx`(16)、测试(75)；改动 `RightPanel.tsx`(import 2 行 + JSX 1 处)。
+
+**闸门**：typecheck node/web `EXIT=0`；agentSurface + aiSlots 8 例；guards 19 文件 128 例；全量 vitest 见提交说明。未新增 IPC 通道，能力台账不动。
+
+**下一步**：① 设置页里的「智能体窗口」选择（`label?` 可选字段已留好；内置窗口本批不填 label，避免硬编码文案，届时文案走 i18n）与持久化；② 窗口的**输入契约**（现在它直接读 `useAiStore`，插件化后应改成只读投影 + 命令事件，见 `agent-runtime-boundary.md`）；③ 把 provider/模型选择、工具呈现器、节点面板也逐项变成贡献点。

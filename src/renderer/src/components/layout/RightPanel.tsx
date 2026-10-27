@@ -1,6 +1,8 @@
 // src/renderer/src/components/layout/RightPanel.tsx
 import { AiSidebar } from '../ai/AiSidebar';
-import { ChatPanel } from '../ai/ChatPanel';
+// 第 68 批：智能体窗口是可注册的贡献点；这里注册内置的「对话窗口」（order=1000，默认）
+import '../ai/builtinAgentSurface';
+import { AgentSurfaceHost } from '../../lib/ai/agentSurface';
 import { useAiStore } from '../../stores/aiStore';
 import { useUiStore } from '../../stores/uiStore';
 import { DebugVariablePanel } from '../canvas/DebugVariablePanel';
@@ -122,7 +124,9 @@ export function RightPanel() {
           <div className="flex-1 min-h-0 flex min-w-0">
             {/* min-h-0 是滚动链要求的：flex 列缺了它，内部就滚不动（panelScrollChain 闸门） */}
             <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-              <ChatPanel />
+              {/* 第 68 批：这里不再是写死的 ChatPanel，而是「当前生效的智能体窗口」
+                  —— 内置对话窗口以 order=1000 注册；贡献方注册更小的 order 即可接管 */}
+              <AgentSurfaceHost />
             </div>
             <AiSidebar />
           </div>
