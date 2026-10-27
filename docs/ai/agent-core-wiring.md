@@ -4053,3 +4053,38 @@ Open objectives: 第 59 批「并行工具调用数设置 + 会话检索工具 +
 ### 60.7 闸门
 
 typecheck node/web 均 `EXIT=0`；全量 vitest 见提交说明（本次全绿后才提交）；`fileGrowth` 4/4、`styleContract` 4/4、`deadExports`/`i18n`/`orphanKeys`/`capability*` 全绿；新文件过 prettier。
+
+## §61 第 61 批：协议契约层 + 智能体 SDK 门面（2026-10-28，P0）
+
+### 61.1 为什么先做这一步
+
+39 个 `registerXxxIpc` 把 291 条 IPC 通道平铺在 preload 上，智能体相关约 100 条。这些通道是"内部接线"：改个参数名就动到调用方，跟"开放给插件/第三方"的目标是反的。P0 不新增能力，只做两件事——**给智能体那一面冻结一份带版本的语义契约**，并让 preload 在一个稳定名字下暴露它。证据见 `docs/ai/protocol-sdk.md`。
+
+### 61.2 契约层（新增，不依赖 Electron）
+
+- `src/shared/protocol/rpc/version.ts`：`PROTOCOL_VERSION = 1`。规则写进注释：新增方法 = minor，改语义/删方法 = major。
+- `src/shared/protocol/rpc/agentSdk.ts`：`AgentSdk` 26 个方法（send/steer/stop/isRunning/listTools/listThreads/getHistory/clearThread/renameThread/searchThreads/exportThread/getThreadFeedback/putMessageFeedback/deleteMessageFeedback/listTurns/previewTurn/rollbackTurn/rewindTo/noteTurn/getConfig/getAppConfig/resolveApproval/getParallelToolCalls/setParallelToolCalls/getThreadTitleRefresh/setThreadTitleRefresh）；`AGENT_METHODS: readonly AgentMethodSpec[]` 逐条登记 `{ sdk, channel: 'ai:…', schema, note }`——**通道名只在这张表里出现**，调用方按方法名调用。
+- 入参全部具名对象（`{ projectPath, threadId, … }`），不跟着 IPC 的位置参数走；`AgentSendInput` 11 个字段（`preset?: string | null`、`agentMode: 'plan' | 'build'`、`images`、`activeFilePath` 等）。
+
+### 61.3 preload 门面
+
+`src/preload/agentSdk.ts` 的 `createAgentSdk(ai)` 把具名入参映射回位置参数（`ai.agentCoreRun(p, r, …, preset ?? undefined, …)`），**复用同一个函数对象**——没有新的 `invoke('ai:…')` 字面量，所以载荷守卫的覆盖范围不变。`preload/index.ts` 仍以标识符形式 `contextBridge.exposeInMainWorld('qqbat', api)`，再用 `Object.assign(api, { agent, protocolVersion: PROTOCOL_VERSION })` 挂上去：两个 AST 守卫都要求第二个参数是标识符，包成对象字面量会直接让守卫失效（`pre.size=2`）。
+
+渲染层 `src/renderer/src/types/ipc.ts` 的 `QqbatApi` 加 `agent: AgentSdk` 与 `protocolVersion: number`，类型即文档。
+
+### 61.4 守卫
+
+- 新增 `tests/guards/protocolContract.test.ts`（7 例）：版本号、方法名/通道唯一、每个通道在 preload 里真有 `invoke(...)`、每个 schema 名都能在 `schemas/ai.ts` 解析出 `safeParse` 函数、`createAgentSdk` 的键集合与契约表完全一致（用 Proxy 假 ai 记录调用）、抽样断言 6 个方法的参数映射、preload 三处接线字符串不漂。
+- `tests/guards/ipcSurfaceParity.test.ts`：门面的 `agent.*` / `protocolVersion` **不是 IPC 通道**（由上面 7 例单独对账），在"类型声明 ↔ preload 暴露"对账里排除，正则 `/^(?:agent(?:\.|$)|protocolVersion$)/`。该文件在 HEAD 上本就不是 prettier 合规（整份分号），改动沿用 HEAD 风格、只动两处，不做整份重排。
+
+### 61.5 涉及文件行数
+
+新增：`shared/protocol/rpc/version.ts`(15)、`shared/protocol/rpc/agentSdk.ts`(约 210)、`preload/agentSdk.ts`(约 80)、`tests/guards/protocolContract.test.ts`(约 120)、`docs/ai/protocol-sdk.md`(约 90)。改动：`preload/index.ts`(+15)、`renderer/src/types/ipc.ts`(+10)、`tests/guards/ipcSurfaceParity.test.ts`(+8)。**未新增 IPC 通道**（291 条不变、能力台账不动），这是本批能一次过闸的原因。
+
+### 61.6 闸门
+
+typecheck node/web `EXIT=0`；guards 16 文件 114 例全绿（含新增 7 例）；全量 vitest 见提交说明。新文件 prettier 干净。
+
+### 61.7 下一步（P1/P2 待排）
+
+P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `runtime-boundary` 的审计文档已并行产出，落在 `docs/ai/agent-runtime-boundary.md`）；P2：291 条通道收敛成"公共 SDK / 内部通道"两层并在 preload 统一 dispatch；P3：agent 窗口做成可替换 surface；P4：manifest v2 + 生态包装。

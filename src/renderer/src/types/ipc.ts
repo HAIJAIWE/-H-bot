@@ -10,6 +10,7 @@ import type { PresetUndoResult, PresetUndoState } from '@shared/ai/presetUndo'
 import type { Proposal } from '@shared/types/proposal'
 import type { MetricSnapshot } from '../stores/metricsStore'
 import type { PluginInfo, PluginPackage } from '@shared/types/plugin-sdk'
+import type { AgentSdk } from '@shared/protocol/rpc/agentSdk'
 import type { PreviewRequest, PreviewResult } from '@shared/types/preview'
 import type { FlowIssue } from '@shared/nodes/flowNormalize'
 import type { DebugState, Breakpoint, DebugVar } from '@shared/types/debug'
@@ -347,6 +348,15 @@ export interface AlterTableResult {
 }
 
 export interface QqbatApi {
+  /**
+   * 智能体 SDK（第 61 批）：第三方插件驱动的**唯一稳定面**，见 `docs/ai/protocol-sdk.md`。
+   *
+   * 与 `ai:` 通道的区别：通道是实现细节（可重命名/拆分），这里是冻结契约 —— 改它要升
+   * `src/shared/protocol/rpc/version.ts` 的版本号并按 `AGENT_METHODS` 登记。
+   */
+  agent: AgentSdk
+  /** 智能体协议主版本（生态作者据此判兼容，见 shared/protocol/rpc/version.ts） */
+  protocolVersion: number
   project: {
     create: (config: unknown) => Promise<ApiResult<ProjectMeta>>
     open: (path: string) => Promise<ApiResult<{ config: ProjectConfig; path: string }>>

@@ -1,5 +1,7 @@
 // src/preload/index.ts
 import { contextBridge, ipcRenderer } from 'electron'
+import { createAgentSdk } from './agentSdk'
+import { PROTOCOL_VERSION } from '../shared/protocol/rpc/version'
 
 const api = {
   /**
@@ -1145,5 +1147,18 @@ const api = {
     },
   },
 }
+
+/**
+ * 智能体 SDK（第 61 批）：契约在 `src/shared/protocol/rpc/agentSdk.ts`。
+ *
+ * 第三方插件只应依赖 `window.qqbat.agent.*`，不要直接读 `ai:xxx` 通道 —— 通道是实现细节，
+ * SDK 才是冻结面（版本号见 `protocolVersion`）。
+ *
+ * ⚠️ 必须**挂到 `api` 再暴露**（而不是 `exposeInMainWorld('qqbat', { ...api, agent })`）：
+ * 两个 IPC 闸门用 AST 解析 `exposeInMainWorld` 的第二个参数，只有标识符指向对象字面量时
+ * 才展开得到真实暴露面 —— 内联对象会让它们"扫到 0 个方法"而误报。
+ */
+const agent = createAgentSdk(api.ai)
+Object.assign(api, { agent, protocolVersion: PROTOCOL_VERSION })
 
 contextBridge.exposeInMainWorld('qqbat', api)

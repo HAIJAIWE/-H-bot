@@ -34,6 +34,13 @@ const ROOT = process.cwd();
 const PRELOAD = join(ROOT, 'src/preload/index.ts');
 const TYPES = join(ROOT, 'src/renderer/src/types/ipc.ts');
 
+/**
+ * SDK 门面（第 61 批）**不是 IPC 通道**：`agent.*` 是对已有 `ai:` 通道的语义封装，
+ * `protocolVersion` 是常量。它们由 `tests/guards/protocolContract.test.ts` 单独对账，
+ * 所以这里要排除 —— 否则会把"门面"误判成"漏暴露的通道"。
+ */
+const SDK_FACADE = /^(?:agent(?:\.|$)|protocolVersion$)/;
+
 /** 把对象字面量展开成 `a.b.c` → 成员节点 */
 function flatten(node: ts.Node, prefix: string, out: Map<string, ts.Node>): void {
   if (!ts.isObjectLiteralExpression(node)) return;
@@ -167,7 +174,7 @@ describe('IPC 契约三处对账', () => {
   });
 
   it('★ 类型里声明的每个方法，preload 都真的暴露了（否则调用即报错）', () => {
-    const missing = [...declared].filter((k) => !pre.has(k));
+    const missing = [...declared].filter((k) => !pre.has(k) && !SDK_FACADE.test(k));
     expect(
       missing,
       missing.length === 0
