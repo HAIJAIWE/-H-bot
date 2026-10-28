@@ -84,6 +84,13 @@ docs          节点参考、恢复审计与方法文档
 - 已知债：源码里仍有 **221 个 `@ts-nocheck`** 历史文件（闸门只覆盖其余文件）；全库尚未跑过 prettier
   格式化（配置在 `.prettierrc`，会动数百个文件，刻意没执行）
 
+## 如何参与
+
+欢迎一起开发。协作约定见 [CONTRIBUTING.md](CONTRIBUTING.md)：从克隆、功能分支、提交前自查到提 PR 的完整流程。
+发现安全问题时请走 [SECURITY.md](SECURITY.md) 的私有通道上报，不要在公开 Issue 贴利用细节。
+
+`main` 为受保护主线，请基于功能分支开 Pull Request 合并；请勿直接 push 到 `main`。
+
 ## 许可
 
 [AGPL-3.0-or-later](LICENSE)。第三方依赖遵循各自许可；`resources/icon.png` 等品牌素材随项目分发。
