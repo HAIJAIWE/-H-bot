@@ -53,4 +53,18 @@ describe('外部窗口包加载器（第 73 批）', () => {
     const result = await bootstrapExternalWindowPlugins(async () => ({ ok: false }))
     expect(result).toEqual({ registered: 0, issues: 1 })
   })
+
+  it('被禁用的包不注册（第 75 批）：扫描仍然返回它，跳过发生在加载器', async () => {
+    // disabled:true 是主进程扫到的"包目录里有 .disabled 标记"，不是这份清单的一部分
+    const disabled = { ...pkg('demo.off', '禁用的窗口'), disabled: true }
+    const result = await bootstrapExternalWindowPlugins(async () => ({
+      ok: true,
+      data: { packages: [pkg('demo.on', '正常窗口'), disabled], issues: [] },
+    }))
+
+    // 禁用不是"坏包"：不该被算成 issue
+    expect(result).toEqual({ registered: 1, issues: 0 })
+    expect(listAgentSurfaces().find(s => s.id === externalWindowIdOf('demo.on'))).toBeDefined()
+    expect(listAgentSurfaces().find(s => s.id === externalWindowIdOf('demo.off'))).toBeUndefined()
+  })
 })

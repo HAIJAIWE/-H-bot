@@ -7,8 +7,11 @@ import { scanPlugins, loadPluginPackage } from '../services/plugins/pluginScanne
 import {
   readWindowPackageSource,
   scanWindowPackages,
+  disableWindowPackage,
+  enableWindowPackage,
+  uninstallWindowPackage,
 } from '../services/plugins/windowPackageScanner'
-import { pluginReadWindowEntrySchema } from '../schemas/plugins'
+import { pluginReadWindowEntrySchema, pluginWindowPackageIdSchema } from '../schemas/plugins'
 import { detectPluginKind } from '@shared/plugins/kind'
 import {
   aiPluginIdOf,
@@ -308,6 +311,50 @@ export function registerPluginIpc(): void {
     return tryIpcAsync(() =>
       readWindowPackageSource(join(app.getPath('userData'), 'plugins', 'windows'), parsed.data.id),
     )
+  })
+
+  /**
+   * 外部窗口包的**管理动作**（第 75 批）：禁用 / 启用 / 卸载。
+   *
+   * 为什么是"改盘上的标记"而不是"改内存里的开关"：窗口包是用户自己放进
+   * `<userData>/plugins/windows/` 的目录，没有覆盖层可写、也没有注册表可改 ——
+   * 关掉它的唯一持久事实就是目录里的 `.disabled` 标记文件（加载器下次扫盘时跳过）。
+   * 卸载即 `rm -rf` 那个目录。
+   *
+   * 三个通道都先过 `pluginWindowPackageIdSchema`：id 来自渲染层，若不校验就拼进路径，
+   * 一个 `../..` 就能删到别处去。校验失败返回 `{ ok: false }`，不抛。
+   */
+  ipcMain.handle('plugin:windowPackageDisable', async (_event, payload: unknown) => {
+    const parsed = pluginWindowPackageIdSchema.safeParse(payload)
+    if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
+    return tryIpcAsync(async () => {
+      await disableWindowPackage(
+        join(app.getPath('userData'), 'plugins', 'windows'),
+        parsed.data.id,
+      )
+      return null
+    })
+  })
+
+  ipcMain.handle('plugin:windowPackageEnable', async (_event, payload: unknown) => {
+    const parsed = pluginWindowPackageIdSchema.safeParse(payload)
+    if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
+    return tryIpcAsync(async () => {
+      await enableWindowPackage(join(app.getPath('userData'), 'plugins', 'windows'), parsed.data.id)
+      return null
+    })
+  })
+
+  ipcMain.handle('plugin:windowPackageUninstall', async (_event, payload: unknown) => {
+    const parsed = pluginWindowPackageIdSchema.safeParse(payload)
+    if (!parsed.success) return { ok: false, error: `参数校验失败: ${parsed.error.message}` }
+    return tryIpcAsync(async () => {
+      await uninstallWindowPackage(
+        join(app.getPath('userData'), 'plugins', 'windows'),
+        parsed.data.id,
+      )
+      return null
+    })
   })
 
   /** plugin:setEnabled — 启用/禁用插件 */

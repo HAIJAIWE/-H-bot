@@ -1335,6 +1335,10 @@ export interface QqbatApi {
     listWindows: () => Promise<ApiResult<WindowPackageScanResult>>
     /** 可执行窗口包的入口源码（第 74 批）：主进程只读文件，执行在渲染层 Blob worker */
     readWindowEntry: (id: string) => Promise<ApiResult<{ source: string; byteLength: number }>>
+    /** 外部窗口包管理（第 75 批）：禁用/启用/卸载 */
+    windowPackageDisable: (id: string) => Promise<ApiResult<null>>
+    windowPackageEnable: (id: string) => Promise<ApiResult<null>>
+    windowPackageUninstall: (id: string) => Promise<ApiResult<null>>
     /** 宿主插件（应用级能力：工具/提示）只读清单 */
     listHost: () => Promise<
       ApiResult<

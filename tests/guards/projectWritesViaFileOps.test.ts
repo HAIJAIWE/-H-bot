@@ -584,6 +584,10 @@ const ALLOWED: Record<string, Allowed> = {
     why: '【系统/非项目】插件设置（<userData>/plugins/plugin-settings.json）：路径 = userData + 固定目录/文件名，**不在任何项目里**（插件是应用级能力，不跟项目走），因此不需要 fileOps 的项目联动/冲刷屏障',
     counts: { writeFile: 1 },
   },
+  'src/main/services/plugins/windowPackageScanner.ts': {
+    why: '【系统/非项目】外部窗口包的管理动作（第 75 批）：根 = <userData>/plugins/windows，是**应用级**目录、不在任何项目里（管理的是用户手工放进来的窗口包，不跟项目走），因此不需要 fileOps 的项目联动/冲刷屏障。三种写各自的护栏：writeFile/unlink 只碰 `<包目录>/.disabled` 这个固定名标记文件，rm 只对整个包目录 recursive+force；目标目录一律由 `scanWindowPackages()` 现扫出来（即扫盘认得、声明合法的那个包），id 还先在 IPC 层过 `pluginWindowPackageIdSchema`，所以渲染层拿不到任意路径',
+    counts: { writeFile: 1, unlink: 1, rm: 1 },
+  },
   'src/main/services/builtinNodes/fileOperate.ts': {
     why: '【自带护栏】流程节点 file_operate：路径来自用户流程配置，节点自己按项目根解析并拒绝越界（见 fileOperateModes 测试）',
     counts: { copyFileSync: 1, renameSync: 1, unlinkSync: 1, writeFile: 1 },

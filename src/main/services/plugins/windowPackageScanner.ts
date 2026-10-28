@@ -7,7 +7,7 @@
 //
 // 本模块只读盘 + 校验 + 汇总，不 import electron：路径由调用方（IPC handler）传入，
 // 这样 node 测试可以直接给临时目录。
-import { readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { readdir, readFile, realpath, stat, writeFile, unlink, rm } from 'node:fs/promises'
 import { join, sep } from 'node:path'
 import {
   WINDOW_PACKAGE_ENTRY_MAX_BYTES,
@@ -19,10 +19,29 @@ import {
 } from '@shared/plugins/windowPackage'
 
 /**
+ * 这个包目录是否被用户禁用（第 75 批）：存在 `.disabled` 标记文件即禁用。
+ *
+ * 只看文件在不在、不看内容 —— 标记文件是**开关**，不是配置。
+ * 读不到（不存在 / 权限不够）一律按"没禁用"处理：禁用判断失败时应该照常加载，
+ * 而不是让一个统计错误把用户的窗口全关掉。
+ */
+async function isPackageDisabled(dir: string): Promise<boolean> {
+  try {
+    await stat(join(dir, '.disabled'))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * 扫描窗口包根目录。目录不存在 → 空结果（首次启动的正常情况，不是错误）。
  *
  * 排序：order 升序（小的优先当默认），同 order 按 id —— 保证下拉列表顺序稳定，
  * 不会因为目录枚举顺序变化导致"默认窗口"在重启后换人。
+ *
+ * 被禁用的包**照常返回**，只是带上 `disabled: true`：设置页要能看到它并一键启用，
+ * 真正的"跳过"发生在渲染层加载器（`bootstrapExternalWindowPlugins`）。
  */
 export async function scanWindowPackages(root: string): Promise<WindowPackageScanResult> {
   const packages: WindowPackageInfo[] = []
@@ -75,7 +94,11 @@ export async function scanWindowPackages(root: string): Promise<WindowPackageSca
       continue
     }
 
-    packages.push({ ...result.value, dir })
+    packages.push({
+      ...result.value,
+      dir,
+      ...((await isPackageDisabled(dir)) ? { disabled: true } : {}),
+    })
   }
 
   packages.sort((a, b) => (a.order ?? 5000) - (b.order ?? 5000) || a.id.localeCompare(b.id))
@@ -125,4 +148,30 @@ export async function readWindowPackageSource(
 
   const source = await readFile(fileReal, 'utf-8')
   return { source, byteLength: Buffer.byteLength(source, 'utf-8') }
+}
+
+/** 禁用一个窗口包（创建 .disabled 文件） */
+export async function disableWindowPackage(root: string, id: string): Promise<void> {
+  const scan = await scanWindowPackages(root)
+  const pkg = scan.packages.find(p => p.id === id)
+  if (!pkg) throw new Error(`找不到窗口包：${id}`)
+  const disabledPath = join(pkg.dir, '.disabled')
+  await writeFile(disabledPath, '', 'utf-8')
+}
+
+/** 启用一个已禁用的窗口包（删除 .disabled 文件） */
+export async function enableWindowPackage(root: string, id: string): Promise<void> {
+  const scan = await scanWindowPackages(root)
+  const pkg = scan.packages.find(p => p.id === id)
+  if (!pkg) throw new Error(`找不到窗口包：${id}`)
+  const disabledPath = join(pkg.dir, '.disabled')
+  await unlink(disabledPath).catch(() => {}) // 如果不存在也不报错
+}
+
+/** 卸载一个窗口包（删除整个目录） */
+export async function uninstallWindowPackage(root: string, id: string): Promise<void> {
+  const scan = await scanWindowPackages(root)
+  const pkg = scan.packages.find(p => p.id === id)
+  if (!pkg) throw new Error(`找不到窗口包：${id}`)
+  await rm(pkg.dir, { recursive: true, force: true })
 }

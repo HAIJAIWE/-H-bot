@@ -2,13 +2,16 @@
 //
 // 第 73 批：目录扫描。重点不是"能扫到好的"，而是**坏包不会拖垮整次扫描**：
 // 一个坏 manifest 只进 issues，其他窗口照常出现。
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  disableWindowPackage,
+  enableWindowPackage,
   readWindowPackageSource,
   scanWindowPackages,
+  uninstallWindowPackage,
 } from '../../../../src/main/services/plugins/windowPackageScanner'
 import { WINDOW_PACKAGE_ENTRY_MAX_BYTES } from '../../../../src/shared/plugins/windowPackage'
 
@@ -108,5 +111,63 @@ describe('readWindowPackageSource（第 74 批）', () => {
     await writePackage('big', manifest('big.pkg', { entry: 'entry.js' }))
     await writeFile(join(root, 'big', 'entry.js'), 'x'.repeat(WINDOW_PACKAGE_ENTRY_MAX_BYTES + 1), 'utf-8')
     await expect(readWindowPackageSource(root, 'big.pkg')).rejects.toThrow('KB')
+  })
+})
+
+// =============================================================================
+// 第 75 批：管理动作（禁用 / 启用 / 卸载）
+// =============================================================================
+//
+// 这三个动作都是**写盘**，所以测试重点不是"UI 能不能点"，而是：
+//   · 禁用真的留在一个**跟着包走**的地方（目录里的标记文件），而扫描能看见它；
+//   · 启用是真正撤销禁用（不是"再写一个相反的标记"，否则两个标记谁赢就说不清了）；
+//   · 三个动作都拒绝管理**扫盘不认得的 id** —— 这是它们和 `rm -rf 用户给的路径`
+//     之间的唯一区别。
+describe('窗口包管理动作（第 75 批）', () => {
+  it('禁用 = 写 .disabled 标记；扫描照常返回这个包，只是带 disabled:true', async () => {
+    await writePackage('a-dir', manifest('a.pkg'))
+
+    await disableWindowPackage(root, 'a.pkg')
+
+    await expect(stat(join(root, 'a-dir', '.disabled'))).resolves.toBeDefined()
+    const { packages } = await scanWindowPackages(root)
+    expect(packages).toHaveLength(1)
+    expect(packages[0]?.disabled).toBe(true)
+  })
+
+  it('启用 = 删掉标记（幂等：本来没禁用也不算错）', async () => {
+    await writePackage('a-dir', manifest('a.pkg'))
+    await disableWindowPackage(root, 'a.pkg')
+
+    await enableWindowPackage(root, 'a.pkg')
+
+    await expect(stat(join(root, 'a-dir', '.disabled'))).rejects.toThrow()
+    const { packages } = await scanWindowPackages(root)
+    expect(packages[0]?.disabled).toBeUndefined()
+    // 第二次启用（已经没有标记）：不该抛 —— 用户连点两下不是错误
+    await expect(enableWindowPackage(root, 'a.pkg')).resolves.toBeUndefined()
+  })
+
+  it('卸载 = 删整个包目录', async () => {
+    await writePackage('a-dir', manifest('a.pkg'))
+
+    await uninstallWindowPackage(root, 'a.pkg')
+
+    await expect(stat(join(root, 'a-dir'))).rejects.toThrow()
+    const { packages } = await scanWindowPackages(root)
+    expect(packages).toHaveLength(0)
+  })
+
+  it('扫盘不认得的 id → 三个动作都抛错，且不动任何目录', async () => {
+    await writePackage('good-dir', manifest('good.pkg'))
+    // 坏包：manifest 不合法 ⇒ 不在 packages 里，也没有可管理的身份
+    await writePackage('broken-dir', '{ not json')
+
+    await expect(disableWindowPackage(root, 'nope.pkg')).rejects.toThrow('找不到窗口包')
+    await expect(enableWindowPackage(root, 'nope.pkg')).rejects.toThrow('找不到窗口包')
+    await expect(uninstallWindowPackage(root, 'nope.pkg')).rejects.toThrow('找不到窗口包')
+    // 连坏包目录也不该被"顺手删掉" —— 它只是没资格被管理，不是垃圾
+    await expect(stat(join(root, 'broken-dir'))).resolves.toBeDefined()
+    await expect(stat(join(root, 'good-dir'))).resolves.toBeDefined()
   })
 })

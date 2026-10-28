@@ -355,6 +355,27 @@
     "entryReadFailed": "Cannot read the window package entry file",
     "workerError": "Window package code failed to run"
   },
+  "externalWindowManager": {
+    "label": "Installed Window Packages",
+    "name": "Name",
+    "version": "Version",
+    "issues": "Issues",
+    "status": "Status",
+    "actions": "Actions",
+    "disabled": "Disabled",
+    "enabled": "Enabled",
+    "enable": "Enable",
+    "disable": "Disable",
+    "uninstall": "Uninstall",
+    "uninstallConfirm": "Are you sure you want to uninstall '{name}'? This action cannot be undone.",
+    "noPackages": "No installed external window packages",
+    "refresh": "Rescan",
+    "working": "Working…"
+  },
+  "actions": {
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
   "ai": {
     "send": "Send",
     "generating": "Generating...",

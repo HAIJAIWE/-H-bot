@@ -102,3 +102,6 @@ export const saveSchemaSchema = z.tuple([
   z.string().min(1),
   z.record(z.string(), z.unknown()),
 ])
+
+/** plugin:windowPackageDisable/Enable/Uninstall */
+export const pluginWindowPackageIdSchema = z.object({ id: z.string().regex(WINDOW_PACKAGE_ID_RE) })

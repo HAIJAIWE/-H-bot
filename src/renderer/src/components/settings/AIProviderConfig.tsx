@@ -12,6 +12,7 @@ import { useLocaleSubscription } from '../../stores/i18nStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUiStore } from '../../stores/uiStore';
 import { listAgentSurfaces } from '../../lib/ai/agentSurface';
+import { ExternalWindowManager } from '../ai/ExternalWindowManager';
 
 interface Props {
   onClose: () => void;
@@ -574,6 +575,14 @@ export function AIProviderConfig({ onClose, onSaved }: Props) {
               count: listAgentSurfaces().length,
             })}
           </p>
+
+          {/* ── 已安装的窗口包（第 75 批）──────────────────────────────
+              上一步是"选哪个窗口"，这里是"那些候选都是从哪来的"：外部窗口包是
+              `<userData>/plugins/windows/` 下的目录，装错了要能在这里停掉/删掉，
+              而不是让用户自己去文件管理器里翻。 */}
+          <div className="mt-3">
+            <ExternalWindowManager />
+          </div>
         </div>
       </div>
     </Modal>

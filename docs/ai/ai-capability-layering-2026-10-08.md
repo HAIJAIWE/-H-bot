@@ -182,7 +182,7 @@ terminal = 终端
 | crash           | 6    | –   | 3   | 2   | –   | –   | 1   | —                              |
 | resourceMonitor | 10   | –   | 3   | 3   | –   | –   | 4   | —                              |
 | stateStore      | 10   | –   | 5   | 5   | –   | –   | –   | clearAll ★★★                   |
-| plugin          | 21   | –   | 9   | 12  | –   | –   | –   | install ★★★                    |
+| plugin          | 24   | –   | 9   | 12  | 3   | –   | –   | install ★★★                    |
 | adapter         | 3    | –   | 2   | 1   | –   | –   | –   | —                              |
 | official        | 15   | –   | 4   | 9   | –   | –   | 2   | sendMessage ★★★                |
 | aiProvider      | 4    | –   | 3   | 1   | –   | –   | –   | —                              |
@@ -190,7 +190,7 @@ terminal = 终端
 | docker          | 3    | –   | –   | 1   | 1   | –   | 1   | 生成部署件                     |
 | ssh             | 3    | –   | 1   | 1   | –   | –   | 1   | **★★★ 远程部署**               |
 
-**小计**：R **0** · Q **87** · M **104** · P **8** · ⛔ **3** · X **91**（合计 **293** ✓）
+**小计**：R **0** · Q **87** · M **104** · P **11** · ⛔ **3** · X **91**（合计 **296** ✓）
 
 > X + ⛔ = **92** 个能力**不进模型工具表**；Q + M = **190 个**是「谁控制」意义上的候选 —— **是否放行仍由附录 B / C 决定**（层不说明「已开放」）。
 
@@ -566,6 +566,9 @@ plugin.getSettings = Q
 plugin.listHost = Q
 plugin.listInstalled = Q
 plugin.listWindows = Q
+plugin.windowPackageDisable = P
+plugin.windowPackageEnable = P
+plugin.windowPackageUninstall = P
 plugin.marketInspect = Q
 plugin.marketList = Q
 plugin.readWindowEntry = Q
@@ -629,7 +632,7 @@ terminal.write = F
 terminal.onData = X
 ```
 
-**附录小计**：R 0 · Q 87 · M 104 · P 8 · ⛔ F 3 · X 89 = **291**
+**附录小计**：R 0 · Q 87 · M 104 · P 11 · ⛔ F 3 · X 89 = **294**
 
 ---
 

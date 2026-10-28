@@ -354,6 +354,9 @@ export const CAPABILITIES_BY_DOMAIN: Record<string, string[]> = {
     'plugin.setEnabled',
     'plugin.setHostEnabled',
     'plugin.unload',
+    'plugin.windowPackageDisable',
+    'plugin.windowPackageEnable',
+    'plugin.windowPackageUninstall',
   ],
   数据: [
     'audit.list',

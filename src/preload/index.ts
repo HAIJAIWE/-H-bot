@@ -994,6 +994,11 @@ const api = {
     listWindows: () => ipcRenderer.invoke('plugin:listWindows'),
     /** 可执行窗口包的入口源码（第 74 批）：主进程只读文件，执行在渲染层 Blob worker */
     readWindowEntry: (id: string) => ipcRenderer.invoke('plugin:readWindowEntry', { id }),
+    /** 外部窗口包管理（第 75 批）：禁用/启用/卸载 */
+    windowPackageDisable: (id: string) => ipcRenderer.invoke('plugin:windowPackageDisable', { id }),
+    windowPackageEnable: (id: string) => ipcRenderer.invoke('plugin:windowPackageEnable', { id }),
+    windowPackageUninstall: (id: string) =>
+      ipcRenderer.invoke('plugin:windowPackageUninstall', { id }),
     /** 宿主插件（应用级能力）清单：id/name/version/enabled/source/permissions/settings/tools */
     listHost: () => ipcRenderer.invoke('plugin:listHost'),
     setHostEnabled: (id: string, enabled: boolean) =>

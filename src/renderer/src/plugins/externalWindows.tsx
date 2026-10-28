@@ -88,6 +88,12 @@ export async function bootstrapExternalWindowPlugins(
   let registered = 0
   let issues = result.data.issues.length
   for (const spec of result.data.packages) {
+    /**
+     * 用户禁用的包（第 75 批）：**不注册**，但也不删 —— 设置页里还能看到它、
+     * 一键启用。扫描侧照常返回它（带 `disabled: true`），跳过发生在这里，
+     * 这样"禁用"是个可撤销的动作，而不是一场静默的删除。
+     */
+    if (spec.disabled) continue
     try {
       registerExternalWindowPackage(spec)
       registered += 1

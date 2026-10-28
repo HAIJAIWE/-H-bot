@@ -4449,3 +4449,68 @@ P1：把 `agent-core` 抽成不依赖 Electron 的 `AgentRuntime`（teammate `ru
 - 可执行窗口的**依赖/资源**声明（多文件包、import map、worker 内 importScripts 的替代方案）。
 - 插件管理页：列 `issues`、一键停用/卸载（现在只能删目录重启）。
 - 插槽（slot）外置：现在只有整窗这一种外部贡献形态。
+
+---
+
+## §75 第 75 批：外部窗口包管理面板（2026-10-28）
+
+### 75.1 为什么
+
+§74.9 记的第二步。第 74 批之后窗口包已经能跑一段第三方代码，但**装错了没法收拾**：清单一坏，窗口静默消失、用户也不知道该去 `%APPDATA%\qqbat\plugins\windows` 底下看什么；想停用一个包只能删目录重启；重启后还留在盘上的"坏包"每次都要重新扫一遍。本批只做三件事：**看得见 / 停得掉 / 删得掉**，不做市场、依赖、升级。
+
+### 75.2 持久事实：包目录里的 `.disabled` 标记文件
+
+- 窗口包是用户手工拷进 `<userData>/plugins/windows/` 的目录，**没有覆盖层可写**（不像插件有 `plugins.patch.json` 可写一行 `{ id, disabled }`），所以"禁用"必须是**盘上的事实**。
+- 选了包目录里的空文件 `.disabled`，而不是往某个配置文件里写一行：标记**跟着包走** —— 把整个目录拷到另一台机器，禁用状态一起过去；把目录删了，状态自然消失，不会在配置里留下指向空气的行。
+- `scanWindowPackages` 照常**返回**被禁用的包，只是带上 `disabled: true`（设置页要能看到它并一键启用）；真正的"跳过"发生在渲染层加载器：`bootstrapExternalWindowPlugins` 里 `if (spec.disabled) continue`。
+- 读不到标记（不存在 / 权限不够）一律按"没禁用"：禁用判断失败时应该照常加载，而不是让一个统计错误把用户的窗口全关掉。
+
+### 75.3 三个管理动作（`windowPackageScanner.ts`）
+
+`disableWindowPackage` / `enableWindowPackage` / `uninstallWindowPackage`，签名都是 `(root: string, id: string): Promise<void>`：
+
+- 三者都先 `scanWindowPackages(root)` 找到那个包 —— **只管理扫盘认得的包**，认不得的 id 抛 `找不到窗口包：<id>`。这个前置查询是它们与"`rm -rf` 渲染层给的路径"之间唯一的区别，不能省。
+- 禁用 → `writeFile(<pkg.dir>/.disabled, '')`；启用 → `unlink(...).catch(() => {})`（本来没禁用不算错，否则连点两下会报错）；卸载 → `rm(<pkg.dir>, { recursive: true, force: true })`。
+- 目标目录一律来自扫描结果（不是用户输入拼的），id 还先在 IPC 层过 `pluginWindowPackageIdSchema`（`WINDOW_PACKAGE_ID_RE`），所以渲染层拿不到任意路径。
+
+### 75.4 IPC / preload / 类型
+
+三个新通道 `plugin:windowPackageDisable` / `plugin:windowPackageEnable` / `plugin:windowPackageUninstall`，payload `{ id }`、zod 校验、校验失败返回 `{ ok:false, error }` 不抛，成功返回 `ApiResult<null>`。
+
+### 75.5 面板（`renderer/components/ai/ExternalWindowManager.tsx`）
+
+挂在 设置 → 智能体窗口 区块下面（第 69 批那个下拉的下方）。
+
+- 列表列：名称(+id) / 版本 / 状态 / 操作；「禁用/启用」是一个按钮（按当前状态切换）、「卸载」是**行内两步确认**（第一下把按钮换成"确认/取消"，第二下才真删）、「重新扫描」重新读目录（手工拷了新包不用重启）。
+- **不用 `alert` / `window.confirm`**：本仓渲染层零处使用（原生弹窗不在主题里，也没法给按钮做 i18n）。失败时把主进程的 `error` 原样显示在面板里 —— 这类失败原因通常很具体（包已不在盘上 / 目录只读）。
+- 每次写操作之后都重新扫盘：界面状态永远来自主进程的真话，不是本地猜测着改。
+- 卸载的确认条**另起一行**（`<td colSpan={4}>`），不塞在「操作」格里。真机上先试过塞进格子：一句「确定要卸载「演示窗口（外部包）」吗？此操作不可撤销。」进去，表格自动挤压列宽，状态列被挤成「已禁/用」两行、版本列断行，整个表塌掉。截图见 `_recovery/ui-batch75-uninstall-confirm.png`。
+- 坏包（清单解析失败 / 字段不合法 / id 重复）**不在列表里**，单独列在面板底部的「问题」块（带 manifest 绝对路径 + 原因）。它们和列表里的包是两组互不重叠的集合：一个包要么进了列表（没问题），要么在问题里。给它们做"禁用"是没有意义的（没有可信 id、也不知道声明是否合法），所以本批**不假装能管理**它们。
+
+### 75.6 能力台账
+
+附录 A 增 3 条 `plugin.windowPackageDisable = P` / `plugin.windowPackageEnable = P` / `plugin.windowPackageUninstall = P`；总表 plugin 21→24、P 0→3；小计 P 8→11、合计 293→296；附录小计 291→294；生成物重生成（296 条 channel）。
+
+### 75.7 涉及文件
+
+新增：`renderer/components/ai/ExternalWindowManager.tsx`（约 240 行）、`_recovery/cdp-batch75.mjs`（真机脚本）。
+
+改：`shared/plugins/windowPackage.ts`（`WindowPackageInfo.disabled`）、`main/services/plugins/windowPackageScanner.ts`（读标记 + 3 个动作）、`main/ipc/plugins.ts`（+3 通道）、`main/schemas/plugins.ts`（+`pluginWindowPackageIdSchema`）、`preload/index.ts`、`renderer/types/ipc.ts`、`renderer/plugins/externalWindows.tsx`（跳过 disabled）、`renderer/components/settings/AIProviderConfig.tsx`（挂载）、两份 i18n（+`externalWindowManager` 命名空间、+`actions.confirm/cancel`）、`docs/ai/ai-capability-layering-2026-10-08.md`、`examples/window-packages/README.md`、`tests/guards/projectWritesViaFileOps.test.ts`（登记 3 处直写）。
+
+测试：`tests/main/services/plugins/windowPackageScanner.test.ts` +4 例（禁用留标记且扫描可见 / 启用幂等 / 卸载删目录 / 未知 id 三个动作都拒绝且不动坏包目录），`tests/renderer/plugins/externalWindows.test.ts` +1 例（禁用的包不注册，也不算 issue），`tests/renderer/components/ai/ExternalWindowManager.test.tsx` 新增 6 例（列表照抄扫描结果 / 启用走 enable 通道且之后重扫 / 卸载行内两步 / 取消不调通道 / 坏包只在「问题」里 / 动作失败原样显示 error）。
+
+### 75.8 闸门
+
+- typecheck node/web 0 错误；全量 vitest **326 文件 / 4020 例通过**（7 skip）；改动的 src 文件 prettier 干净（`AIProviderConfig.tsx` 在本批之前就不是 prettier 风格 —— 本批只加 9 行，没有顺手把整个文件重排，那是别人的账）。
+- 组件测试当场抓到一个真 bug：`runAction` 先把动作的 error 写进 state，紧接着 `refresh()` 扫盘成功又把它清空 —— 于是"禁用失败"在界面上什么都不显示。修法是把顺序反过来：**先扫盘、后落错误**（见 75.5 注释）。
+- 本批撞过的 5 个闸门，都是"新能力必须先登记"这一类：能力台账（总表 vs 附录 vs preload 三方一致）、`ipcSurfaceParity`（preload 调了通道，主进程必须真有 handler）、`projectWritesViaFileOps`（3 处直写登记为【系统/非项目】）、`orphanKeys`（`externalWindowManager.label` 真用起来，不删键糊过去）、`deadExports`（4 个零引用导出全部接上，没往基线里塞）。
+- 真机验收（`_recovery/ui-batch75-panel.png`、`ui-batch75-uninstall-confirm.png`）：设置 → 智能体窗口下面出现「已安装的窗口包」，两个 demo 包按真实状态显示（我在 `demo.executable/` 里放了 `.disabled` → 显示「已禁用」+「启用」按钮），塞了一个坏清单目录 → 只出现在底部「问题」里带绝对路径与 JSON 错误原文；点「卸载」换出确认条（没有原生弹窗）。看完删掉了那两个夹具、没有留下痕迹。
+
+**真机怎么起（本机踩了三坑，下次别重踩）**：`node scripts/ensure-sqlite.js electron` → `npx electron-vite build` → 起 `node_modules/electron/dist/electron.exe . --no-sandbox --disable-gpu --remote-debugging-port=9333`，然后 `node _recovery/cdp-batch75.mjs`。三坑：① 环境里有 `ELECTRON_RUN_AS_NODE=1`，不删掉它 electron 会当 node 跑（报 `electron.app.getAppPath()` undefined 或直接 `v24.x` 版本号）；② 单实例锁在本机打不开（`process_singleton_win.cc:457 Lock file can not be created! Error code: 5`），要带 `QQBAT_ALLOW_MULTI_INSTANCE=1` 才起得来；③ 看完记得 `node scripts/ensure-sqlite.js node` 切回 node ABI，否则 vitest 全部起不来。
+
+### 75.9 已知限制 / 下一步
+
+- 坏包只能按问题里的绝对路径手工清理（或改好清单再「重新扫描」）。要一键清理，需要一条**只接受 `<root>` 直接子目录名**的通道（先 `readdir` 确认是直接子目录再 `rm`）—— 不要直接收绝对路径，那等于把 `rm -rf` 交给渲染层。
+- 面板还是 设置 → 智能体窗口 里的一个区块，不是独立的插件管理页；`plugin.*` 里其余插件（AI 插件 / 市场）仍是 `InstalledPluginsList` 的只读视图。
+- 禁用没有"停掉已经在界面上的那个窗口"这件事：窗口注册发生在启动期（`bootstrapExternalWindowPlugins`），禁用后要重启才看不到它 —— 要立刻生效得把注册表做成可热撤销的，那是另一个批次。
+

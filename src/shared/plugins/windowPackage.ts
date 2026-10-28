@@ -256,6 +256,15 @@ export function windowPackagePartEnabled(
 /** 扫描出来的一条窗口包：清单 + 它所在的绝对路径（排查问题用） */
 export interface WindowPackageInfo extends WindowPackageManifest {
   dir: string
+  /**
+   * 用户把它禁用了（第 75 批）：包目录里有 `.disabled` 标记文件。
+   *
+   * 为什么用"目录里的标记文件"而不是配置里的一行：窗口包是用户自己拷进
+   * `<userData>/plugins/windows/` 的目录，没有覆盖层可写；标记文件是唯一
+   * **跟着包走**的持久事实 —— 把整个目录拷到另一台机器，禁用状态一起过去。
+   * 语义 = 加载器跳过它，但文件都还在（随时可启用），有别于卸载。
+   */
+  disabled?: boolean
 }
 
 /** 一条扫描问题：`file` 是 manifest 的绝对路径（给人看的） */

@@ -355,6 +355,27 @@
     "entryReadFailed": "读不到窗口包入口文件",
     "workerError": "窗口包代码运行出错"
   },
+  "externalWindowManager": {
+    "label": "已安装的窗口包",
+    "name": "名称",
+    "version": "版本",
+    "issues": "问题",
+    "status": "状态",
+    "actions": "操作",
+    "disabled": "已禁用",
+    "enabled": "已启用",
+    "enable": "启用",
+    "disable": "禁用",
+    "uninstall": "卸载",
+    "uninstallConfirm": "确定要卸载「{name}」吗？此操作不可撤销。",
+    "noPackages": "没有已安装的外部窗口包",
+    "refresh": "重新扫描",
+    "working": "处理中…"
+  },
+  "actions": {
+    "confirm": "确认",
+    "cancel": "取消"
+  },
   "ai": {
     "send": "发送",
     "generating": "生成中...",
