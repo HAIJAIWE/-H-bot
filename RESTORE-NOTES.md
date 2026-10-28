@@ -26,7 +26,7 @@
 
 ## 源码的四类来源（判断一个文件可信度先看头注释）
 
-1. **Vite dev 缓存原版（最可信）** —— 本机 `C:\Users\Administrator\AppData\Roaming\qqbat\Cache\Cache_Data\` 里 Chromium 缓存存的是 **Vite 转换后的 ESM 源码**，大量 `f_*` 块带 inline sourcemap，`sourcesContent` 就是原始 .tsx/.ts（带类型、带 JSX）。已导出 93 个文件到 `_recovery/vite-src/`，清单 `_recovery/vite-cache-meta.json`。
+1. **Vite dev 缓存原版（最可信）** —— 本机 `<USERPROFILE>\AppData\Roaming\qqbat\Cache\Cache_Data\` 里 Chromium 缓存存的是 **Vite 转换后的 ESM 源码**，大量 `f_*` 块带 inline sourcemap，`sourcesContent` 就是原始 .tsx/.ts（带类型、带 JSX）。已导出 93 个文件到 `_recovery/vite-src/`，清单 `_recovery/vite-cache-meta.json`。
 2. **10/18 生产包 region 移植** —— `D:\tmp\hbot-out\out\main\*.js` 与 `renderer-index.js` 未压缩、按 `//#region src/...` 分块，可整段搬回。凡头注释写「本文件从 10/18 编译产物还原」的（236 个文件）属此类：**逻辑真、类型假**（类型被剥掉，注解是后来补的/或干脆没有）。
 3. **旧基线 + 磁带重放** —— Trae CN 本地历史（最新只到 2026-09-22）+ DSH 会话磁带（`E:/qqbat-tapes/*.jsonl`、`_recovery/live-session.jsonl`）里的 read/write/edit 事件。重放器在 `_recovery/replay-file.mjs`（用 TS 编译器 parse 每步快照做校验），产物在 `_recovery/replayed/`。**注意**：旧重放脚本有个致命 bug——把「局部读」整段覆写进行号，版本漂移时写坏文件；本轮损坏就是它造成的，不要再用老脚本。
 4. **按消费方重建** —— 模块整体丢了、只剩 import 痕迹时，按调用方签名 + 产物 region 反向重建（如 `src/shared/types/runtime.ts`、`src/shared/types/pagination.ts`、`src/shared/types/buttonPanel.ts`、`src/main/ipc/file.ts`、`src/main/ipc/customNode.ts`、`src/main/schemas/project.ts`）。头注释会写清依据。
